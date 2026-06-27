@@ -65,6 +65,8 @@ const S = {
 // ── DOM refs ────────────────────────────────────────────
 const canvas = document.getElementById('main-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const overlayCanvas = document.getElementById('overlay-canvas');
+const overlayCtx = overlayCanvas.getContext('2d');
 const hiddenImgs = document.getElementById('hidden-imgs');
 
 // ── Utilities ───────────────────────────────────────────
@@ -74,11 +76,20 @@ const uid = () => 'id' + (++_uidCounter) + '_' + Date.now();
 function getActiveMandala() { return S.mandalas[S.activeIdx] || null; }
 
 function canvasPos(e) {
-  const r = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / r.width;
-  const scaleY = canvas.height / r.height;
+  const cc = document.getElementById('canvas-container');
+  const r = cc.getBoundingClientRect();
   const src = e.touches ? e.touches[0] : e;
-  return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
+  const { panX, panY, zoom } = S.viewport;
+  return {
+    x: (src.clientX - r.left - panX) / zoom,
+    y: (src.clientY - r.top  - panY) / zoom,
+  };
+}
+
+// Convert canvas-space point to overlay/screen-space point
+function canvasToScreen(cx, cy) {
+  const { panX, panY, zoom } = S.viewport;
+  return { x: panX + cx * zoom, y: panY + cy * zoom };
 }
 
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -508,8 +519,18 @@ function zoomAt(factor, clientX, clientY) {
   applyViewport();
 }
 
+function sizeOverlay() {
+  const cc = document.getElementById('canvas-container');
+  overlayCanvas.width  = cc.clientWidth;
+  overlayCanvas.height = cc.clientHeight;
+}
+
 function wireViewport() {
   const cc = document.getElementById('canvas-container');
+
+  // Keep overlay sized to container
+  const ro = new ResizeObserver(sizeOverlay);
+  ro.observe(cc);
 
   // Ctrl+Wheel = zoom; Wheel alone = pan
   cc.addEventListener('wheel', e => {
@@ -927,6 +948,127 @@ function render(timestamp) {
     ctx.arc(S.mousePos.x, S.mousePos.y, 1.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  renderOverlay();
+}
+
+function spriteCanvasCenter(spr, m) {
+  if (spr.warpMode) return warpArcCenter(spr, m);
+  return { x: m.cx + spr.x, y: m.cy + spr.y };
+}
+
+function isSpriteOffCanvas(spr, m) {
+  const { x, y } = spriteCanvasCenter(spr, m);
+  const margin = 60;
+  return x < -margin || x > S.canvasW + margin || y < -margin || y > S.canvasH + margin;
+}
+
+function renderOverlay() {
+  overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+  const { panX, panY, zoom } = S.viewport;
+
+  // Draw ghost for each off-canvas sprite
+  for (const m of S.mandalas) {
+    if (!m.visible) continue;
+    for (const spr of m.sprites) {
+      if (!isSpriteOffCanvas(spr, m)) continue;
+      const { x: cx, y: cy } = spriteCanvasCenter(spr, m);
+      const sx = panX + cx * zoom;
+      const sy = panY + cy * zoom;
+
+      const item = getPaletteItem(spr.paletteId);
+      const drawable = item ? getDrawableImage(item) : null;
+      const iw = (drawable ? (drawable.width || drawable.naturalWidth) : 32) * spr.scale * zoom;
+      const ih = (drawable ? (drawable.height || drawable.naturalHeight) : 32) * spr.scale * zoom;
+
+      overlayCtx.save();
+      overlayCtx.translate(sx, sy);
+      overlayCtx.rotate(spr.warpMode ? 0 : spr.rotation);
+
+      // Ghost fill
+      overlayCtx.globalAlpha = 0.25;
+      if (drawable) {
+        const item2 = getPaletteItem(spr.paletteId);
+        if (item2?.img) overlayCtx.drawImage(item2.img, -iw / 2, -ih / 2, iw, ih);
+      } else {
+        overlayCtx.fillStyle = '#7c6af0';
+        overlayCtx.fillRect(-16 * zoom, -16 * zoom, 32 * zoom, 32 * zoom);
+      }
+
+      // Dashed border
+      overlayCtx.globalAlpha = 0.7;
+      overlayCtx.strokeStyle = '#7c6af0';
+      overlayCtx.lineWidth = 1.5;
+      overlayCtx.setLineDash([5, 3]);
+      overlayCtx.strokeRect(-iw / 2, -ih / 2, iw, ih);
+      overlayCtx.setLineDash([]);
+
+      // Arrow pointing toward canvas centre
+      const toCanvasCx = panX + (S.canvasW / 2) * zoom;
+      const toCanvasCy = panY + (S.canvasH / 2) * zoom;
+      const ang = Math.atan2(toCanvasCy - sy, toCanvasCx - sx);
+      overlayCtx.restore(); // unrotate for arrow
+      overlayCtx.save();
+      overlayCtx.translate(sx, sy);
+      overlayCtx.globalAlpha = 0.8;
+      overlayCtx.strokeStyle = '#7c6af0';
+      overlayCtx.lineWidth = 1.5;
+      const arrowLen = Math.min(iw / 2, ih / 2, 20) + 8;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(Math.cos(ang) * (Math.max(iw, ih) / 2 + 4), Math.sin(ang) * (Math.max(iw, ih) / 2 + 4));
+      const ax = Math.cos(ang) * arrowLen;
+      const ay = Math.sin(ang) * arrowLen;
+      overlayCtx.lineTo(ax, ay);
+      // arrowhead
+      overlayCtx.lineTo(ax - Math.cos(ang - 0.4) * 6, ay - Math.sin(ang - 0.4) * 6);
+      overlayCtx.moveTo(ax, ay);
+      overlayCtx.lineTo(ax - Math.cos(ang + 0.4) * 6, ay - Math.sin(ang + 0.4) * 6);
+      overlayCtx.stroke();
+      overlayCtx.restore();
+    }
+  }
+
+  // Draw selection handles on overlay when selected sprite is off-canvas
+  if (S.selectedSpriteId && S.tool === 'select') {
+    const found = findSprite(S.selectedSpriteId);
+    if (found && isSpriteOffCanvas(found.sprite, found.mandala)) {
+      const spr = found.sprite;
+      const m = found.mandala;
+      const item = getPaletteItem(spr.paletteId);
+      const drawable = item ? getDrawableImage(item) : null;
+      const iw = (drawable ? (drawable.width || drawable.naturalWidth) : 32) * spr.scale * zoom;
+      const ih = (drawable ? (drawable.height || drawable.naturalHeight) : 32) * spr.scale * zoom;
+      const { x: cx, y: cy } = spriteCanvasCenter(spr, m);
+      const sx = panX + cx * zoom;
+      const sy = panY + cy * zoom;
+      const rot = spr.warpMode ? 0 : spr.rotation;
+      const hr = HANDLE_RADIUS;
+
+      overlayCtx.save();
+      overlayCtx.translate(sx, sy);
+      overlayCtx.rotate(rot);
+
+      overlayCtx.strokeStyle = '#7c6af0';
+      overlayCtx.lineWidth = 1.5;
+      overlayCtx.setLineDash([4, 3]);
+      overlayCtx.globalAlpha = 0.9;
+      overlayCtx.strokeRect(-iw / 2, -ih / 2, iw, ih);
+      overlayCtx.setLineDash([]);
+
+      for (const [hx, hy] of [[-iw/2,-ih/2],[iw/2,-ih/2],[iw/2,ih/2],[-iw/2,ih/2]]) {
+        overlayCtx.fillStyle = '#fff'; overlayCtx.strokeStyle = '#7c6af0';
+        overlayCtx.beginPath(); overlayCtx.arc(hx, hy, hr, 0, Math.PI * 2);
+        overlayCtx.fill(); overlayCtx.stroke();
+      }
+      overlayCtx.strokeStyle = '#7c6af0';
+      overlayCtx.beginPath(); overlayCtx.moveTo(0, -ih / 2); overlayCtx.lineTo(0, -ih / 2 - 24); overlayCtx.stroke();
+      overlayCtx.fillStyle = '#ffe66d'; overlayCtx.beginPath(); overlayCtx.arc(0, -ih / 2 - 24, hr, 0, Math.PI * 2); overlayCtx.fill(); overlayCtx.stroke();
+      overlayCtx.fillStyle = '#7c6af0'; overlayCtx.beginPath(); overlayCtx.arc(0, 0, hr, 0, Math.PI * 2); overlayCtx.fill();
+
+      overlayCtx.restore();
+    }
   }
 }
 
@@ -2258,11 +2400,11 @@ function addMandala() {
 
 // ── Event wiring ─────────────────────────────────────────
 function wireEvents() {
-  // Canvas events
-  canvas.addEventListener('mousedown', onMouseDown);
-  canvas.addEventListener('mousemove', onMouseMove);
-  canvas.addEventListener('mouseup', onMouseUp);
-  canvas.addEventListener('mouseleave', e => { S.mousePos = null; if (S.drawing) onMouseUp(e); });
+  // Tool events go on overlay (covers full container incl. off-canvas area)
+  overlayCanvas.addEventListener('mousedown', e => { if (!S.spaceDown && e.button !== 1) onMouseDown(e); });
+  overlayCanvas.addEventListener('mousemove', onMouseMove);
+  overlayCanvas.addEventListener('mouseup', onMouseUp);
+  overlayCanvas.addEventListener('mouseleave', e => { S.mousePos = null; if (S.drawing) onMouseUp(e); });
 
   // Toolbar
   document.getElementById('btn-new').addEventListener('click', newProject);

@@ -83,12 +83,20 @@ body {
 }
 #main-canvas {
   display: block;
-  cursor: crosshair;
   position: absolute;
   top: 0;
   left: 0;
   transform-origin: top left;
   box-shadow: 0 0 40px rgba(124,106,240,0.15), 0 0 0 1px var(--border);
+  z-index: 1;
+}
+#overlay-canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  cursor: crosshair;
 }
 
 /* ── Right panel ── */
