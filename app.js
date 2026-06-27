@@ -964,109 +964,172 @@ function isSpriteOffCanvas(spr, m) {
   return x < -margin || x > S.canvasW + margin || y < -margin || y > S.canvasH + margin;
 }
 
+// Clamp a screen position to within the overlay canvas with padding.
+// Returns { x, y, clamped: bool }
+function clampToOverlay(sx, sy, pad = 24) {
+  const ow = overlayCanvas.width, oh = overlayCanvas.height;
+  const cx = Math.max(pad, Math.min(ow - pad, sx));
+  const cy = Math.max(pad, Math.min(oh - pad, sy));
+  return { x: cx, y: cy, clamped: Math.abs(cx - sx) > 0.5 || Math.abs(cy - sy) > 0.5 };
+}
+
+function drawOverlayEdgeIndicator(sx, sy, trueSx, trueSy, color, label) {
+  // Draw at clamped position an arrow pointing toward the true off-screen position
+  const ang = Math.atan2(trueSy - sy, trueSx - sx);
+  const r = 16;
+  overlayCtx.save();
+  overlayCtx.translate(sx, sy);
+  overlayCtx.globalAlpha = 0.85;
+  overlayCtx.fillStyle = color;
+  overlayCtx.beginPath();
+  overlayCtx.arc(0, 0, r, 0, Math.PI * 2);
+  overlayCtx.fill();
+  overlayCtx.strokeStyle = '#fff';
+  overlayCtx.lineWidth = 1.5;
+  overlayCtx.stroke();
+  // Arrow
+  overlayCtx.strokeStyle = '#fff';
+  overlayCtx.lineWidth = 2;
+  overlayCtx.beginPath();
+  overlayCtx.moveTo(0, 0);
+  const al = r - 4;
+  overlayCtx.lineTo(Math.cos(ang) * al, Math.sin(ang) * al);
+  overlayCtx.lineTo(Math.cos(ang - 0.5) * (al - 5), Math.sin(ang - 0.5) * (al - 5));
+  overlayCtx.moveTo(Math.cos(ang) * al, Math.sin(ang) * al);
+  overlayCtx.lineTo(Math.cos(ang + 0.5) * (al - 5), Math.sin(ang + 0.5) * (al - 5));
+  overlayCtx.stroke();
+  if (label) {
+    overlayCtx.fillStyle = '#fff';
+    overlayCtx.font = 'bold 9px sans-serif';
+    overlayCtx.textAlign = 'center';
+    overlayCtx.textBaseline = 'bottom';
+    overlayCtx.fillText(label, 0, -r - 2);
+  }
+  overlayCtx.restore();
+}
+
+function drawOverlayGhost(sx, sy, iw, ih, rot, drawable, isSelected, mandalaColor) {
+  overlayCtx.save();
+  overlayCtx.translate(sx, sy);
+  overlayCtx.rotate(rot);
+
+  // Semi-transparent image or colour block
+  overlayCtx.globalAlpha = 0.35;
+  if (drawable && drawable.width) {
+    overlayCtx.drawImage(drawable, -iw / 2, -ih / 2, iw, ih);
+  } else {
+    overlayCtx.fillStyle = mandalaColor || '#7c6af0';
+    overlayCtx.fillRect(-iw / 2, -ih / 2, iw, ih);
+  }
+
+  // Dashed border
+  overlayCtx.globalAlpha = isSelected ? 1 : 0.7;
+  overlayCtx.strokeStyle = isSelected ? '#fff' : '#7c6af0';
+  overlayCtx.lineWidth = isSelected ? 2 : 1.5;
+  overlayCtx.setLineDash([5, 3]);
+  overlayCtx.strokeRect(-iw / 2, -ih / 2, iw, ih);
+  overlayCtx.setLineDash([]);
+
+  overlayCtx.restore();
+}
+
+function drawOverlayHandles(sx, sy, iw, ih, rot) {
+  const hr = HANDLE_RADIUS;
+  overlayCtx.save();
+  overlayCtx.translate(sx, sy);
+  overlayCtx.rotate(rot);
+  overlayCtx.globalAlpha = 1;
+
+  overlayCtx.strokeStyle = '#7c6af0';
+  overlayCtx.lineWidth = 1.5;
+  overlayCtx.setLineDash([4, 3]);
+  overlayCtx.strokeRect(-iw / 2, -ih / 2, iw, ih);
+  overlayCtx.setLineDash([]);
+
+  for (const [hx, hy] of [[-iw/2,-ih/2],[iw/2,-ih/2],[iw/2,ih/2],[-iw/2,ih/2]]) {
+    overlayCtx.fillStyle = '#fff'; overlayCtx.strokeStyle = '#7c6af0'; overlayCtx.lineWidth = 1.5;
+    overlayCtx.beginPath(); overlayCtx.arc(hx, hy, hr, 0, Math.PI * 2); overlayCtx.fill(); overlayCtx.stroke();
+  }
+  overlayCtx.strokeStyle = '#7c6af0'; overlayCtx.lineWidth = 1.5;
+  overlayCtx.beginPath(); overlayCtx.moveTo(0, -ih/2); overlayCtx.lineTo(0, -ih/2-24); overlayCtx.stroke();
+  overlayCtx.fillStyle = '#ffe66d'; overlayCtx.beginPath(); overlayCtx.arc(0, -ih/2-24, hr, 0, Math.PI*2); overlayCtx.fill(); overlayCtx.stroke();
+  overlayCtx.fillStyle = '#7c6af0'; overlayCtx.beginPath(); overlayCtx.arc(0, 0, hr, 0, Math.PI*2); overlayCtx.fill();
+
+  overlayCtx.restore();
+}
+
 function renderOverlay() {
   overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
   const { panX, panY, zoom } = S.viewport;
+  const activeMandala = getActiveMandala();
 
-  // Draw ghost for each off-canvas sprite
+  // ── Off-canvas sprites ───────────────────────────────────
   for (const m of S.mandalas) {
     if (!m.visible) continue;
     for (const spr of m.sprites) {
       if (!isSpriteOffCanvas(spr, m)) continue;
-      const { x: cx, y: cy } = spriteCanvasCenter(spr, m);
-      const sx = panX + cx * zoom;
-      const sy = panY + cy * zoom;
+
+      const { x: canX, y: canY } = spriteCanvasCenter(spr, m);
+      const trueSx = panX + canX * zoom;
+      const trueSy = panY + canY * zoom;
+      const { x: sx, y: sy, clamped } = clampToOverlay(trueSx, trueSy);
 
       const item = getPaletteItem(spr.paletteId);
       const drawable = item ? getDrawableImage(item) : null;
-      const iw = (drawable ? (drawable.width || drawable.naturalWidth) : 32) * spr.scale * zoom;
-      const ih = (drawable ? (drawable.height || drawable.naturalHeight) : 32) * spr.scale * zoom;
+      const imgW = drawable ? (drawable.width || drawable.naturalWidth || 64) : 64;
+      const imgH = drawable ? (drawable.height || drawable.naturalHeight || 64) : 64;
+      const iw = Math.max(32, imgW * spr.scale * zoom);
+      const ih = Math.max(32, imgH * spr.scale * zoom);
+      const isSelected = spr.id === S.selectedSpriteId;
+      const rot = spr.warpMode ? 0 : spr.rotation;
 
-      overlayCtx.save();
-      overlayCtx.translate(sx, sy);
-      overlayCtx.rotate(spr.warpMode ? 0 : spr.rotation);
-
-      // Ghost fill
-      overlayCtx.globalAlpha = 0.25;
-      if (drawable) {
-        const item2 = getPaletteItem(spr.paletteId);
-        if (item2?.img) overlayCtx.drawImage(item2.img, -iw / 2, -ih / 2, iw, ih);
+      if (clamped) {
+        drawOverlayEdgeIndicator(sx, sy, trueSx, trueSy, m.color || '#7c6af0', isSelected ? '●' : null);
       } else {
-        overlayCtx.fillStyle = '#7c6af0';
-        overlayCtx.fillRect(-16 * zoom, -16 * zoom, 32 * zoom, 32 * zoom);
+        drawOverlayGhost(sx, sy, iw, ih, rot, drawable, isSelected, m.color);
+        if (isSelected && S.tool === 'select') {
+          drawOverlayHandles(sx, sy, iw, ih, rot);
+        }
       }
-
-      // Dashed border
-      overlayCtx.globalAlpha = 0.7;
-      overlayCtx.strokeStyle = '#7c6af0';
-      overlayCtx.lineWidth = 1.5;
-      overlayCtx.setLineDash([5, 3]);
-      overlayCtx.strokeRect(-iw / 2, -ih / 2, iw, ih);
-      overlayCtx.setLineDash([]);
-
-      // Arrow pointing toward canvas centre
-      const toCanvasCx = panX + (S.canvasW / 2) * zoom;
-      const toCanvasCy = panY + (S.canvasH / 2) * zoom;
-      const ang = Math.atan2(toCanvasCy - sy, toCanvasCx - sx);
-      overlayCtx.restore(); // unrotate for arrow
-      overlayCtx.save();
-      overlayCtx.translate(sx, sy);
-      overlayCtx.globalAlpha = 0.8;
-      overlayCtx.strokeStyle = '#7c6af0';
-      overlayCtx.lineWidth = 1.5;
-      const arrowLen = Math.min(iw / 2, ih / 2, 20) + 8;
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(Math.cos(ang) * (Math.max(iw, ih) / 2 + 4), Math.sin(ang) * (Math.max(iw, ih) / 2 + 4));
-      const ax = Math.cos(ang) * arrowLen;
-      const ay = Math.sin(ang) * arrowLen;
-      overlayCtx.lineTo(ax, ay);
-      // arrowhead
-      overlayCtx.lineTo(ax - Math.cos(ang - 0.4) * 6, ay - Math.sin(ang - 0.4) * 6);
-      overlayCtx.moveTo(ax, ay);
-      overlayCtx.lineTo(ax - Math.cos(ang + 0.4) * 6, ay - Math.sin(ang + 0.4) * 6);
-      overlayCtx.stroke();
-      overlayCtx.restore();
     }
   }
 
-  // Draw selection handles on overlay when selected sprite is off-canvas
-  if (S.selectedSpriteId && S.tool === 'select') {
-    const found = findSprite(S.selectedSpriteId);
-    if (found && isSpriteOffCanvas(found.sprite, found.mandala)) {
-      const spr = found.sprite;
-      const m = found.mandala;
-      const item = getPaletteItem(spr.paletteId);
-      const drawable = item ? getDrawableImage(item) : null;
-      const iw = (drawable ? (drawable.width || drawable.naturalWidth) : 32) * spr.scale * zoom;
-      const ih = (drawable ? (drawable.height || drawable.naturalHeight) : 32) * spr.scale * zoom;
-      const { x: cx, y: cy } = spriteCanvasCenter(spr, m);
-      const sx = panX + cx * zoom;
-      const sy = panY + cy * zoom;
-      const rot = spr.warpMode ? 0 : spr.rotation;
-      const hr = HANDLE_RADIUS;
+  // ── Off-canvas mandala centres ───────────────────────────
+  for (const m of S.mandalas) {
+    if (!m.visible) continue;
+    const margin = 20;
+    const offX = m.cx < -margin || m.cx > S.canvasW + margin;
+    const offY = m.cy < -margin || m.cy > S.canvasH + margin;
+    if (!offX && !offY) continue;
 
+    const trueSx = panX + m.cx * zoom;
+    const trueSy = panY + m.cy * zoom;
+    const { x: sx, y: sy, clamped } = clampToOverlay(trueSx, trueSy);
+    const isActive = m === activeMandala;
+    const color = m.color || '#7c6af0';
+
+    if (clamped) {
+      drawOverlayEdgeIndicator(sx, sy, trueSx, trueSy, color, isActive ? '⊕' : null);
+    } else {
+      // Draw a cross/circle at the mandala centre position
       overlayCtx.save();
       overlayCtx.translate(sx, sy);
-      overlayCtx.rotate(rot);
-
-      overlayCtx.strokeStyle = '#7c6af0';
-      overlayCtx.lineWidth = 1.5;
-      overlayCtx.setLineDash([4, 3]);
       overlayCtx.globalAlpha = 0.9;
-      overlayCtx.strokeRect(-iw / 2, -ih / 2, iw, ih);
-      overlayCtx.setLineDash([]);
-
-      for (const [hx, hy] of [[-iw/2,-ih/2],[iw/2,-ih/2],[iw/2,ih/2],[-iw/2,ih/2]]) {
-        overlayCtx.fillStyle = '#fff'; overlayCtx.strokeStyle = '#7c6af0';
-        overlayCtx.beginPath(); overlayCtx.arc(hx, hy, hr, 0, Math.PI * 2);
-        overlayCtx.fill(); overlayCtx.stroke();
-      }
-      overlayCtx.strokeStyle = '#7c6af0';
-      overlayCtx.beginPath(); overlayCtx.moveTo(0, -ih / 2); overlayCtx.lineTo(0, -ih / 2 - 24); overlayCtx.stroke();
-      overlayCtx.fillStyle = '#ffe66d'; overlayCtx.beginPath(); overlayCtx.arc(0, -ih / 2 - 24, hr, 0, Math.PI * 2); overlayCtx.fill(); overlayCtx.stroke();
-      overlayCtx.fillStyle = '#7c6af0'; overlayCtx.beginPath(); overlayCtx.arc(0, 0, hr, 0, Math.PI * 2); overlayCtx.fill();
-
+      overlayCtx.strokeStyle = color;
+      overlayCtx.fillStyle = color;
+      overlayCtx.lineWidth = 1.5;
+      const r = isActive ? 10 : 7;
+      overlayCtx.beginPath(); overlayCtx.arc(0, 0, r, 0, Math.PI * 2); overlayCtx.fill();
+      overlayCtx.globalAlpha = 0.5;
+      overlayCtx.strokeStyle = '#fff'; overlayCtx.lineWidth = 1;
+      overlayCtx.beginPath(); overlayCtx.arc(0, 0, r, 0, Math.PI * 2); overlayCtx.stroke();
+      // crosshair lines
+      overlayCtx.strokeStyle = '#fff'; overlayCtx.lineWidth = 1;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(-r - 4, 0); overlayCtx.lineTo(r + 4, 0);
+      overlayCtx.moveTo(0, -r - 4); overlayCtx.lineTo(0, r + 4);
+      overlayCtx.stroke();
       overlayCtx.restore();
     }
   }
@@ -1573,7 +1636,7 @@ function onMouseMove(e) {
   if (S.tool === 'select' && !S.dragHandle) {
     const handle = getHandleAtPoint(pos.x, pos.y);
     const mHit = hitTestMandalaCenter(pos.x, pos.y);
-    canvas.style.cursor =
+    overlayCanvas.style.cursor =
       handle === 'move'   ? 'grab' :
       handle === 'rotate' ? 'crosshair' :
       handle              ? 'nwse-resize' :
@@ -1892,10 +1955,10 @@ function setTool(tool) {
     b.classList.toggle('active', b.dataset.tool === tool);
   });
   // Select tool cursor is dynamic (updated in onMouseMove); seed with default
-  canvas.style.cursor = tool === 'erase'      ? 'none'      :
-                        tool === 'eyedropper' ? 'crosshair'  :
-                        tool === 'select'     ? 'default'    :
-                        tool === 'place'      ? 'copy'       : 'crosshair';
+  overlayCanvas.style.cursor = tool === 'erase'      ? 'none'      :
+                              tool === 'eyedropper' ? 'crosshair'  :
+                              tool === 'select'     ? 'default'    :
+                              tool === 'place'      ? 'copy'       : 'crosshair';
   if (tool !== 'select') { S.selectedSpriteId = null; updateSpriteProps(); }
 }
 
@@ -2405,6 +2468,13 @@ function wireEvents() {
   overlayCanvas.addEventListener('mousemove', onMouseMove);
   overlayCanvas.addEventListener('mouseup', onMouseUp);
   overlayCanvas.addEventListener('mouseleave', e => { S.mousePos = null; if (S.drawing) onMouseUp(e); });
+  // Continue drags that leave the overlay (sprite/mandala dragging, drawing)
+  window.addEventListener('mousemove', e => {
+    if (S.dragHandle || S.drawing) onMouseMove(e);
+  });
+  window.addEventListener('mouseup', e => {
+    if (S.dragHandle || S.drawing) onMouseUp(e);
+  });
 
   // Toolbar
   document.getElementById('btn-new').addEventListener('click', newProject);
