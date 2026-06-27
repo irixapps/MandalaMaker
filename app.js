@@ -19,7 +19,7 @@ const S = {
   bgColor: '#0d0d1a',
   thickness: 4,
   opacity: 1,
-  smooth: 3,
+  smooth: 0,
   mirror: true,
   showGuides: true,
   snapAngle: false,
@@ -610,18 +610,24 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
       const rOuter = rCenter + dispH / 2;
       const N = Math.max(32, Math.round(dispW / 1.5)); // slices for smooth curve
 
+      const tX = Math.max(1, spr.tileX || 1);
+      const tY = Math.max(1, spr.tileY || 1);
+      const tileH = dispH / tY;
+
       ctx.save();
       for (let si = 0; si < N; si++) {
-        const t = (si + 0.5) / N; // 0 → 1 across image width
+        const t = (si + 0.5) / N;
         const θ = θOffset + (-halfAng + t * 2 * halfAng);
-        const srcX = spr.flipX ? Math.floor((1 - t) * iw) : Math.floor(t * iw);
+        const tileT = (t * tX) % 1; // cycles 0→1 tX times across width
+        const srcX = spr.flipX ? Math.floor((1 - tileT) * iw) : Math.floor(tileT * iw);
         const srcW = Math.max(1, Math.ceil(iw / N));
-        const sliceW = (dispW / N) * 1.5; // slight overlap to avoid seams
+        const sliceW = (dispW / N) * 1.5;
 
         ctx.save();
-        ctx.rotate(θ);   // rotate slice to its arc angle
-        // Draw along local -Y (outward). -rOuter to -rInner on Y axis.
-        ctx.drawImage(drawable, srcX, 0, srcW, ih, -sliceW / 2, -rOuter, sliceW, dispH);
+        ctx.rotate(θ);
+        for (let ty = 0; ty < tY; ty++) {
+          ctx.drawImage(drawable, srcX, 0, srcW, ih, -sliceW / 2, -rOuter + ty * tileH, sliceW, tileH);
+        }
         ctx.restore();
       }
       ctx.restore();
@@ -730,6 +736,16 @@ function getSpriteCanvasPos(m, spr) {
   return { x: m.cx + spr.x, y: m.cy + spr.y };
 }
 
+// Returns canvas-space center of the primary warp arc copy
+function warpArcCenter(spr, m) {
+  const rotRad = ((spr.axisRotation != null ? spr.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const rCenter = Math.max(10, -spr.y);
+  return {
+    x: m.cx + spr.x * Math.cos(rotRad) + rCenter * Math.sin(rotRad),
+    y: m.cy + spr.x * Math.sin(rotRad) - rCenter * Math.cos(rotRad),
+  };
+}
+
 function renderSelectionHandles() {
   const found = findSprite(S.selectedSpriteId);
   if (!found) return;
@@ -740,12 +756,11 @@ function renderSelectionHandles() {
   const iw = (drawable?.width || drawable?.naturalWidth || 64) * spr.scale;
   const ih = (drawable?.height || drawable?.naturalHeight || 64) * spr.scale;
 
-  const cx = m.cx + spr.x;
-  const cy = m.cy + spr.y;
+  const { x: cx, y: cy } = spr.warpMode ? warpArcCenter(spr, m) : { x: m.cx + spr.x, y: m.cy + spr.y };
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(spr.rotation);
+  ctx.rotate(spr.warpMode ? 0 : spr.rotation);
 
   // Bounding box
   ctx.strokeStyle = '#7c6af0';
@@ -843,12 +858,12 @@ function getHandleAtPoint(x, y) {
   const drawable = getDrawableImage(item);
   const iw = (drawable?.width || drawable?.naturalWidth || 64) * spr.scale;
   const ih = (drawable?.height || drawable?.naturalHeight || 64) * spr.scale;
-  const cx = m.cx + spr.x;
-  const cy = m.cy + spr.y;
+  const { x: cx, y: cy } = spr.warpMode ? warpArcCenter(spr, m) : { x: m.cx + spr.x, y: m.cy + spr.y };
 
   // Transform point into handle space
   const dx = x - cx, dy = y - cy;
-  const cos = Math.cos(-spr.rotation), sin = Math.sin(-spr.rotation);
+  const rot = spr.warpMode ? 0 : spr.rotation;
+  const cos = Math.cos(-rot), sin = Math.sin(-rot);
   const lx = cos * dx - sin * dy;
   const ly = sin * dx + cos * dy;
 
@@ -1032,7 +1047,7 @@ function handleSpriteDrag(pos) {
     spr.y = orig.y + dy;
     updateSpritePropsValues(spr);
   } else if (S.dragHandle === 'rotate') {
-    const cx = m.cx + spr.x, cy = m.cy + spr.y;
+    const { x: cx, y: cy } = spr.warpMode ? warpArcCenter(spr, m) : { x: m.cx + spr.x, y: m.cy + spr.y };
     const angle = Math.atan2(pos.y - cy, pos.x - cx);
     const origAngle = Math.atan2(S.dragStart.y - cy, S.dragStart.x - cx);
     spr.rotation = orig.rotation + (angle - origAngle);
@@ -1042,7 +1057,7 @@ function handleSpriteDrag(pos) {
     const drawable = getDrawableImage(item);
     const iw = (drawable?.width || drawable?.naturalWidth || 64) * orig.scale;
     const distOrigFromCenter = Math.hypot(iw / 2, (drawable?.height || drawable?.naturalHeight || 64) * orig.scale / 2);
-    const cx = m.cx + spr.x, cy = m.cy + spr.y;
+    const { x: cx, y: cy } = spr.warpMode ? warpArcCenter(spr, m) : { x: m.cx + spr.x, y: m.cy + spr.y };
     const dNow = Math.hypot(pos.x - cx, pos.y - cy);
     const dOrig = Math.hypot(S.dragStart.x - cx, S.dragStart.y - cy);
     if (dOrig > 5) spr.scale = Math.max(0.05, orig.scale * (dNow / dOrig));
@@ -1074,8 +1089,8 @@ function placeSprite(wx, wy) {
     opacity: 1,
     flipX: false,
     warpMode: false,
-    tileX: false,
-    tileY: false,
+    tileX: 1,
+    tileY: 1,
     axes: m.axes,
     axisRotation: m.axisRotation,
     mirror: m.mirror,
@@ -1141,8 +1156,8 @@ function updateSpritePropsValues(spr) {
   document.getElementById('prop-flip-x').checked = !!spr.flipX;
   document.getElementById('prop-warp').checked = !!spr.warpMode;
   document.getElementById('warp-options').style.display = spr.warpMode ? 'block' : 'none';
-  document.getElementById('prop-tile-x').checked = !!spr.tileX;
-  document.getElementById('prop-tile-y').checked = !!spr.tileY;
+  document.getElementById('prop-tile-x').value = spr.tileX || 1;
+  document.getElementById('prop-tile-y').value = spr.tileY || 1;
 }
 
 function renderPaletteList() {
@@ -1945,14 +1960,16 @@ function wireEvents() {
     document.getElementById('warp-options').style.display = e.target.checked ? 'block' : 'none';
     historySnapshot();
   });
-  document.getElementById('prop-tile-x').addEventListener('change', e => {
+  document.getElementById('prop-tile-x').addEventListener('input', e => {
     const found = findSprite(S.selectedSpriteId); if (!found) return;
-    found.sprite.tileX = e.target.checked; historySnapshot();
+    found.sprite.tileX = Math.max(1, parseInt(e.target.value) || 1);
   });
-  document.getElementById('prop-tile-y').addEventListener('change', e => {
+  document.getElementById('prop-tile-x').addEventListener('change', () => historySnapshot());
+  document.getElementById('prop-tile-y').addEventListener('input', e => {
     const found = findSprite(S.selectedSpriteId); if (!found) return;
-    found.sprite.tileY = e.target.checked; historySnapshot();
+    found.sprite.tileY = Math.max(1, parseInt(e.target.value) || 1);
   });
+  document.getElementById('prop-tile-y').addEventListener('change', () => historySnapshot());
 
   document.getElementById('btn-delete-sprite').addEventListener('click', () => {
     if (!S.selectedSpriteId) return;
