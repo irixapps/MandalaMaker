@@ -943,12 +943,12 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
       // Arc-bend warp: curve the image to follow the circular arc at the sprite's
       // radial position. Image width → arc angle, image height → radial depth.
       // Axis direction (outward) = local -Y in this coordinate system.
-      const rCenter = Math.max(10, -spr.y); // radial distance (spr.y negative = outward)
-      const dispW = iw * spr.scale;         // displayed image width
-      const dispH = ih * spr.scale;         // displayed image height
-      const halfAng = dispW / (2 * rCenter); // half angular span of image
-      const θOffset = spr.x / rCenter;       // tangential shift from axis centre
-      const rInner = rCenter - dispH / 2;
+      // Use animated values for position and scale.
+      const rCenter = Math.max(10, -sprY);    // radial distance (sprY negative = outward)
+      const dispW = iw * animScale;           // displayed image width
+      const dispH = ih * animScale;           // displayed image height
+      const halfAng = dispW / (2 * rCenter);  // half angular span of image
+      const θOffset = sprX / rCenter;         // tangential shift from axis centre
       const rOuter = rCenter + dispH / 2;
       const N = Math.max(32, Math.round(dispW / 1.5)); // slices for smooth curve
 
