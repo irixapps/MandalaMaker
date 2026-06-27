@@ -594,7 +594,7 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
     for (let flip = 0; flip < (doMirror ? 2 : 1); flip++) {
     ctx.save();
     ctx.translate(m.cx, m.cy);
-    ctx.rotate(rotRad + segAngle * i);
+    ctx.rotate(rotRad + segAngle * i + (spr.orbitAngle || 0) * Math.PI / 180);
     if (flip === 1) ctx.scale(1, -1);
 
     if (spr.warpMode) {
@@ -1091,6 +1091,7 @@ function placeSprite(wx, wy) {
     warpMode: false,
     tileX: 1,
     tileY: 1,
+    orbitAngle: 0,
     axes: m.axes,
     axisRotation: m.axisRotation,
     mirror: m.mirror,
@@ -1150,6 +1151,9 @@ function updateSpritePropsValues(spr) {
   document.getElementById('prop-ox-val').textContent = Math.round(spr.x);
   document.getElementById('prop-oy').value = Math.round(spr.y);
   document.getElementById('prop-oy-val').textContent = Math.round(spr.y);
+  const orbit = spr.orbitAngle || 0;
+  document.getElementById('prop-orbit').value = orbit;
+  document.getElementById('prop-orbit-val').textContent = Math.round(orbit) + '°';
   const op = spr.opacity != null ? spr.opacity : 1;
   document.getElementById('prop-spr-opacity').value = op;
   document.getElementById('prop-spr-opacity-val').textContent = Math.round(op * 100) + '%';
@@ -1928,6 +1932,13 @@ function wireEvents() {
     document.getElementById('prop-rotation-val').textContent = e.target.value + '°';
   });
   document.getElementById('prop-rotation').addEventListener('change', () => historySnapshot());
+
+  document.getElementById('prop-orbit').addEventListener('input', e => {
+    const found = findSprite(S.selectedSpriteId); if (!found) return;
+    found.sprite.orbitAngle = parseFloat(e.target.value);
+    document.getElementById('prop-orbit-val').textContent = Math.round(e.target.value) + '°';
+  });
+  document.getElementById('prop-orbit').addEventListener('change', () => historySnapshot());
 
   document.getElementById('prop-ox').addEventListener('input', e => {
     const found = findSprite(S.selectedSpriteId); if (!found) return;
