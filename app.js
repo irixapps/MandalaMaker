@@ -1070,7 +1070,7 @@ function placeSprite(wx, wy) {
     x: local.x,
     y: local.y,
     rotation: 0,
-    scale: 1,
+    scale: canvas.width / canvas.getBoundingClientRect().width,
     opacity: 1,
     flipX: false,
     warpMode: false,
@@ -1191,6 +1191,7 @@ function selectPaletteItem(id) {
   S.selectedPaletteId = id;
   renderPaletteList();
   updatePaletteItemProps();
+  setTool('place');
 }
 
 function removePaletteItem(id) {
@@ -1225,9 +1226,23 @@ function renderSpriteSheetGrid(item) {
   inner.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   inner.style.width = '100%';
   const total = cols * rows;
+  // CSS trick: each cell shows its slice via background-position as a % offset
+  // background-size = cols*100% × rows*100% scales the full image to fit
+  const bgSize = `${cols * 100}% ${rows * 100}%`;
+  const url = item.dataUrl || (item.img && item.img.src);
   for (let i = 0; i < total; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    const pctX = cols > 1 ? (col / (cols - 1)) * 100 : 0;
+    const pctY = rows > 1 ? (row / (rows - 1)) * 100 : 0;
     const cell = document.createElement('div');
     cell.className = 'ss-cell' + (i === item.selectedCell ? ' selected' : '');
+    if (url) {
+      cell.style.backgroundImage = `url('${url}')`;
+      cell.style.setProperty('--ss-w', `${cols * 100}%`);
+      cell.style.setProperty('--ss-h', `${rows * 100}%`);
+      cell.style.backgroundSize = bgSize;
+      cell.style.backgroundPosition = `${pctX}% ${pctY}%`;
+    }
     cell.addEventListener('click', () => {
       item.selectedCell = i;
       item.processedCache = null; item._animCanvas = null;
