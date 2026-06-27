@@ -440,11 +440,7 @@ function colorDist(r1, g1, b1, r2, g2, b2) {
 
 // ── History ─────────────────────────────────────────────
 function historySnapshot() {
-  const snap = JSON.stringify(S.mandalas.map(m => ({
-    ...m,
-    strokes: m.strokes.map(s => ({ ...s, pts: [...s.pts.map(p => ({ ...p })) ] })),
-    sprites: m.sprites.map(sp => ({ ...sp })),
-  })));
+  const snap = JSON.stringify(S.mandalas);
   S.history.push(snap);
   S.redoStack = [];
   if (S.history.length > MAX_HISTORY) S.history.shift();
@@ -460,22 +456,14 @@ function restoreSnapshot(snap) {
 
 function undo() {
   if (!S.history.length) return;
-  S.redoStack.push(JSON.stringify(S.mandalas.map(m => ({
-    ...m,
-    strokes: m.strokes.map(s => ({ ...s, pts: [...s.pts] })),
-    sprites: m.sprites.map(sp => ({ ...sp })),
-  }))));
+  S.redoStack.push(JSON.stringify(S.mandalas));
   restoreSnapshot(S.history.pop());
   updateUndoButtons();
 }
 
 function redo() {
   if (!S.redoStack.length) return;
-  S.history.push(JSON.stringify(S.mandalas.map(m => ({
-    ...m,
-    strokes: m.strokes.map(s => ({ ...s, pts: [...s.pts] })),
-    sprites: m.sprites.map(sp => ({ ...sp })),
-  }))));
+  S.history.push(JSON.stringify(S.mandalas));
   restoreSnapshot(S.redoStack.pop());
   updateUndoButtons();
 }
@@ -2157,7 +2145,7 @@ async function splitWebPFrames(item) {
 // ── Save / Load ──────────────────────────────────────────
 function saveProject() {
   const data = {
-    version: 1,
+    version: 2,
     canvasW: S.canvasW,
     canvasH: S.canvasH,
     bgColor: S.bgColor,
