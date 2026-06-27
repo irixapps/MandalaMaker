@@ -53,6 +53,7 @@ const S = {
   // animation
   rafId: null,
   lastTime: 0,
+  animClock: 0,
 };
 
 // ── DOM refs ────────────────────────────────────────────
@@ -77,6 +78,270 @@ function canvasPos(e) {
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
 function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── Animation engine ────────────────────────────────────
+const EASING_NAMES = ['linear', 'ease', 'ease-in', 'ease-out', 'bounce', 'elastic'];
+const EASINGS = {
+  linear:    t => t,
+  ease:      t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t,
+  'ease-in': t => t * t,
+  'ease-out':t => t * (2 - t),
+  bounce:    t => {
+    if (t < 1/2.75) return 7.5625*t*t;
+    if (t < 2/2.75) { t -= 1.5/2.75;  return 7.5625*t*t + 0.75; }
+    if (t < 2.5/2.75){ t -= 2.25/2.75; return 7.5625*t*t + 0.9375; }
+    t -= 2.625/2.75; return 7.5625*t*t + 0.984375;
+  },
+  elastic:   t => t === 0 ? 0 : t === 1 ? 1 :
+    -Math.pow(2, 10*t-10) * Math.sin((t*10-10.75)*(2*Math.PI)/3),
+};
+
+// Evaluate animated property at normalised time t (0-1, looping handled by caller)
+function animValueAtT(animProp, t) {
+  const kfs = animProp.keyframes;
+  if (!kfs || kfs.length === 0) return null;
+  if (kfs.length === 1) return kfs[0].value;
+  // Clamp to first/last outside defined range
+  if (t <= kfs[0].t) return kfs[0].value;
+  if (t >= kfs[kfs.length-1].t) return kfs[kfs.length-1].value;
+  for (let i = 0; i < kfs.length - 1; i++) {
+    const a = kfs[i], b = kfs[i+1];
+    if (t >= a.t && t <= b.t) {
+      const span = b.t - a.t;
+      if (span <= 0) return a.value;
+      const localT = (t - a.t) / span;
+      const fn = EASINGS[a.easing] || EASINGS.ease;
+      return lerp(a.value, b.value, fn(localT));
+    }
+  }
+  return kfs[kfs.length-1].value;
+}
+
+function getAnimValue(spr, prop, clock) {
+  const ap = spr.anim?.[prop];
+  if (!ap?.enabled || !ap.keyframes?.length) return null;
+  const t = (clock % ap.duration) / ap.duration;
+  return animValueAtT(ap, t);
+}
+
+function hasAnyAnimation() {
+  return S.mandalas.some(m => m.sprites.some(s =>
+    s.anim && Object.values(s.anim).some(ap => ap.enabled)
+  ));
+}
+
+function defaultAnimProp(value, duration = 2) {
+  return {
+    enabled: true,
+    duration,
+    keyframes: [
+      { t: 0,   value, easing: 'ease' },
+      { t: 0.5, value: value * 1.4, easing: 'ease' },
+      { t: 1,   value, easing: 'ease' },
+    ],
+  };
+}
+
+// ── Animation timeline canvas ────────────────────────────
+const ANIM_PROPS = [
+  { key: 'scale',    label: 'Scale',    min: 0.05, max: 8,   format: v => v.toFixed(2)+'×' },
+  { key: 'rotation', label: 'Rotation', min: -180,  max: 180, format: v => Math.round(v)+'°' },
+  { key: 'orbit',    label: 'Orbit',    min: -180,  max: 180, format: v => Math.round(v)+'°' },
+  { key: 'offsetX',  label: 'Offset X', min: -400,  max: 400, format: v => Math.round(v) },
+  { key: 'offsetY',  label: 'Offset Y', min: -400,  max: 400, format: v => Math.round(v) },
+  { key: 'opacity',  label: 'Opacity',  min: 0,     max: 1,   format: v => Math.round(v*100)+'%' },
+];
+
+const TL = {  // timeline interaction state
+  dragging: null,   // { prop, kfIdx }
+  hoverSeg: null,   // { prop, segIdx }
+};
+
+function tlCanvasEl(prop) { return document.getElementById('anim-tl-' + prop); }
+
+function tlCoords(canvasEl, animProp) {
+  const W = canvasEl.width, H = canvasEl.height;
+  const PAD = { l: 6, r: 6, t: 8, b: 8 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+  const cfg = ANIM_PROPS.find(p => p.key === animProp);
+  const vMin = cfg.min, vMax = cfg.max;
+  return {
+    tx: t  => PAD.l + t * iW,
+    vy: v  => PAD.t + (1 - (v - vMin) / (vMax - vMin)) * iH,
+    tv: px => Math.max(0, Math.min(1, (px - PAD.l) / iW)),
+    yv: py => vMin + (1 - (py - PAD.t) / iH) * (vMax - vMin),
+    PAD, iW, iH, W, H,
+  };
+}
+
+function drawTimeline(prop, spr) {
+  const el = tlCanvasEl(prop);
+  if (!el) return;
+  const ap = spr?.anim?.[prop];
+  if (!ap) return;
+  const c = el.getContext('2d');
+  const { tx, vy, PAD, W, H, iH } = tlCoords(el, prop);
+  const kfs = ap.keyframes;
+
+  // Background
+  c.clearRect(0, 0, W, H);
+  c.fillStyle = '#08081a';
+  c.fillRect(0, 0, W, H);
+
+  // Grid verticals
+  c.strokeStyle = '#1c1c38'; c.lineWidth = 1;
+  [0.25, 0.5, 0.75].forEach(t => {
+    c.beginPath(); c.moveTo(tx(t), PAD.t); c.lineTo(tx(t), H - PAD.b); c.stroke();
+  });
+  // Mid-value horizontal
+  const cfg = ANIM_PROPS.find(p => p.key === prop);
+  const mid = (cfg.min + cfg.max) / 2;
+  c.beginPath(); c.moveTo(PAD.l, vy(mid)); c.lineTo(W - PAD.r, vy(mid)); c.stroke();
+
+  // Curve
+  if (kfs.length >= 2) {
+    c.strokeStyle = '#7c6af0'; c.lineWidth = 2;
+    c.beginPath();
+    const STEPS = 150;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = kfs[0].t + (i / STEPS) * (kfs[kfs.length-1].t - kfs[0].t);
+      const v = animValueAtT(ap, t);
+      const x = tx(t), y = vy(v);
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.stroke();
+  }
+
+  // Easing labels between keyframes
+  c.font = '8px sans-serif'; c.fillStyle = '#5060a0'; c.textAlign = 'center';
+  for (let i = 0; i < kfs.length - 1; i++) {
+    const mx = tx((kfs[i].t + kfs[i+1].t) / 2);
+    const my = vy((kfs[i].value + kfs[i+1].value) / 2);
+    c.fillText(kfs[i].easing, mx, Math.max(PAD.t + 8, Math.min(H - PAD.b - 2, my - 6)));
+  }
+
+  // Keyframe dots
+  kfs.forEach((kf, idx) => {
+    const x = tx(kf.t), y = vy(kf.value);
+    c.beginPath(); c.arc(x, y, 5.5, 0, Math.PI*2);
+    c.fillStyle = '#7c6af0'; c.fill();
+    c.strokeStyle = '#d0ceff'; c.lineWidth = 1.5; c.stroke();
+  });
+
+  // Playhead
+  const playT = (S.animClock % ap.duration) / ap.duration;
+  c.strokeStyle = '#ff6b9d'; c.lineWidth = 1.5;
+  c.setLineDash([3, 2]);
+  c.beginPath(); c.moveTo(tx(playT), PAD.t); c.lineTo(tx(playT), H - PAD.b); c.stroke();
+  c.setLineDash([]);
+}
+
+function tlNearestKf(el, prop, px, py, radius = 10) {
+  const ap = tlSpr()?.anim?.[prop]; if (!ap) return -1;
+  const { tx, vy } = tlCoords(el, prop);
+  let best = -1, bestD = radius;
+  ap.keyframes.forEach((kf, i) => {
+    const d = Math.hypot(tx(kf.t) - px, vy(kf.value) - py);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+function tlNearestSeg(el, prop, px, py, radius = 12) {
+  const ap = tlSpr()?.anim?.[prop]; if (!ap) return -1;
+  const { tx, vy } = tlCoords(el, prop);
+  const kfs = ap.keyframes;
+  let best = -1, bestD = radius;
+  for (let i = 0; i < kfs.length - 1; i++) {
+    const mx = tx((kfs[i].t + kfs[i+1].t) / 2);
+    const my = vy((kfs[i].value + kfs[i+1].value) / 2);
+    const d = Math.hypot(mx - px, my - py);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+function tlSpr() {
+  const f = findSprite(S.selectedSpriteId);
+  return f ? f.sprite : null;
+}
+
+function initTimelineCanvas(prop) {
+  const el = tlCanvasEl(prop);
+  if (!el) return;
+
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleX;
+    const spr = tlSpr(); if (!spr?.anim?.[prop]) return;
+
+    if (e.button === 2) { // right-click = delete kf
+      const idx = tlNearestKf(el, prop, px, py);
+      if (idx >= 0 && spr.anim[prop].keyframes.length > 2) {
+        spr.anim[prop].keyframes.splice(idx, 1);
+        historySnapshot();
+      }
+      return;
+    }
+
+    const kfIdx = tlNearestKf(el, prop, px, py);
+    if (kfIdx >= 0) {
+      TL.dragging = { prop, kfIdx };
+      return;
+    }
+
+    // Click near segment mid = cycle easing
+    const segIdx = tlNearestSeg(el, prop, px, py);
+    if (segIdx >= 0) {
+      const kf = spr.anim[prop].keyframes[segIdx];
+      const cur = EASING_NAMES.indexOf(kf.easing);
+      kf.easing = EASING_NAMES[(cur + 1) % EASING_NAMES.length];
+      historySnapshot();
+      return;
+    }
+
+    // Click empty = add keyframe
+    const { tv, yv } = tlCoords(el, prop);
+    const t = tv(px), v = yv(py);
+    const cfg = ANIM_PROPS.find(p => p.key === prop);
+    const clampedV = Math.max(cfg.min, Math.min(cfg.max, v));
+    spr.anim[prop].keyframes.push({ t, value: clampedV, easing: 'ease' });
+    spr.anim[prop].keyframes.sort((a, b) => a.t - b.t);
+    historySnapshot();
+  });
+
+  el.addEventListener('mousemove', e => {
+    if (!TL.dragging || TL.dragging.prop !== prop) return;
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleX;
+    const spr = tlSpr(); if (!spr?.anim?.[prop]) return;
+    const { tv, yv } = tlCoords(el, prop);
+    const cfg = ANIM_PROPS.find(p => p.key === prop);
+    const kfs = spr.anim[prop].keyframes;
+    const idx = TL.dragging.kfIdx;
+    kfs[idx].t = Math.max(0, Math.min(1, tv(px)));
+    kfs[idx].value = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
+    kfs.sort((a, b) => a.t - b.t);
+    // keep dragging idx pointing to same kf after sort
+    TL.dragging.kfIdx = kfs.findIndex(kf => kf === kfs[idx]);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (TL.dragging?.prop === prop) { TL.dragging = null; historySnapshot(); }
+  });
+
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function refreshAllTimelines() {
+  const spr = tlSpr();
+  ANIM_PROPS.forEach(({ key }) => drawTimeline(key, spr));
+}
 
 function smoothPoints(pts, factor) {
   if (pts.length < 3 || factor === 0) return pts;
@@ -406,6 +671,12 @@ function getDrawableImage(item, noCache = false) {
 // ── Rendering ────────────────────────────────────────────
 function render(timestamp) {
   S.rafId = requestAnimationFrame(render);
+  const dt = S.lastTime ? Math.min((timestamp - S.lastTime) / 1000, 0.1) : 0;
+  S.lastTime = timestamp;
+  if (hasAnyAnimation()) {
+    S.animClock += dt;
+    refreshAllTimelines();
+  }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -583,18 +854,31 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
   const ih = drawable.height || drawable.naturalHeight;
   if (!iw || !ih) return;
 
-  const w = iw * spr.scale;
-  const h = ih * spr.scale;
+  // Animated property overrides
+  const clk = S.animClock;
+  const animScale    = getAnimValue(spr, 'scale',    clk) ?? spr.scale;
+  const animOpacity  = getAnimValue(spr, 'opacity',  clk) ?? (spr.opacity != null ? spr.opacity : 1);
+  const animRotation = getAnimValue(spr, 'rotation', clk);
+  const animOrbit    = getAnimValue(spr, 'orbit',    clk);
+  const animOffsetX  = getAnimValue(spr, 'offsetX',  clk);
+  const animOffsetY  = getAnimValue(spr, 'offsetY',  clk);
+  const sprRotation  = animRotation != null ? animRotation * Math.PI / 180 : spr.rotation;
+  const sprOrbit     = (animOrbit    != null ? animOrbit    : (spr.orbitAngle || 0)) * Math.PI / 180;
+  const sprX         = animOffsetX  != null ? animOffsetX  : spr.x;
+  const sprY         = animOffsetY  != null ? animOffsetY  : spr.y;
+
+  const w = iw * animScale;
+  const h = ih * animScale;
 
   ctx.save();
-  ctx.globalAlpha = spr.opacity != null ? spr.opacity : 1;
+  ctx.globalAlpha = animOpacity;
 
   const doMirror = doMirrorFlip;
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (doMirror ? 2 : 1); flip++) {
     ctx.save();
     ctx.translate(m.cx, m.cy);
-    ctx.rotate(rotRad + segAngle * i + (spr.orbitAngle || 0) * Math.PI / 180);
+    ctx.rotate(rotRad + segAngle * i + sprOrbit);
     if (flip === 1) ctx.scale(1, -1);
 
     if (spr.warpMode) {
@@ -633,8 +917,8 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
       ctx.restore();
     } else {
       // Normal: place sprite at offset, with its own rotation
-      ctx.translate(spr.x, spr.y);
-      ctx.rotate(spr.rotation);
+      ctx.translate(sprX, sprY);
+      ctx.rotate(sprRotation);
       if (spr.flipX) ctx.scale(-1, 1);
       ctx.drawImage(drawable, -w / 2, -h / 2, w, h);
     }
@@ -1162,6 +1446,21 @@ function updateSpritePropsValues(spr) {
   document.getElementById('warp-options').style.display = spr.warpMode ? 'block' : 'none';
   document.getElementById('prop-tile-x').value = spr.tileX || 1;
   document.getElementById('prop-tile-y').value = spr.tileY || 1;
+  // Sync anim toggles + panels
+  ANIM_PROPS.forEach(({ key }) => {
+    const ap = spr.anim?.[key];
+    const btn = document.getElementById('anim-btn-' + key);
+    const panel = document.getElementById('anim-panel-' + key);
+    if (!btn || !panel) return;
+    const on = ap?.enabled ?? false;
+    btn.classList.toggle('active', on);
+    panel.style.display = on ? 'block' : 'none';
+    if (on) {
+      const durEl = document.getElementById('anim-dur-' + key);
+      if (durEl) durEl.value = ap.duration;
+      drawTimeline(key, spr);
+    }
+  });
 }
 
 function renderPaletteList() {
@@ -1981,6 +2280,45 @@ function wireEvents() {
     found.sprite.tileY = Math.max(1, parseInt(e.target.value) || 1);
   });
   document.getElementById('prop-tile-y').addEventListener('change', () => historySnapshot());
+
+  // Animation toggle buttons + duration inputs
+  ANIM_PROPS.forEach(({ key, min, max }) => {
+    const btn = document.getElementById('anim-btn-' + key);
+    const panel = document.getElementById('anim-panel-' + key);
+    const durEl = document.getElementById('anim-dur-' + key);
+    if (btn) btn.addEventListener('click', () => {
+      const found = findSprite(S.selectedSpriteId); if (!found) return;
+      const spr = found.sprite;
+      if (!spr.anim) spr.anim = {};
+      if (spr.anim[key]?.enabled) {
+        spr.anim[key].enabled = false;
+        btn.classList.remove('active');
+        panel.style.display = 'none';
+      } else {
+        const staticVal = key === 'scale' ? spr.scale
+          : key === 'rotation' ? spr.rotation * 180 / Math.PI
+          : key === 'orbit'    ? (spr.orbitAngle || 0)
+          : key === 'offsetX'  ? spr.x
+          : key === 'offsetY'  ? spr.y
+          : key === 'opacity'  ? (spr.opacity ?? 1)
+          : (min + max) / 2;
+        if (!spr.anim[key]) spr.anim[key] = defaultAnimProp(staticVal);
+        else spr.anim[key].enabled = true;
+        btn.classList.add('active');
+        panel.style.display = 'block';
+        if (durEl) durEl.value = spr.anim[key].duration;
+        drawTimeline(key, spr);
+      }
+      historySnapshot();
+    });
+    if (durEl) durEl.addEventListener('input', e => {
+      const found = findSprite(S.selectedSpriteId); if (!found) return;
+      const ap = found.sprite.anim?.[key]; if (!ap) return;
+      ap.duration = Math.max(0.1, parseFloat(e.target.value) || 2);
+    });
+    if (durEl) durEl.addEventListener('change', () => historySnapshot());
+    initTimelineCanvas(key);
+  });
 
   document.getElementById('btn-delete-sprite').addEventListener('click', () => {
     if (!S.selectedSpriteId) return;

@@ -144,31 +144,86 @@
           <label class="prop-label">Scale</label>
           <input type="range" id="prop-scale" min="0.05" max="8" step="0.05" value="1">
           <span class="prop-val" id="prop-scale-val">1.00×</span>
+          <button class="anim-btn" id="anim-btn-scale" title="Animate Scale">∿</button>
+        </div>
+        <div class="anim-panel" id="anim-panel-scale" style="display:none">
+          <div class="anim-controls">
+            <span class="anim-label">Duration</span>
+            <input type="number" id="anim-dur-scale" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+            <span class="anim-hint">Click curve=easing · Drag dot · Click empty=add · Right-click=delete</span>
+          </div>
+          <canvas id="anim-tl-scale" width="196" height="72"></canvas>
         </div>
         <div class="prop-row">
           <label class="prop-label">Rotation</label>
           <input type="range" id="prop-rotation" min="-180" max="180" step="1" value="0">
           <span class="prop-val" id="prop-rotation-val">0°</span>
+          <button class="anim-btn" id="anim-btn-rotation" title="Animate Rotation">∿</button>
+        </div>
+        <div class="anim-panel" id="anim-panel-rotation" style="display:none">
+          <div class="anim-controls">
+            <span class="anim-label">Duration</span>
+            <input type="number" id="anim-dur-rotation" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+          </div>
+          <canvas id="anim-tl-rotation" width="196" height="72"></canvas>
         </div>
         <div class="prop-row">
           <label class="prop-label">Orbit</label>
           <input type="range" id="prop-orbit" min="-180" max="180" step="1" value="0">
           <span class="prop-val" id="prop-orbit-val">0°</span>
+          <button class="anim-btn" id="anim-btn-orbit" title="Animate Orbit">∿</button>
+        </div>
+        <div class="anim-panel" id="anim-panel-orbit" style="display:none">
+          <div class="anim-controls">
+            <span class="anim-label">Duration</span>
+            <input type="number" id="anim-dur-orbit" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+          </div>
+          <canvas id="anim-tl-orbit" width="196" height="72"></canvas>
         </div>
         <div class="prop-row">
           <label class="prop-label">Offset X</label>
           <input type="range" id="prop-ox" min="-400" max="400" step="1" value="0">
           <span class="prop-val" id="prop-ox-val">0</span>
+          <button class="anim-btn" id="anim-btn-offsetX" title="Animate Offset X">∿</button>
+        </div>
+        <div class="anim-panel" id="anim-panel-offsetX" style="display:none">
+          <div class="anim-controls">
+            <span class="anim-label">Duration</span>
+            <input type="number" id="anim-dur-offsetX" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+          </div>
+          <canvas id="anim-tl-offsetX" width="196" height="72"></canvas>
         </div>
         <div class="prop-row">
           <label class="prop-label">Offset Y</label>
           <input type="range" id="prop-oy" min="-400" max="400" step="1" value="0">
           <span class="prop-val" id="prop-oy-val">0</span>
+          <button class="anim-btn" id="anim-btn-offsetY" title="Animate Offset Y">∿</button>
+        </div>
+        <div class="anim-panel" id="anim-panel-offsetY" style="display:none">
+          <div class="anim-controls">
+            <span class="anim-label">Duration</span>
+            <input type="number" id="anim-dur-offsetY" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+          </div>
+          <canvas id="anim-tl-offsetY" width="196" height="72"></canvas>
         </div>
         <div class="prop-row">
           <label class="prop-label">Opacity</label>
           <input type="range" id="prop-spr-opacity" min="0" max="1" step="0.05" value="1">
           <span class="prop-val" id="prop-spr-opacity-val">100%</span>
+          <button class="anim-btn" id="anim-btn-opacity" title="Animate Opacity">∿</button>
+        </div>
+        <div class="anim-panel" id="anim-panel-opacity" style="display:none">
+          <div class="anim-controls">
+            <span class="anim-label">Duration</span>
+            <input type="number" id="anim-dur-opacity" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+          </div>
+          <canvas id="anim-tl-opacity" width="196" height="72"></canvas>
         </div>
         <div class="prop-row">
           <label class="checkbox-label"><input type="checkbox" id="prop-flip-x"> Flip X</label>
