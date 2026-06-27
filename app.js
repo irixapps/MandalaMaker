@@ -130,6 +130,14 @@ function hasAnyAnimation() {
   ));
 }
 
+function applyPreset(preset) {
+  return {
+    enabled: true,
+    duration: preset.dur,
+    keyframes: preset.kfs.map(k => ({ t: k.t, value: k.v, easing: k.e })),
+  };
+}
+
 function defaultAnimProp(value, duration = 2) {
   return {
     enabled: true,
@@ -153,8 +161,42 @@ const ANIM_PROPS = [
 ];
 
 const TL = {  // timeline interaction state
-  dragging: null,   // { prop, kfIdx }
-  hoverSeg: null,   // { prop, segIdx }
+  dragging: null,    // { prop, kfIdx }
+  selectedKf: null,  // { prop, kfIdx }
+};
+
+const ANIM_PRESETS = {
+  scale: [
+    { label: 'Pulse',        kfs: [{t:0,v:1,e:'ease'},{t:0.5,v:1.5,e:'ease'},{t:1,v:1,e:'ease'}], dur: 2 },
+    { label: 'Grow',         kfs: [{t:0,v:0.5,e:'ease'},{t:1,v:2,e:'ease'}], dur: 3 },
+    { label: 'Breathe',      kfs: [{t:0,v:1,e:'ease-in'},{t:0.5,v:1.3,e:'ease-out'},{t:1,v:1,e:'ease-in'}], dur: 4 },
+    { label: 'Bounce In',    kfs: [{t:0,v:0,e:'bounce'},{t:1,v:1,e:'linear'}], dur: 1 },
+  ],
+  rotation: [
+    { label: 'Spin CW',      kfs: [{t:0,v:-180,e:'linear'},{t:1,v:180,e:'linear'}], dur: 3 },
+    { label: 'Spin CCW',     kfs: [{t:0,v:180,e:'linear'},{t:1,v:-180,e:'linear'}], dur: 3 },
+    { label: 'Rock',         kfs: [{t:0,v:-30,e:'ease'},{t:0.5,v:30,e:'ease'},{t:1,v:-30,e:'ease'}], dur: 2 },
+    { label: 'Wobble',       kfs: [{t:0,v:-10,e:'ease'},{t:0.25,v:10,e:'ease'},{t:0.5,v:-10,e:'ease'},{t:0.75,v:10,e:'ease'},{t:1,v:-10,e:'ease'}], dur: 1 },
+  ],
+  orbit: [
+    { label: 'Orbit CW',     kfs: [{t:0,v:-180,e:'linear'},{t:1,v:180,e:'linear'}], dur: 4 },
+    { label: 'Orbit CCW',    kfs: [{t:0,v:180,e:'linear'},{t:1,v:-180,e:'linear'}], dur: 4 },
+    { label: 'Swing',        kfs: [{t:0,v:-45,e:'ease'},{t:0.5,v:45,e:'ease'},{t:1,v:-45,e:'ease'}], dur: 3 },
+    { label: 'Figure 8',     kfs: [{t:0,v:0,e:'ease'},{t:0.25,v:90,e:'ease'},{t:0.5,v:0,e:'ease'},{t:0.75,v:-90,e:'ease'},{t:1,v:0,e:'ease'}], dur: 4 },
+  ],
+  offsetX: [
+    { label: 'Drift Right',  kfs: [{t:0,v:-50,e:'ease'},{t:1,v:50,e:'ease'}], dur: 3 },
+    { label: 'Oscillate',    kfs: [{t:0,v:-100,e:'ease'},{t:0.5,v:100,e:'ease'},{t:1,v:-100,e:'ease'}], dur: 2 },
+  ],
+  offsetY: [
+    { label: 'Float',        kfs: [{t:0,v:-20,e:'ease'},{t:0.5,v:20,e:'ease'},{t:1,v:-20,e:'ease'}], dur: 3 },
+    { label: 'Drop',         kfs: [{t:0,v:-100,e:'linear'},{t:1,v:100,e:'linear'}], dur: 2 },
+  ],
+  opacity: [
+    { label: 'Fade In/Out',  kfs: [{t:0,v:1,e:'ease'},{t:0.5,v:0.1,e:'ease'},{t:1,v:1,e:'ease'}], dur: 2 },
+    { label: 'Flicker',      kfs: [{t:0,v:1,e:'linear'},{t:0.45,v:1,e:'linear'},{t:0.5,v:0,e:'linear'},{t:0.55,v:1,e:'linear'},{t:1,v:1,e:'linear'}], dur: 1.5 },
+    { label: 'Appear',       kfs: [{t:0,v:0,e:'ease-out'},{t:0.4,v:1,e:'linear'},{t:1,v:1,e:'linear'}], dur: 2 },
+  ],
 };
 
 function tlCanvasEl(prop) { return document.getElementById('anim-tl-' + prop); }
@@ -223,9 +265,10 @@ function drawTimeline(prop, spr) {
   // Keyframe dots
   kfs.forEach((kf, idx) => {
     const x = tx(kf.t), y = vy(kf.value);
-    c.beginPath(); c.arc(x, y, 5.5, 0, Math.PI*2);
-    c.fillStyle = '#7c6af0'; c.fill();
-    c.strokeStyle = '#d0ceff'; c.lineWidth = 1.5; c.stroke();
+    const isSel = TL.selectedKf?.prop === prop && TL.selectedKf?.kfIdx === idx;
+    c.beginPath(); c.arc(x, y, isSel ? 7 : 5.5, 0, Math.PI*2);
+    c.fillStyle = isSel ? '#ff6b9d' : '#7c6af0'; c.fill();
+    c.strokeStyle = '#ffffff'; c.lineWidth = isSel ? 2 : 1.5; c.stroke();
   });
 
   // Playhead
@@ -247,18 +290,20 @@ function tlNearestKf(el, prop, px, py, radius = 10) {
   return best;
 }
 
-function tlNearestSeg(el, prop, px, py, radius = 12) {
-  const ap = tlSpr()?.anim?.[prop]; if (!ap) return -1;
-  const { tx, vy } = tlCoords(el, prop);
-  const kfs = ap.keyframes;
-  let best = -1, bestD = radius;
-  for (let i = 0; i < kfs.length - 1; i++) {
-    const mx = tx((kfs[i].t + kfs[i+1].t) / 2);
-    const my = vy((kfs[i].value + kfs[i+1].value) / 2);
-    const d = Math.hypot(mx - px, my - py);
-    if (d < bestD) { bestD = d; best = i; }
+function syncEasingDropdown(prop, spr) {
+  const sel = document.getElementById('anim-ease-sel-' + prop);
+  const row = document.getElementById('anim-kf-row-' + prop);
+  if (!sel || !row) return;
+  const kfIdx = TL.selectedKf?.prop === prop ? TL.selectedKf.kfIdx : -1;
+  if (kfIdx < 0 || !spr?.anim?.[prop]) {
+    row.style.display = 'none';
+    return;
   }
-  return best;
+  const kfs = spr.anim[prop].keyframes;
+  // Show easing for the segment *after* this keyframe (last kf has no segment after)
+  const hasNext = kfIdx < kfs.length - 1;
+  row.style.display = hasNext ? 'flex' : 'none';
+  if (hasNext) sel.value = kfs[kfIdx].easing;
 }
 
 function tlSpr() {
@@ -290,25 +335,22 @@ function initTimelineCanvas(prop) {
     const kfIdx = tlNearestKf(el, prop, px, py);
     if (kfIdx >= 0) {
       TL.dragging = { prop, kfIdx };
+      TL.selectedKf = { prop, kfIdx };
+      syncEasingDropdown(prop, spr);
       return;
     }
 
-    // Click near segment mid = cycle easing
-    const segIdx = tlNearestSeg(el, prop, px, py);
-    if (segIdx >= 0) {
-      const kf = spr.anim[prop].keyframes[segIdx];
-      const cur = EASING_NAMES.indexOf(kf.easing);
-      kf.easing = EASING_NAMES[(cur + 1) % EASING_NAMES.length];
-      historySnapshot();
-      return;
-    }
-
-    // Click empty = add keyframe
+    // Deselect and add keyframe on empty click
+    TL.selectedKf = null;
+    syncEasingDropdown(prop, spr);
     const { tv, yv } = tlCoords(el, prop);
     const t = tv(px), v = yv(py);
     const cfg = ANIM_PROPS.find(p => p.key === prop);
     const clampedV = Math.max(cfg.min, Math.min(cfg.max, v));
-    spr.anim[prop].keyframes.push({ t, value: clampedV, easing: 'ease' });
+    // inherit easing from previous segment
+    const kfs = spr.anim[prop].keyframes;
+    const prevKf = kfs.filter(k => k.t < t).pop();
+    spr.anim[prop].keyframes.push({ t, value: clampedV, easing: prevKf?.easing ?? 'linear' });
     spr.anim[prop].keyframes.sort((a, b) => a.t - b.t);
     historySnapshot();
   });
@@ -332,7 +374,17 @@ function initTimelineCanvas(prop) {
   });
 
   window.addEventListener('mouseup', () => {
-    if (TL.dragging?.prop === prop) { TL.dragging = null; historySnapshot(); }
+    if (TL.dragging?.prop === prop) {
+      // After drag, re-sync selectedKf index (sort may have shifted it)
+      const spr = tlSpr();
+      if (TL.selectedKf?.prop === prop && spr?.anim?.[prop]) {
+        // keep it valid after sort
+        TL.selectedKf.kfIdx = Math.min(TL.selectedKf.kfIdx, spr.anim[prop].keyframes.length - 1);
+        syncEasingDropdown(prop, spr);
+      }
+      TL.dragging = null;
+      historySnapshot();
+    }
   });
 
   el.addEventListener('contextmenu', e => e.preventDefault());
@@ -2302,8 +2354,17 @@ function wireEvents() {
           : key === 'offsetY'  ? spr.y
           : key === 'opacity'  ? (spr.opacity ?? 1)
           : (min + max) / 2;
-        if (!spr.anim[key]) spr.anim[key] = defaultAnimProp(staticVal);
-        else spr.anim[key].enabled = true;
+        if (!spr.anim[key]) {
+          // Smart default per property
+          const defaultPreset = ANIM_PRESETS[key]?.[0];
+          if (defaultPreset) {
+            spr.anim[key] = applyPreset(defaultPreset);
+          } else {
+            spr.anim[key] = defaultAnimProp(staticVal);
+          }
+        } else {
+          spr.anim[key].enabled = true;
+        }
         btn.classList.add('active');
         panel.style.display = 'block';
         if (durEl) durEl.value = spr.anim[key].duration;
@@ -2317,6 +2378,34 @@ function wireEvents() {
       ap.duration = Math.max(0.1, parseFloat(e.target.value) || 2);
     });
     if (durEl) durEl.addEventListener('change', () => historySnapshot());
+
+    // Easing dropdown for selected keyframe
+    const easeSel = document.getElementById('anim-ease-sel-' + key);
+    if (easeSel) easeSel.addEventListener('change', e => {
+      const found = findSprite(S.selectedSpriteId); if (!found) return;
+      const kfIdx = TL.selectedKf?.prop === key ? TL.selectedKf.kfIdx : -1;
+      if (kfIdx < 0) return;
+      found.sprite.anim[key].keyframes[kfIdx].easing = e.target.value;
+      historySnapshot();
+    });
+
+    // Presets dropdown
+    const presetSel = document.getElementById('anim-preset-' + key);
+    if (presetSel) presetSel.addEventListener('change', e => {
+      const found = findSprite(S.selectedSpriteId); if (!found) return;
+      const spr2 = found.sprite;
+      const preset = ANIM_PRESETS[key]?.find(p => p.label === e.target.value);
+      if (!preset) return;
+      if (!spr2.anim) spr2.anim = {};
+      spr2.anim[key] = applyPreset(preset);
+      const durEl2 = document.getElementById('anim-dur-' + key);
+      if (durEl2) durEl2.value = spr2.anim[key].duration;
+      TL.selectedKf = null;
+      drawTimeline(key, spr2);
+      presetSel.value = '';
+      historySnapshot();
+    });
+
     initTimelineCanvas(key);
   });
 

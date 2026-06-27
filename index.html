@@ -148,12 +148,17 @@
         </div>
         <div class="anim-panel" id="anim-panel-scale" style="display:none">
           <div class="anim-controls">
-            <span class="anim-label">Duration</span>
+            <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-scale" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
-            <span class="anim-hint">Click curve=easing · Drag dot · Click empty=add · Right-click=delete</span>
+            <select id="anim-preset-scale" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Grow</option><option>Breathe</option><option>Bounce In</option></select>
           </div>
           <canvas id="anim-tl-scale" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="anim-kf-row-scale" style="display:none">
+            <span class="anim-label">Easing →</span>
+            <select id="anim-ease-sel-scale" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+          </div>
+          <div class="anim-hint">Click dot to select · Drag to move · Click empty=add · Right-click=delete</div>
         </div>
         <div class="prop-row">
           <label class="prop-label">Rotation</label>
@@ -163,11 +168,16 @@
         </div>
         <div class="anim-panel" id="anim-panel-rotation" style="display:none">
           <div class="anim-controls">
-            <span class="anim-label">Duration</span>
+            <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-rotation" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
+            <select id="anim-preset-rotation" class="anim-preset-sel"><option value="">Presets…</option><option>Spin CW</option><option>Spin CCW</option><option>Rock</option><option>Wobble</option></select>
           </div>
           <canvas id="anim-tl-rotation" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="anim-kf-row-rotation" style="display:none">
+            <span class="anim-label">Easing →</span>
+            <select id="anim-ease-sel-rotation" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+          </div>
         </div>
         <div class="prop-row">
           <label class="prop-label">Orbit</label>
@@ -177,11 +187,16 @@
         </div>
         <div class="anim-panel" id="anim-panel-orbit" style="display:none">
           <div class="anim-controls">
-            <span class="anim-label">Duration</span>
-            <input type="number" id="anim-dur-orbit" value="2" min="0.1" max="60" step="0.1">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="anim-dur-orbit" value="4" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
+            <select id="anim-preset-orbit" class="anim-preset-sel"><option value="">Presets…</option><option>Orbit CW</option><option>Orbit CCW</option><option>Swing</option><option>Figure 8</option></select>
           </div>
           <canvas id="anim-tl-orbit" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="anim-kf-row-orbit" style="display:none">
+            <span class="anim-label">Easing →</span>
+            <select id="anim-ease-sel-orbit" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+          </div>
         </div>
         <div class="prop-row">
           <label class="prop-label">Offset X</label>
@@ -191,11 +206,16 @@
         </div>
         <div class="anim-panel" id="anim-panel-offsetX" style="display:none">
           <div class="anim-controls">
-            <span class="anim-label">Duration</span>
+            <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-offsetX" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
+            <select id="anim-preset-offsetX" class="anim-preset-sel"><option value="">Presets…</option><option>Drift Right</option><option>Oscillate</option></select>
           </div>
           <canvas id="anim-tl-offsetX" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="anim-kf-row-offsetX" style="display:none">
+            <span class="anim-label">Easing →</span>
+            <select id="anim-ease-sel-offsetX" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+          </div>
         </div>
         <div class="prop-row">
           <label class="prop-label">Offset Y</label>
@@ -205,11 +225,16 @@
         </div>
         <div class="anim-panel" id="anim-panel-offsetY" style="display:none">
           <div class="anim-controls">
-            <span class="anim-label">Duration</span>
+            <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-offsetY" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
+            <select id="anim-preset-offsetY" class="anim-preset-sel"><option value="">Presets…</option><option>Float</option><option>Drop</option></select>
           </div>
           <canvas id="anim-tl-offsetY" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="anim-kf-row-offsetY" style="display:none">
+            <span class="anim-label">Easing →</span>
+            <select id="anim-ease-sel-offsetY" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+          </div>
         </div>
         <div class="prop-row">
           <label class="prop-label">Opacity</label>
@@ -219,11 +244,16 @@
         </div>
         <div class="anim-panel" id="anim-panel-opacity" style="display:none">
           <div class="anim-controls">
-            <span class="anim-label">Duration</span>
+            <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-opacity" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
+            <select id="anim-preset-opacity" class="anim-preset-sel"><option value="">Presets…</option><option>Fade In/Out</option><option>Flicker</option><option>Appear</option></select>
           </div>
           <canvas id="anim-tl-opacity" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="anim-kf-row-opacity" style="display:none">
+            <span class="anim-label">Easing →</span>
+            <select id="anim-ease-sel-opacity" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+          </div>
         </div>
         <div class="prop-row">
           <label class="checkbox-label"><input type="checkbox" id="prop-flip-x"> Flip X</label>
