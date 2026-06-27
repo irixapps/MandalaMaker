@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandala Maker</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="toolbar">
+    <div class="toolbar-group" style="margin-right:4px">
+      <svg width="28" height="28" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0">
+        <circle cx="32" cy="32" r="32" fill="#0d0d1a"/>
+        <g stroke="#ff6b9d" stroke-width="1.5" fill="none">
+          <circle cx="32" cy="32" r="28" stroke-opacity=".3"/>
+          <circle cx="32" cy="32" r="18" stroke-opacity=".5"/>
+        </g>
+        <g fill="#ff6b9d">
+          <circle cx="32" cy="4" r="3"/><circle cx="54.6" cy="18" r="3"/><circle cx="54.6" cy="46" r="3"/>
+          <circle cx="32" cy="60" r="3"/><circle cx="9.4" cy="46" r="3"/><circle cx="9.4" cy="18" r="3"/>
+        </g>
+        <g fill="#7c6af0">
+          <circle cx="32" cy="14" r="2"/><circle cx="46.4" cy="23" r="2"/><circle cx="46.4" cy="41" r="2"/>
+          <circle cx="32" cy="50" r="2"/><circle cx="17.6" cy="41" r="2"/><circle cx="17.6" cy="23" r="2"/>
+        </g>
+        <circle cx="32" cy="32" r="5" fill="#ff6b9d"/>
+        <circle cx="32" cy="32" r="2.5" fill="#7c6af0"/>
+      </svg>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <button class="btn" id="btn-new" title="New project">New</button>
+      <button class="btn" id="btn-save" title="Save project (Ctrl+S)">Save</button>
+      <button class="btn" id="btn-load" title="Load project">Load</button>
+      <button class="btn" id="btn-export" title="Export PNG">Export PNG</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label style="font-size:12px">Axes:</label>
+      <button class="btn icon-btn" id="btn-axes-dec" title="Fewer axes (0 = free draw)">−</button>
+      <span id="axes-display">8</span>
+      <button class="btn icon-btn" id="btn-axes-inc" title="More axes">+</button>
+      <label style="font-size:12px;margin-left:4px">Rotate:</label>
+      <input type="number" id="axis-rotation" value="0" min="0" max="359" step="1" title="Rotate all axes by this many degrees" style="width:48px">
+      <span style="font-size:12px">°</span>
+      <button class="btn icon-btn" id="btn-rot-ccw" title="Rotate axes CCW one step" style="font-size:18px;line-height:1;padding:0 4px">↺</button>
+      <button class="btn icon-btn" id="btn-rot-cw"  title="Rotate axes CW one step"  style="font-size:18px;line-height:1;padding:0 4px">↻</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label class="checkbox-label"><input type="checkbox" id="cb-mirror" checked> Mirror</label>
+<label class="checkbox-label"><input type="checkbox" id="cb-guides" checked> Guides</label>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)">↩ Undo</button>
+      <button class="btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)">↪ Redo</button>
+      <button class="btn btn-clear" id="btn-clear" title="Clear all strokes and sprites from this mandala">🗑 Clear</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label style="font-size:12px">BG:</label>
+      <input type="color" id="bg-color" value="#0d0d1a" title="Background color">
+      <label style="font-size:12px;margin-left:6px">Canvas:</label>
+      <select id="canvas-size" title="Canvas size">
+        <option value="1200x900">1200×900</option>
+        <option value="1600x1200">1600×1200</option>
+        <option value="2048x2048">2048×2048</option>
+        <option value="800x800">800×800</option>
+      </select>
+    </div>
+  </header>
+
+  <main id="main">
+    <aside id="left-panel">
+      <div class="panel-label" style="font-size:9px;margin-bottom:4px">TOOLS</div>
+      <button class="tool-btn active" data-tool="brush" title="Brush — draw freehand with radial symmetry (B)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 3L19 8L9 18H4V13L14 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <line x1="11.5" y1="5.5" x2="16.5" y2="10.5" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+          <path d="M4 18 Q2 21 5 20" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="line" title="Line — draw straight lines with radial symmetry, hold Snap for 15° increments (L)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="4" y1="18" x2="18" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="4" cy="18" r="2.5" fill="currentColor"/>
+          <circle cx="18" cy="4" r="2.5" fill="currentColor"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="erase" title="Eraser — erase with radial symmetry (E)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="9" width="16" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/>
+          <line x1="3" y1="13.5" x2="19" y2="13.5" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+          <line x1="11" y1="9" x2="8" y2="18" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+          <line x1="3" y1="18" x2="19" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="select" title="Select &amp; Transform — click a placed sprite to move, scale or rotate it (S)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 3L5 17L8.5 13.5L10.5 19L13 18L11 12.5L15 12.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="place" title="Place — click canvas to stamp the selected palette image with radial copies (P)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5" y="5" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="11" y1="3" x2="11" y2="19" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
+          <line x1="3" y1="11" x2="19" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="11" cy="11" r="2" fill="currentColor"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="eyedropper" title="Eyedropper — click any pixel to pick its colour as the draw colour (I)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 2L20 7L11 16L6 16L6 11Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <line x1="12.5" y1="4.5" x2="17.5" y2="9.5" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+          <line x1="4" y1="20" x2="8" y2="16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+          <circle cx="3.5" cy="20.5" r="2" fill="currentColor" opacity="0.8"/>
+        </svg>
+      </button>
+      <div class="panel-sep" style="width:44px;margin:6px 0"></div>
+      <div class="panel-label" style="font-size:9px;margin-bottom:4px">MANDALAS</div>
+      <div id="mandala-list"></div>
+      <button class="tool-btn" id="btn-add-mandala-side" title="Add mandala" style="font-size:14px;margin-top:4px">+</button>
+      <button class="tool-btn" id="btn-delete-mandala" title="Delete active mandala" style="margin-top:2px;opacity:0.5;color:currentColor">
+        <svg width="13" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="3" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M4 3V2a1 1 0 011-1h2a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.4"/><line x1="0" y1="3" x2="12" y2="3" stroke="currentColor" stroke-width="1.4"/><line x1="4.5" y1="6" x2="4.5" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="6" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </aside>
+
+    <div id="canvas-container">
+      <canvas id="main-canvas"></canvas>
+    </div>
+
+    <aside id="right-panel">
+      <!-- Palette section -->
+      <div class="panel-header">
+        <span>Palette</span>
+        <button class="btn-small" id="btn-add-image" title="Import image or GIF">+ Import</button>
+      </div>
+      <div id="palette-drop-zone">Drop images / GIFs here<br><small style="opacity:.6">(or click Import)</small></div>
+      <div id="palette-list"></div>
+
+      <div class="panel-sep"></div>
+
+      <!-- Sprite properties (shown when sprite selected) -->
+      <div id="sprite-props" style="display:none">
+        <div class="panel-label">Sprite Properties</div>
+        <div class="prop-row">
+          <label class="prop-label">Scale</label>
+          <input type="range" id="prop-scale" min="0.05" max="8" step="0.05" value="1">
+          <span class="prop-val" id="prop-scale-val">1.00×</span>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Rotation</label>
+          <input type="range" id="prop-rotation" min="-180" max="180" step="1" value="0">
+          <span class="prop-val" id="prop-rotation-val">0°</span>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Offset X</label>
+          <input type="range" id="prop-ox" min="-400" max="400" step="1" value="0">
+          <span class="prop-val" id="prop-ox-val">0</span>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Offset Y</label>
+          <input type="range" id="prop-oy" min="-400" max="400" step="1" value="0">
+          <span class="prop-val" id="prop-oy-val">0</span>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Opacity</label>
+          <input type="range" id="prop-spr-opacity" min="0" max="1" step="0.05" value="1">
+          <span class="prop-val" id="prop-spr-opacity-val">100%</span>
+        </div>
+        <div class="prop-row">
+          <label class="checkbox-label"><input type="checkbox" id="prop-flip-x"> Flip X</label>
+        </div>
+        <div class="prop-row">
+          <label class="checkbox-label"><input type="checkbox" id="prop-warp"> Fill Segment (Warp)</label>
+        </div>
+        <div id="warp-options" style="display:none;padding-left:8px">
+          <div class="prop-row"><label class="checkbox-label"><input type="checkbox" id="prop-tile-x"> Tile X</label></div>
+          <div class="prop-row"><label class="checkbox-label"><input type="checkbox" id="prop-tile-y"> Tile Y</label></div>
+        </div>
+        <button class="btn btn-danger" id="btn-delete-sprite">🗑 Delete Sprite</button>
+        <button class="btn" id="btn-dup-sprite" style="width:100%;margin-top:4px">Duplicate</button>
+      </div>
+
+      <!-- Palette item properties -->
+      <div id="palette-item-props" style="display:none">
+        <div class="panel-label">Image Settings</div>
+        <div class="prop-row">
+          <button class="btn" id="btn-crop" style="width:100%;margin-bottom:4px">✂️ Set Crop</button>
+        </div>
+        <div class="prop-row">
+          <button class="btn" id="btn-transparency" style="width:100%">🎨 Set Transparent Color</button>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Tolerance</label>
+          <input type="range" id="trans-tolerance" min="0" max="100" step="1" value="15">
+          <span class="prop-val" id="trans-tolerance-val">15</span>
+        </div>
+        <div class="prop-row" style="margin-top:4px">
+          <button class="btn" id="btn-split-frames" style="width:100%">🎞 Split into Frames</button>
+        </div>
+        <div id="split-frames-info" style="font-size:10px;color:var(--text-dim);padding:2px 0 6px;display:none"></div>
+        <div class="prop-row">
+          <label class="checkbox-label"><input type="checkbox" id="prop-sprite-sheet"> Sprite Sheet</label>
+        </div>
+        <div id="sprite-sheet-options" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Cols</label>
+            <input type="number" id="ss-cols" value="4" min="1" max="32" style="width:50px">
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Rows</label>
+            <input type="number" id="ss-rows" value="4" min="1" max="32" style="width:50px">
+          </div>
+          <div id="ss-grid-preview"></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer id="status-bar">
+    <div class="toolbar-group">
+      <label style="font-size:12px">Color:</label>
+      <input type="color" id="draw-color" value="#ff6b9d">
+      <div id="color-swatch"></div>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label style="font-size:12px">Size:</label>
+      <input type="range" id="brush-size" min="1" max="60" value="4">
+      <span id="brush-size-val" style="min-width:20px">4</span>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label style="font-size:12px">Opacity:</label>
+      <input type="range" id="draw-opacity" min="0.05" max="1" step="0.05" value="1">
+      <span id="draw-opacity-val" style="min-width:30px">100%</span>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label style="font-size:12px">Smooth:</label>
+      <input type="range" id="brush-smooth" min="0" max="10" step="1" value="3">
+    </div>
+    <div id="cursor-pos" style="margin-left:auto;font-size:11px;opacity:.6">x:0 y:0</div>
+  </footer>
+</div>
+
+<input type="file" id="file-load" accept=".json" style="display:none">
+<input type="file" id="image-import" accept="image/*" multiple style="display:none">
+<!-- GIF images need to render at natural size (even off-screen) so the browser advances their animation frames -->
+<div id="hidden-imgs" style="position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;z-index:-1"></div>
+
+<!-- GIF frame decoder (locally bundled — CDN version is CommonJS-only, has no browser globals) -->
+<script src="gifuct.bundle.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
