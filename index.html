@@ -57,7 +57,7 @@
     <div class="toolbar-group">
       <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)">↩ Undo</button>
       <button class="btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)">↪ Redo</button>
-      <button class="btn btn-clear" id="btn-clear" title="Clear all strokes and sprites from this mandala">🗑 Clear</button>
+      <button class="btn btn-clear" id="btn-clear" title="Clear all strokes and sprites from this mandala"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Clear</button>
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group">
@@ -118,7 +118,7 @@
       <div id="mandala-list"></div>
       <button class="tool-btn" id="btn-add-mandala-side" title="Add mandala" style="font-size:14px;margin-top:4px">+</button>
       <button class="tool-btn" id="btn-delete-mandala" title="Delete active mandala" style="margin-top:2px;opacity:0.5;color:currentColor">
-        <svg width="13" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="3" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M4 3V2a1 1 0 011-1h2a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.4"/><line x1="0" y1="3" x2="12" y2="3" stroke="currentColor" stroke-width="1.4"/><line x1="4.5" y1="6" x2="4.5" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="6" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+        <svg width="13" height="14" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg>
       </button>
     </aside>
 
@@ -156,7 +156,7 @@
           <canvas id="anim-tl-scale" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-scale" style="display:none">
             <span class="anim-label">Easing →</span>
-            <select id="anim-ease-sel-scale" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-scale" title="Delete keyframe"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3h12M5 3V2h4v1M2 3l1 9h8l1-9M5 5v5M9 5v5"/></svg></button>
+            <select id="anim-ease-sel-scale" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-scale" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
           <div class="anim-hint">Click dot to select · Drag to move · Click empty=add · Right-click=delete</div>
         </div>
@@ -176,7 +176,7 @@
           <canvas id="anim-tl-rotation" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-rotation" style="display:none">
             <span class="anim-label">Easing →</span>
-            <select id="anim-ease-sel-rotation" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-rotation" title="Delete keyframe"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3h12M5 3V2h4v1M2 3l1 9h8l1-9M5 5v5M9 5v5"/></svg></button>
+            <select id="anim-ease-sel-rotation" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-rotation" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
         <div class="prop-row">
@@ -195,7 +195,7 @@
           <canvas id="anim-tl-orbit" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-orbit" style="display:none">
             <span class="anim-label">Easing →</span>
-            <select id="anim-ease-sel-orbit" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-orbit" title="Delete keyframe"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3h12M5 3V2h4v1M2 3l1 9h8l1-9M5 5v5M9 5v5"/></svg></button>
+            <select id="anim-ease-sel-orbit" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-orbit" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
         <div class="prop-row">
@@ -214,7 +214,7 @@
           <canvas id="anim-tl-offsetX" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-offsetX" style="display:none">
             <span class="anim-label">Easing →</span>
-            <select id="anim-ease-sel-offsetX" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-offsetX" title="Delete keyframe"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3h12M5 3V2h4v1M2 3l1 9h8l1-9M5 5v5M9 5v5"/></svg></button>
+            <select id="anim-ease-sel-offsetX" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-offsetX" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
         <div class="prop-row">
@@ -233,7 +233,7 @@
           <canvas id="anim-tl-offsetY" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-offsetY" style="display:none">
             <span class="anim-label">Easing →</span>
-            <select id="anim-ease-sel-offsetY" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-offsetY" title="Delete keyframe"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3h12M5 3V2h4v1M2 3l1 9h8l1-9M5 5v5M9 5v5"/></svg></button>
+            <select id="anim-ease-sel-offsetY" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-offsetY" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
         <div class="prop-row">
@@ -252,7 +252,7 @@
           <canvas id="anim-tl-opacity" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-opacity" style="display:none">
             <span class="anim-label">Easing →</span>
-            <select id="anim-ease-sel-opacity" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-opacity" title="Delete keyframe"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 3h12M5 3V2h4v1M2 3l1 9h8l1-9M5 5v5M9 5v5"/></svg></button>
+            <select id="anim-ease-sel-opacity" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-opacity" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
         <div class="prop-row">
@@ -271,7 +271,7 @@
             <input type="number" id="prop-tile-y" min="1" max="32" value="1" style="width:48px">
           </div>
         </div>
-        <button class="btn btn-danger" id="btn-delete-sprite">🗑 Delete Sprite</button>
+        <button class="btn btn-danger" id="btn-delete-sprite"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Sprite</button>
         <button class="btn" id="btn-dup-sprite" style="width:100%;margin-top:4px">Duplicate</button>
       </div>
 
@@ -279,10 +279,10 @@
       <div id="palette-item-props" style="display:none">
         <div class="panel-label">Image Settings</div>
         <div class="prop-row">
-          <button class="btn" id="btn-crop" style="width:100%;margin-bottom:4px">✂️ Set Crop</button>
+          <button class="btn" id="btn-crop" style="width:100%;margin-bottom:4px"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M3 1v9a1 1 0 001 1h9"/><path d="M1 3h9a1 1 0 011 1v9"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor" stroke="none"/></svg> Set Crop</button>
         </div>
         <div class="prop-row">
-          <button class="btn" id="btn-transparency" style="width:100%">🎨 Set Transparent Color</button>
+          <button class="btn" id="btn-transparency" style="width:100%"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><rect x="1" y="1" width="12" height="12" rx="2"/><line x1="1" y1="1" x2="13" y2="13" stroke-width="1.2" stroke-dasharray="2 2"/><path d="M4 10 Q7 4 10 10" stroke-width="1.3"/><line x1="5" y1="8.5" x2="9" y2="8.5"/></svg> Set Transparent Color</button>
         </div>
         <div class="prop-row">
           <label class="prop-label">Tolerance</label>
@@ -290,7 +290,7 @@
           <span class="prop-val" id="trans-tolerance-val">15</span>
         </div>
         <div class="prop-row" style="margin-top:4px">
-          <button class="btn" id="btn-split-frames" style="width:100%">🎞 Split into Frames</button>
+          <button class="btn" id="btn-split-frames" style="width:100%"><svg width="14" height="13" viewBox="0 0 15 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><rect x="1" y="2" width="13" height="9" rx="1"/><line x1="5" y1="2" x2="5" y2="11"/><line x1="10" y1="2" x2="10" y2="11"/><line x1="1" y1="4.5" x2="5" y2="4.5"/><line x1="10" y1="4.5" x2="14" y2="4.5"/><line x1="1" y1="8.5" x2="5" y2="8.5"/><line x1="10" y1="8.5" x2="14" y2="8.5"/></svg> Split into Frames</button>
         </div>
         <div id="split-frames-info" style="font-size:10px;color:var(--text-dim);padding:2px 0 6px;display:none"></div>
         <div class="prop-row">

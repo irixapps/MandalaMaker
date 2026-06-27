@@ -1551,7 +1551,7 @@ function renderPaletteList() {
 
     const del = document.createElement('button');
     del.className = 'palette-del-btn';
-    del.textContent = '×';
+    del.innerHTML = '<svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg>';
     del.title = 'Remove from palette';
     del.addEventListener('click', e => { e.stopPropagation(); removePaletteItem(item.id); });
 
