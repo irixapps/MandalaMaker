@@ -520,6 +520,8 @@ select { cursor: pointer; }
 .anim-preset-sel { font-size: 10px; background: var(--btn); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 1px 2px; flex: 1; min-width: 0; cursor: pointer; }
 .anim-ease-sel   { font-size: 10px; background: var(--btn); color: var(--text); border: 1px solid var(--accent); border-radius: 3px; padding: 1px 4px; cursor: pointer; }
 .anim-kf-row { display: flex; align-items: center; gap: 5px; margin-top: 4px; padding: 3px 4px; background: rgba(124,106,240,0.1); border-radius: 3px; }
+.anim-kf-del { background: none; border: 1px solid #5a2a2a; border-radius: 3px; color: #e08080; cursor: pointer; padding: 2px 4px; flex-shrink: 0; transition: all 0.1s; }
+.anim-kf-del:hover { background: #3a1515; border-color: #8a3a3a; color: #ffaaaa; }
 canvas[id^="anim-tl-"] {
   display: block;
   width: 100%;

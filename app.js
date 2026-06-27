@@ -2389,6 +2389,19 @@ function wireEvents() {
       historySnapshot();
     });
 
+    // Delete selected keyframe button
+    const delBtn = document.getElementById('anim-kf-del-' + key);
+    if (delBtn) delBtn.addEventListener('click', () => {
+      const found = findSprite(S.selectedSpriteId); if (!found) return;
+      const ap = found.sprite.anim?.[key]; if (!ap) return;
+      const kfIdx = TL.selectedKf?.prop === key ? TL.selectedKf.kfIdx : -1;
+      if (kfIdx < 0 || ap.keyframes.length <= 2) return;
+      ap.keyframes.splice(kfIdx, 1);
+      TL.selectedKf = null;
+      syncEasingDropdown(key, found.sprite);
+      historySnapshot();
+    });
+
     // Presets dropdown
     const presetSel = document.getElementById('anim-preset-' + key);
     if (presetSel) presetSel.addEventListener('change', e => {
