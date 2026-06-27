@@ -279,7 +279,7 @@ function drawTimeline(prop, spr) {
   c.setLineDash([]);
 }
 
-function tlNearestKf(el, prop, px, py, radius = 10) {
+function tlNearestKf(el, prop, px, py, radius = 14) {
   const ap = tlSpr()?.anim?.[prop]; if (!ap) return -1;
   const { tx, vy } = tlCoords(el, prop);
   let best = -1, bestD = radius;
@@ -304,6 +304,12 @@ function syncEasingDropdown(prop, spr) {
   const hasNext = kfIdx < kfs.length - 1;
   row.style.display = hasNext ? 'flex' : 'none';
   if (hasNext) sel.value = kfs[kfIdx].easing;
+  // Bin: only show for non-endpoint keyframes that are deletable
+  const delBtn = document.getElementById('anim-kf-del-' + prop);
+  if (delBtn) {
+    const canDelete = kfIdx > 0 && kfIdx < kfs.length - 1 && kfs.length > 2;
+    delBtn.style.display = canDelete ? '' : 'none';
+  }
 }
 
 function tlSpr() {
@@ -355,22 +361,22 @@ function initTimelineCanvas(prop) {
     historySnapshot();
   });
 
-  el.addEventListener('mousemove', e => {
+  window.addEventListener('mousemove', e => {
     if (!TL.dragging || TL.dragging.prop !== prop) return;
     const rect = el.getBoundingClientRect();
     const scaleX = el.width / rect.width;
+    const scaleY = el.height / rect.height;
     const px = (e.clientX - rect.left) * scaleX;
-    const py = (e.clientY - rect.top) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
     const spr = tlSpr(); if (!spr?.anim?.[prop]) return;
     const { tv, yv } = tlCoords(el, prop);
     const cfg = ANIM_PROPS.find(p => p.key === prop);
     const kfs = spr.anim[prop].keyframes;
-    const idx = TL.dragging.kfIdx;
-    kfs[idx].t = Math.max(0, Math.min(1, tv(px)));
-    kfs[idx].value = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
+    const draggedKf = kfs[TL.dragging.kfIdx];
+    draggedKf.t = Math.max(0, Math.min(1, tv(px)));
+    draggedKf.value = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
     kfs.sort((a, b) => a.t - b.t);
-    // keep dragging idx pointing to same kf after sort
-    TL.dragging.kfIdx = kfs.findIndex(kf => kf === kfs[idx]);
+    TL.dragging.kfIdx = kfs.indexOf(draggedKf);
   });
 
   window.addEventListener('mouseup', () => {
