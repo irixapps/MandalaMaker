@@ -54,6 +54,12 @@ const S = {
   rafId: null,
   lastTime: 0,
   animClock: 0,
+
+  // viewport
+  viewport: { zoom: 1, panX: 0, panY: 0 },
+  panning: false,
+  panStart: null,       // { x, y, panX, panY }
+  spaceDown: false,
 };
 
 // ── DOM refs ────────────────────────────────────────────
@@ -480,12 +486,132 @@ function updateUndoButtons() {
 }
 
 // ── Canvas view helpers ──────────────────────────────────
-function centerCanvasView() {
+function applyViewport() {
+  const { zoom, panX, panY } = S.viewport;
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  const zl = document.getElementById('zoom-label');
+  if (zl) zl.textContent = Math.round(zoom * 100) + '%';
+}
+
+function fitCanvas() {
   const cc = document.getElementById('canvas-container');
   if (!cc) return;
   requestAnimationFrame(() => {
-    cc.scrollLeft = Math.max(0, (canvas.offsetWidth - cc.clientWidth) / 2);
-    cc.scrollTop = Math.max(0, (canvas.offsetHeight - cc.clientHeight) / 2);
+    const cw = cc.clientWidth, ch = cc.clientHeight;
+    const zoom = Math.min(1, (cw - 48) / canvas.width, (ch - 48) / canvas.height);
+    S.viewport.zoom = zoom;
+    S.viewport.panX = (cw - canvas.width * zoom) / 2;
+    S.viewport.panY = (ch - canvas.height * zoom) / 2;
+    applyViewport();
+  });
+}
+
+function centerCanvasView() { fitCanvas(); }
+
+function zoomAt(factor, clientX, clientY) {
+  const cc = document.getElementById('canvas-container');
+  const rect = cc.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  const newZoom = Math.max(0.05, Math.min(16, S.viewport.zoom * factor));
+  S.viewport.panX = mx - (mx - S.viewport.panX) * (newZoom / S.viewport.zoom);
+  S.viewport.panY = my - (my - S.viewport.panY) * (newZoom / S.viewport.zoom);
+  S.viewport.zoom = newZoom;
+  applyViewport();
+}
+
+function wireViewport() {
+  const cc = document.getElementById('canvas-container');
+
+  // Ctrl+Wheel = zoom; Wheel alone = pan
+  cc.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoomAt(factor, e.clientX, e.clientY);
+    } else {
+      S.viewport.panX -= e.deltaX;
+      S.viewport.panY -= e.deltaY;
+      applyViewport();
+    }
+  }, { passive: false });
+
+  // Middle-mouse drag OR Space+left-drag = pan
+  cc.addEventListener('mousedown', e => {
+    if (e.button === 1 || (e.button === 0 && S.spaceDown)) {
+      e.preventDefault();
+      S.panning = true;
+      S.panStart = { x: e.clientX, y: e.clientY, panX: S.viewport.panX, panY: S.viewport.panY };
+      cc.style.cursor = 'grabbing';
+    }
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!S.panning) return;
+    S.viewport.panX = S.panStart.panX + (e.clientX - S.panStart.x);
+    S.viewport.panY = S.panStart.panY + (e.clientY - S.panStart.y);
+    applyViewport();
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (S.panning) {
+      S.panning = false;
+      cc.style.cursor = S.spaceDown ? 'grab' : '';
+    }
+  });
+
+  // Space to toggle pan mode cursor
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !e.target.matches('input,textarea,select')) {
+      e.preventDefault();
+      S.spaceDown = true;
+      cc.style.cursor = 'grab';
+    }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space') {
+      S.spaceDown = false;
+      if (!S.panning) cc.style.cursor = '';
+    }
+  });
+
+  // Double-click container background (not canvas) = fit
+  cc.addEventListener('dblclick', e => {
+    if (e.target === cc) fitCanvas();
+  });
+
+  // Zoom buttons
+  document.getElementById('btn-zoom-in') .addEventListener('click', () => zoomAt(1.25, window.innerWidth/2, window.innerHeight/2));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => zoomAt(1/1.25, window.innerWidth/2, window.innerHeight/2));
+  document.getElementById('btn-zoom-fit').addEventListener('click', fitCanvas);
+
+  // Keyboard zoom shortcuts
+  window.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomAt(1.25, window.innerWidth/2, window.innerHeight/2); }
+    if ((e.ctrlKey || e.metaKey) && e.key === '-')                    { e.preventDefault(); zoomAt(1/1.25, window.innerWidth/2, window.innerHeight/2); }
+    if ((e.ctrlKey || e.metaKey) && e.key === '0')                    { e.preventDefault(); fitCanvas(); }
+  });
+
+  // Canvas size presets + custom
+  document.getElementById('canvas-size').addEventListener('change', e => {
+    const val = e.target.value;
+    if (val === 'custom') {
+      document.getElementById('custom-size-row').style.display = 'flex';
+      return;
+    }
+    document.getElementById('custom-size-row').style.display = 'none';
+    const [w, h] = val.split('x').map(Number);
+    if (confirm(`Resize canvas to ${w}×${h}? Drawing will be preserved.`)) resizeCanvas(w, h);
+    else e.target.value = `${S.canvasW}x${S.canvasH}`;
+  });
+
+  document.getElementById('btn-apply-custom-size').addEventListener('click', () => {
+    const w = Math.max(100, Math.min(8192, parseInt(document.getElementById('custom-w').value) || 1200));
+    const h = Math.max(100, Math.min(8192, parseInt(document.getElementById('custom-h').value) || 900));
+    if (confirm(`Resize canvas to ${w}×${h}? Drawing will be preserved.`)) {
+      resizeCanvas(w, h);
+      document.getElementById('canvas-size').value = 'custom';
+    }
   });
 }
 
@@ -2225,10 +2351,7 @@ function wireEvents() {
   });
   document.getElementById('cb-guides').addEventListener('change', e => { S.showGuides = e.target.checked; });
   document.getElementById('bg-color').addEventListener('input', e => { S.bgColor = e.target.value; });
-  document.getElementById('canvas-size').addEventListener('change', e => {
-    const [w, h] = e.target.value.split('x').map(Number);
-    if (confirm(`Resize canvas to ${w}×${h}? Drawing will be preserved.`)) resizeCanvas(w, h);
-  });
+  wireViewport();
 
   // Tool buttons
   document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {

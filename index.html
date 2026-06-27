@@ -65,11 +65,39 @@
       <input type="color" id="bg-color" value="#0d0d1a" title="Background color">
       <label style="font-size:12px;margin-left:6px">Canvas:</label>
       <select id="canvas-size" title="Canvas size">
-        <option value="1200x900">1200×900</option>
-        <option value="1600x1200">1600×1200</option>
-        <option value="2048x2048">2048×2048</option>
-        <option value="800x800">800×800</option>
+        <optgroup label="Square">
+          <option value="512x512">512×512</option>
+          <option value="800x800">800×800</option>
+          <option value="1024x1024">1024×1024</option>
+          <option value="1440x1440">1440×1440</option>
+          <option value="2048x2048">2048×2048</option>
+          <option value="4096x4096">4096×4096</option>
+        </optgroup>
+        <optgroup label="Landscape">
+          <option value="1200x900" selected>1200×900</option>
+          <option value="1280x720">1280×720 (HD)</option>
+          <option value="1920x1080">1920×1080 (FHD)</option>
+          <option value="2560x1440">2560×1440 (QHD)</option>
+          <option value="3840x2160">3840×2160 (4K)</option>
+        </optgroup>
+        <optgroup label="Portrait">
+          <option value="900x1200">900×1200</option>
+          <option value="1080x1920">1080×1920</option>
+          <option value="1242x2688">1242×2688 (Phone)</option>
+        </optgroup>
+        <option value="custom">Custom…</option>
       </select>
+      <div id="custom-size-row" style="display:none;align-items:center;gap:3px">
+        <input type="number" id="custom-w" min="100" max="8192" value="1200" style="width:52px" placeholder="W">
+        <span style="font-size:11px">×</span>
+        <input type="number" id="custom-h" min="100" max="8192" value="900" style="width:52px" placeholder="H">
+        <button class="btn" id="btn-apply-custom-size" style="padding:2px 6px;font-size:11px">Apply</button>
+      </div>
+      <div class="toolbar-sep"></div>
+      <button class="btn" id="btn-zoom-out" title="Zoom out (Ctrl+−)">−</button>
+      <span id="zoom-label" style="font-size:11px;min-width:36px;text-align:center">100%</span>
+      <button class="btn" id="btn-zoom-in" title="Zoom in (Ctrl+=)">+</button>
+      <button class="btn" id="btn-zoom-fit" title="Fit to screen">Fit</button>
     </div>
   </header>
 
