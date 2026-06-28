@@ -3990,6 +3990,25 @@ function addMandala() {
 }
 
 // ── Event wiring ─────────────────────────────────────────
+let _showcasePrevGuides = true;
+
+function enterShowcase() {
+  _showcasePrevGuides = S.showGuides;
+  S.showGuides = false;
+  document.body.classList.add('showcase');
+  fitCanvas();
+}
+
+function exitShowcase() {
+  document.body.classList.remove('showcase');
+  S.showGuides = _showcasePrevGuides;
+  fitCanvas();
+}
+
+function isShowcase() {
+  return document.body.classList.contains('showcase');
+}
+
 function toggleHelp() {
   const el = document.getElementById('help-overlay');
   if (el) el.classList.toggle('visible');
@@ -4016,6 +4035,7 @@ function wireEvents() {
   // Toolbar
   document.getElementById('btn-new').addEventListener('click', newProject);
   document.getElementById('btn-save').addEventListener('click', saveProject);
+  document.getElementById('btn-showcase').addEventListener('click', enterShowcase);
   document.getElementById('btn-help').addEventListener('click', toggleHelp);
   document.getElementById('btn-help-close').addEventListener('click', closeHelp);
   document.getElementById('help-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelp(); });
@@ -4384,7 +4404,7 @@ function wireEvents() {
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.key === '?') { toggleHelp(); return; }
-    if (e.key === 'Escape') { closeHelp(); }
+    if (e.key === 'Escape') { if (isShowcase()) { exitShowcase(); return; } closeHelp(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveProject(); return; }
