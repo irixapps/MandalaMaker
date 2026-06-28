@@ -58,7 +58,7 @@ const S = {
   snapAngle: false,
 
   // grid + axes snapping
-  snapGrid: { enabled: false, x: 20, y: 20 },
+  snapGrid: { enabled: false, x: 20, y: 20, linked: true },
   snapAxes: { enabled: false, step: 1 },
 
   // shape tool state
@@ -108,6 +108,7 @@ const S = {
   rafId: null,
   lastTime: 0,
   animClock: 0,
+  animPaused: false,
 
   // viewport
   viewport: { zoom: 1, panX: 0, panY: 0 },
@@ -1219,7 +1220,7 @@ function render(timestamp) {
   const dt = S.lastTime ? Math.min((timestamp - S.lastTime) / 1000, 0.1) : 0;
   S.lastTime = timestamp;
   if (hasAnyAnimation()) {
-    S.animClock += dt;
+    if (!S.animPaused) S.animClock += dt;
     refreshAllTimelines();
     refreshAllShapeTimelines();
   }
@@ -1277,7 +1278,8 @@ function render(timestamp) {
         const dx = S.mousePos.x - m.cx, dy = S.mousePos.y - m.cy;
         const lx = dx * Math.cos(-rotRad) - dy * Math.sin(-rotRad);
         const ly = dx * Math.sin(-rotRad) + dy * Math.cos(-rotRad);
-        const ghostSpr = { x: lx, y: ly, rotation: 0, scale: 1, opacity: 1, flipX: false, warpMode: false, axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror };
+        const defaultScale = canvas.width / canvas.getBoundingClientRect().width;
+        const ghostSpr = { x: lx, y: ly, rotation: 0, scale: item.stampScale ?? defaultScale, opacity: 1, flipX: false, warpMode: false, axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror };
         renderSprite(ctx, m, ghostSpr, drawable);
         ctx.globalAlpha = prevAlpha;
       }
@@ -2528,7 +2530,6 @@ function updateShapePanel() {
   document.getElementById('shapep-inner').value = innerPct;
   document.getElementById('shapep-inner-val').textContent = innerPct + '%';
   document.getElementById('shapep-sides').value = S.shapeParams.sides || 6;
-  document.getElementById('btn-stamp-mode').classList.toggle('active', S.shapeStampMode);
   document.getElementById('btn-shape-gradient').classList.toggle('active', S.gradientMode);
 }
 
@@ -2551,9 +2552,23 @@ function wireShapePanel() {
     const mainBtn = document.getElementById('btn-gradient-mode');
     if (mainBtn) mainBtn.classList.toggle('active', S.gradientMode);
   });
-  document.getElementById('btn-stamp-mode').addEventListener('click', () => {
-    S.shapeStampMode = !S.shapeStampMode;
-    document.getElementById('btn-stamp-mode').classList.toggle('active', S.shapeStampMode);
+  document.getElementById('btn-clone-shape').addEventListener('click', () => {
+    const m = getActiveMandala();
+    if (!m) return;
+    // Use the selected shape, or fall back to last drawn shape settings
+    const sel = findSelectedShape();
+    const src = sel?.shape || S._lastShapeSettings;
+    if (!src) return;
+    historySnapshot();
+    const clone = {
+      ...src,
+      id: uid(),
+      x: 0, y: 0,  // place at mandala center offset
+      anim: {},
+    };
+    m.shapes.push(clone);
+    S.selectedShapeId = clone.id;
+    updateShapeProps();
   });
 }
 
@@ -2573,8 +2588,37 @@ function wireSnapUI() {
     axesBtn.classList.toggle('active', S.snapAxes.enabled);
     if (axesOpts) axesOpts.style.display = S.snapAxes.enabled ? 'contents' : 'none';
   });
-  document.getElementById('snap-grid-x').addEventListener('input', e => { S.snapGrid.x = parseInt(e.target.value) || 20; });
-  document.getElementById('snap-grid-y').addEventListener('input', e => { S.snapGrid.y = parseInt(e.target.value) || 20; });
+  const chainBtn = document.getElementById('snap-grid-chain');
+  function updateChain() {
+    if (chainBtn) chainBtn.textContent = S.snapGrid.linked ? '🔗' : '🔓';
+  }
+  if (chainBtn) {
+    chainBtn.addEventListener('click', () => {
+      S.snapGrid.linked = !S.snapGrid.linked;
+      if (S.snapGrid.linked) {
+        // Sync Y to X on lock
+        S.snapGrid.y = S.snapGrid.x;
+        document.getElementById('snap-grid-y').value = S.snapGrid.x;
+      }
+      updateChain();
+    });
+  }
+  updateChain();
+
+  document.getElementById('snap-grid-x').addEventListener('input', e => {
+    S.snapGrid.x = parseInt(e.target.value) || 20;
+    if (S.snapGrid.linked) {
+      S.snapGrid.y = S.snapGrid.x;
+      document.getElementById('snap-grid-y').value = S.snapGrid.x;
+    }
+  });
+  document.getElementById('snap-grid-y').addEventListener('input', e => {
+    S.snapGrid.y = parseInt(e.target.value) || 20;
+    if (S.snapGrid.linked) {
+      S.snapGrid.x = S.snapGrid.y;
+      document.getElementById('snap-grid-x').value = S.snapGrid.y;
+    }
+  });
   document.getElementById('snap-axes-step').addEventListener('input', e => { S.snapAxes.step = parseInt(e.target.value) || 1; });
 }
 
@@ -2789,9 +2833,10 @@ function onMouseUp(e) {
       delete shape._startX; delete shape._startY;
       if (!m.shapes) m.shapes = [];
       m.shapes.push(shape);
+      S._lastShapeSettings = shape;
       S.selectedShapeId = shape.id;
       updateShapeProps();
-      if (!S.shapeStampMode) setTool('select');
+      setTool('select');
     }
     S.shapePreview = null;
     return;
@@ -2871,13 +2916,15 @@ function placeSprite(wx, wy) {
     x: dx * Math.cos(-rotRad) - dy * Math.sin(-rotRad),
     y: dx * Math.sin(-rotRad) + dy * Math.cos(-rotRad),
   };
+  const defaultScale = canvas.width / canvas.getBoundingClientRect().width;
+  if (item.stampScale == null) item.stampScale = defaultScale;
   m.sprites.push({
     id: uid(),
     paletteId: item.id,
     x: local.x,
     y: local.y,
     rotation: 0,
-    scale: canvas.width / canvas.getBoundingClientRect().width,
+    scale: item.stampScale,
     opacity: 1,
     flipX: false,
     warpMode: false,
@@ -3957,6 +4004,11 @@ function wireEvents() {
   document.getElementById('btn-export').addEventListener('click', exportPNG);
   document.getElementById('btn-export-gif').addEventListener('click', () => showGifModal('gif'));
   document.getElementById('btn-export-webp').addEventListener('click', () => showGifModal('webp'));
+  document.getElementById('btn-anim-playpause').addEventListener('click', () => {
+    S.animPaused = !S.animPaused;
+    document.getElementById('btn-anim-playpause').textContent = S.animPaused ? '▶' : '⏸';
+    if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+  });
   document.getElementById('gif-cancel-btn').addEventListener('click', () => {
     document.getElementById('gif-modal').style.display = 'none';
   });
@@ -4329,14 +4381,24 @@ function wireEvents() {
       if (S.selectedShapeId) document.getElementById('sp-delete')?.click();
     }
     if (e.key === '[') {
-      S.thickness = Math.max(1, S.thickness - 1);
-      document.getElementById('brush-size').value = S.thickness;
-      document.getElementById('brush-size-val').textContent = S.thickness;
+      if (S.tool === 'place') {
+        const item = getPaletteItem(S.selectedPaletteId);
+        if (item) { item.stampScale = Math.max(0.05, (item.stampScale ?? 1) * 0.9); }
+      } else {
+        S.thickness = Math.max(1, S.thickness - 1);
+        document.getElementById('brush-size').value = S.thickness;
+        document.getElementById('brush-size-val').textContent = S.thickness;
+      }
     }
     if (e.key === ']') {
-      S.thickness = Math.min(60, S.thickness + 1);
-      document.getElementById('brush-size').value = S.thickness;
-      document.getElementById('brush-size-val').textContent = S.thickness;
+      if (S.tool === 'place') {
+        const item = getPaletteItem(S.selectedPaletteId);
+        if (item) { item.stampScale = Math.min(20, (item.stampScale ?? 1) * 1.1); }
+      } else {
+        S.thickness = Math.min(60, S.thickness + 1);
+        document.getElementById('brush-size').value = S.thickness;
+        document.getElementById('brush-size-val').textContent = S.thickness;
+      }
     }
   });
 
