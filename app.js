@@ -1369,6 +1369,9 @@ function render(timestamp) {
     }
   }
 
+  // Layers panel hover highlight
+  renderLayerHoverHighlight();
+
   // Selection handles
   if (S.selectedSpriteId && S.tool === 'select') {
     renderSelectionHandles();
@@ -2393,8 +2396,9 @@ function updateShapeProps() {
   const panel = document.getElementById('shape-props');
   if (!panel) return;
   const found = findSelectedShape();
-  if (!found) { panel.style.display = 'none'; return; }
+  if (!found) { panel.style.display = 'none'; updateLayersList(); return; }
   panel.style.display = '';
+  updateLayersList();
   const { shape } = found;
   document.getElementById('sp-type-label').textContent =
     shape.type.charAt(0).toUpperCase() + shape.type.slice(1);
@@ -2917,6 +2921,7 @@ function onMouseUp(e) {
       m.shapes.push(shape);
       S.selectedShapeId = shape.id;
       updateShapeProps();
+      updateLayersList();
       setTool('select');
     }
     S.shapePreview = null;
@@ -3017,6 +3022,7 @@ function placeSprite(wx, wy) {
     mirror: m.mirror,
   });
   S.lastStampedId = m.sprites[m.sprites.length - 1].id;
+  updateLayersList();
 }
 
 function pickColor(x, y) {
@@ -3039,7 +3045,7 @@ function updateMandalaList() {
     div.style.borderColor = i === S.activeIdx ? MANDALA_COLORS[m.colorIdx] : 'transparent';
     div.style.color = MANDALA_COLORS[m.colorIdx];
     div.innerHTML = `<span style="font-size:16px">⊛</span><span class="mandala-item-label">M${i + 1}</span>`;
-    div.addEventListener('click', () => { S.activeIdx = i; updateMandalaList(); updateAxesDisplay(); });
+    div.addEventListener('click', () => { S.activeIdx = i; updateMandalaList(); updateAxesDisplay(); updateLayersList(); });
     list.appendChild(div);
   });
 }
@@ -3053,12 +3059,160 @@ function updateAxesDisplay() {
   if (mirrorEl && m) mirrorEl.checked = m.mirror !== false;
 }
 
+// ── Layers panel ─────────────────────────────────────────
+
+// Running counters so names stay unique within a session even after deletions.
+const _layerSeq = {};
+function _nextSeq(key) {
+  _layerSeq[key] = (_layerSeq[key] || 0) + 1;
+  return String(_layerSeq[key]).padStart(3, '0');
+}
+
+// Assign a stable display name to a layer item the first time it's seen.
+function ensureLayerName(item, type) {
+  if (item._layerName) return item._layerName;
+  let base;
+  if (type === 'sprite') {
+    const pal = getPaletteItem(item.paletteId);
+    if (pal) {
+      // Strip extension, sanitise, limit length
+      base = (pal.name || 'image').replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]/gi, '-').toLowerCase().slice(0, 16);
+    } else {
+      base = 'sprite';
+    }
+  } else {
+    // shape
+    base = item.type || 'shape';
+  }
+  item._layerName = base + '-' + _nextSeq(base);
+  return item._layerName;
+}
+
+const _SHAPE_ICON = { circle: '○', star: '★', polygon: '⬡' };
+const _SPRITE_ICON = '⊞';
+
+// Which canvas item is being hovered in the layers panel (for highlight ring).
+let _layersHoverItem = null;
+
+function updateLayersList() {
+  const list = document.getElementById('layers-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const m = getActiveMandala();
+  if (!m) return;
+
+  // Build flat list: shapes first (drawn under sprites), then sprites.
+  // Each entry: { type, item }
+  const entries = [];
+  for (const shape of (m.shapes || [])) entries.push({ type: 'shape', item: shape });
+  for (const spr of m.sprites)          entries.push({ type: 'sprite', item: spr });
+
+  if (entries.length === 0) {
+    list.innerHTML = '<div style="padding:6px 10px;font-size:10px;opacity:.35">No layers yet</div>';
+    return;
+  }
+
+  // Render in reverse so topmost is at the top of the list.
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const { type, item } = entries[i];
+    const name = ensureLayerName(item, type);
+    const icon = type === 'sprite' ? _SPRITE_ICON : (_SHAPE_ICON[item.type] || '◇');
+
+    const isActive = type === 'sprite'
+      ? item.id === S.selectedSpriteId
+      : item.id === S.selectedShapeId;
+
+    const row = document.createElement('div');
+    row.className = 'layer-item' + (isActive ? ' active' : '');
+    row.dataset.id = item.id;
+    row.dataset.type = type;
+    row.title = name;
+    row.innerHTML =
+      `<span class="layer-icon">${icon}</span>` +
+      `<span class="layer-name">${name}</span>` +
+      `<span class="layer-type-tag">${type === 'shape' ? item.type : 'gif/img'}</span>`;
+
+    row.addEventListener('mouseenter', () => {
+      _layersHoverItem = { type, id: item.id };
+      markRenderDirty();
+    });
+    row.addEventListener('mouseleave', () => {
+      if (_layersHoverItem?.id === item.id) { _layersHoverItem = null; markRenderDirty(); }
+    });
+    row.addEventListener('click', () => {
+      if (type === 'sprite') {
+        S.selectedSpriteId = item.id;
+        S.selectedShapeId  = null;
+      } else {
+        S.selectedShapeId  = item.id;
+        S.selectedSpriteId = null;
+      }
+      setTool('select');
+      updateSpriteProps();
+      updateShapeProps();
+      updateLayersList();
+      markRenderDirty();
+    });
+
+    list.appendChild(row);
+  }
+}
+
+// Draw a highlight ring around the hovered layer item on the canvas.
+function renderLayerHoverHighlight() {
+  if (!_layersHoverItem) return;
+  const m = getActiveMandala();
+  if (!m) return;
+
+  if (_layersHoverItem.type === 'shape') {
+    const shape = (m.shapes || []).find(s => s.id === _layersHoverItem.id);
+    if (!shape) return;
+    const clk = S.animClock;
+    const r = (getAnimValue(shape, 'radius', clk) ?? shape.r) + (shape.thickness || 2) / 2 + 5;
+    const ox = getAnimValue(shape, 'offsetX', clk) ?? shape.x;
+    const oy = getAnimValue(shape, 'offsetY', clk) ?? shape.y;
+    const orbitRad = ((getAnimValue(shape, 'orbit', clk) ?? shape.orbit ?? 0) * Math.PI / 180);
+    const rotRad   = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = 'rgba(124,106,240,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.translate(m.cx, m.cy);
+    ctx.rotate(rotRad + orbitRad);
+    ctx.translate(ox, oy);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    const spr = m.sprites.find(s => s.id === _layersHoverItem.id);
+    if (!spr) return;
+    const { x: cx, y: cy } = spriteCanvasCenter(spr, m);
+    const item = getPaletteItem(spr.paletteId);
+    const drawable = item ? getDrawableImage(item) : null;
+    const iw = drawable ? (drawable.width  || drawable.naturalWidth  || 64) : 64;
+    const ih = drawable ? (drawable.height || drawable.naturalHeight || 64) : 64;
+    const hw = iw * spr.scale / 2 + 6;
+    const hh = ih * spr.scale / 2 + 6;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = 'rgba(124,106,240,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.translate(cx, cy);
+    ctx.rotate((spr.rotation || 0) * Math.PI / 180);
+    ctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+    ctx.restore();
+  }
+}
+
 function updateSpriteProps() {
   const found = S.selectedSpriteId ? findSprite(S.selectedSpriteId) : null;
   const panel = document.getElementById('sprite-props');
-  if (!found) { panel.style.display = 'none'; return; }
+  if (!found) { panel.style.display = 'none'; updateLayersList(); return; }
   panel.style.display = 'flex';
   updateSpritePropsValues(found.sprite);
+  updateLayersList();
 }
 
 function updateSpritePropsValues(spr) {
@@ -4078,6 +4232,8 @@ function newProject() {
   S.bgColor = '#0d0d1a';
   document.getElementById('bg-color').value = S.bgColor;
   invalidateStrokeCache();
+  // Reset layer name counters for the new project
+  Object.keys(_layerSeq).forEach(k => delete _layerSeq[k]);
   addMandala();
   renderPaletteList();
   updateSpriteProps();
@@ -4725,6 +4881,7 @@ function init() {
   addMandala();
   wireEvents();
   updateUndoButtons();
+  updateLayersList();
   document.getElementById('color-swatch').style.background = S.color;
   centerCanvasView();
   requestAnimationFrame(render);
