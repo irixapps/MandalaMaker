@@ -3976,6 +3976,8 @@ let _showcasePrevGuides = true;
 function enterShowcase() {
   _showcasePrevGuides = S.showGuides;
   S.showGuides = false;
+  S.selectedSpriteId = null;
+  S.selectedShapeId = null;
   document.body.classList.add('showcase');
   fitCanvas();
 }
