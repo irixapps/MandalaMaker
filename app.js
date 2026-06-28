@@ -19,6 +19,17 @@ const GRADIENT_PRESETS = {
   'Lava':         [{pos:0,color:'#1a0000'},{pos:0.3,color:'#cc2200'},{pos:0.6,color:'#ff8800'},{pos:0.85,color:'#ffff00'},{pos:1,color:'#1a0000'}],
   'Gold':         [{pos:0,color:'#2a1a00'},{pos:0.3,color:'#cc8800'},{pos:0.5,color:'#ffd700'},{pos:0.7,color:'#cc8800'},{pos:1,color:'#2a1a00'}],
   'Acid':         [{pos:0,color:'#003300'},{pos:0.4,color:'#00ff00'},{pos:0.7,color:'#aaff00'},{pos:1,color:'#003300'}],
+  'Plasma':       [{pos:0,color:'#cc00ff'},{pos:0.25,color:'#00ffff'},{pos:0.5,color:'#ff00cc'},{pos:0.75,color:'#ffff00'},{pos:1,color:'#cc00ff'}],
+  'Chrome':       [{pos:0,color:'#111122'},{pos:0.25,color:'#888899'},{pos:0.5,color:'#ffffff'},{pos:0.75,color:'#888899'},{pos:1,color:'#111122'}],
+  'Aurora':       [{pos:0,color:'#001a00'},{pos:0.3,color:'#00cc44'},{pos:0.55,color:'#00cccc'},{pos:0.75,color:'#4400aa'},{pos:1,color:'#001a00'}],
+  'Candy':        [{pos:0,color:'#ff6ec7'},{pos:0.25,color:'#a8edff'},{pos:0.5,color:'#b066ff'},{pos:0.75,color:'#ffa8d4'},{pos:1,color:'#ff6ec7'}],
+  'Infrared':     [{pos:0,color:'#0a0000'},{pos:0.4,color:'#cc0000'},{pos:0.7,color:'#ff6600'},{pos:0.85,color:'#ffff00'},{pos:1,color:'#ffffff'}],
+  'Matrix':       [{pos:0,color:'#000000'},{pos:0.4,color:'#004400'},{pos:0.7,color:'#00cc00'},{pos:0.9,color:'#aaffaa'},{pos:1,color:'#000000'}],
+  'Rose':         [{pos:0,color:'#3a0010'},{pos:0.35,color:'#cc2255'},{pos:0.6,color:'#ff88aa'},{pos:0.8,color:'#ffe0ec'},{pos:1,color:'#3a0010'}],
+  'Hologram':     [{pos:0,color:'#ff00ff'},{pos:0.14,color:'#00ffff'},{pos:0.28,color:'#ffff00'},{pos:0.43,color:'#00ff88'},{pos:0.57,color:'#ff4400'},{pos:0.71,color:'#8800ff'},{pos:0.86,color:'#00ccff'},{pos:1,color:'#ff00ff'}],
+  'Toxic':        [{pos:0,color:'#002200'},{pos:0.3,color:'#33ff00'},{pos:0.6,color:'#ccff00'},{pos:0.8,color:'#ffff44'},{pos:1,color:'#002200'}],
+  'Deep Sea':     [{pos:0,color:'#000033'},{pos:0.3,color:'#003366'},{pos:0.6,color:'#006699'},{pos:0.8,color:'#00ccaa'},{pos:1,color:'#000033'}],
+  'Ember':        [{pos:0,color:'#000000'},{pos:0.3,color:'#440000'},{pos:0.55,color:'#ff2200'},{pos:0.75,color:'#ff8800'},{pos:0.9,color:'#ffffaa'},{pos:1,color:'#000000'}],
 };
 
 // ── State ───────────────────────────────────────────────
@@ -45,6 +56,27 @@ const S = {
   mirror: true,
   showGuides: true,
   snapAngle: false,
+
+  // grid + axes snapping
+  snapGrid: { enabled: false, x: 20, y: 20 },
+  snapAxes: { enabled: false, step: 1 },
+
+  // shape tool state
+  shapeTool: 'circle',
+  shapeParams: { sides: 6, points: 5, innerRatio: 0.45 },
+  shapeFill: null,
+  shapeLineCap: 'round',
+  shapeLineJoin: 'round',
+  shapeDash: [],
+  shapeStampMode: false,
+
+  // shape drawing transient
+  shapeDragging: false,
+  shapePreview: null,
+  selectedShapeId: null,
+  shapeHandleDrag: null,
+  shapeHandleStart: null,
+  shapeDragOrigin: null,
 
   // drawing transient
   drawing: false,
@@ -734,6 +766,7 @@ function createMandala(cx, cy, axes = 8, colorIdx = 0) {
     visible: true,
     strokes: [],
     sprites: [],
+    shapes: [],
   };
 }
 
@@ -1008,6 +1041,9 @@ function render(timestamp) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(_strokeCache, 0, 0);
 
+  // Grid overlay
+  if (S.snapGrid.enabled) renderGridOverlay();
+
   // Live layer: gradient strokes + sprites for all mandalas
   for (const m of S.mandalas) {
     if (!m.visible) continue;
@@ -1026,6 +1062,16 @@ function render(timestamp) {
       const last = S.pts[S.pts.length - 1];
       const liveGrad = S.gradientMode ? S.gradient : null;
       renderLineSymmetric(ctx, m, S.lineStart, last, S.color, S.thickness, S.opacity, m.mirror !== false, m.axes, m.axisRotation, liveGrad);
+    }
+  }
+
+  // Shape preview while dragging
+  if (S.shapeDragging && S.shapePreview && S.shapePreview.r > 0) {
+    const m = getActiveMandala();
+    if (m) {
+      ctx.save(); ctx.globalAlpha = 0.55;
+      renderShapeSymmetric(ctx, m, S.shapePreview);
+      ctx.restore();
     }
   }
 
@@ -1061,6 +1107,9 @@ function render(timestamp) {
   // Selection handles
   if (S.selectedSpriteId && S.tool === 'select') {
     renderSelectionHandles();
+  }
+  if (S.selectedShapeId && S.tool === 'select') {
+    renderShapeSelectionHandles();
   }
 
   // Eraser cursor — drawn last so it's always on top
@@ -1276,10 +1325,11 @@ function renderMandala(m, forExport) {
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
+  for (const shape of (m.shapes || [])) renderShapeSymmetric(ctx, m, shape);
   for (const spr of m.sprites) renderSprite(ctx, m, spr);
 }
 
-// Live render — only gradient strokes + sprites (solid strokes come from cache)
+// Live render — gradient strokes + shapes + sprites (solid strokes come from cache)
 function renderMandalaLive(m) {
   for (const stroke of m.strokes) {
     if (stroke.pts.length < 2 || !stroke.gradient) continue;
@@ -1287,6 +1337,7 @@ function renderMandalaLive(m) {
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, false, stroke.mirror !== false, axes, rot, stroke.gradient);
   }
+  for (const shape of (m.shapes || [])) renderShapeSymmetric(ctx, m, shape);
   for (const spr of m.sprites) renderSprite(ctx, m, spr);
 }
 
@@ -1729,6 +1780,367 @@ function getHandleAtPoint(x, y) {
   return null;
 }
 
+// ── Snap helpers ─────────────────────────────────────────
+function applySnap(cx, cy, m) {
+  let x = cx, y = cy;
+  if (S.snapGrid.enabled) {
+    const gx = S.snapGrid.x || 20, gy = S.snapGrid.y || 20;
+    x = Math.round(x / gx) * gx;
+    y = Math.round(y / gy) * gy;
+  }
+  if (S.snapAxes.enabled && m && m.axes > 0) {
+    const lx = x - m.cx, ly = y - m.cy;
+    const dist = Math.hypot(lx, ly);
+    if (dist > 8) {
+      const step = S.snapAxes.step || 1;
+      const angleStep = Math.PI / (m.axes * step);
+      const rotRad = (m.axisRotation || 0) * Math.PI / 180;
+      const angle = Math.atan2(ly, lx);
+      const nearest = Math.round((angle - rotRad) / angleStep) * angleStep + rotRad;
+      const sx = m.cx + Math.cos(nearest) * dist;
+      const sy = m.cy + Math.sin(nearest) * dist;
+      if (Math.hypot(x - sx, y - sy) < 15) { x = sx; y = sy; }
+    }
+  }
+  return { x, y };
+}
+
+function renderGridOverlay() {
+  const gx = S.snapGrid.x || 20, gy = S.snapGrid.y || 20;
+  const w = canvas.width, h = canvas.height;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(124,106,240,0.14)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= w; x += gx) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y = 0; y <= h; y += gy) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ── Shape system ─────────────────────────────────────────
+function getShapePath2D(shape) {
+  const p = new Path2D();
+  const r = Math.max(1, shape.r);
+  if (shape.type === 'circle') {
+    p.arc(0, 0, r, 0, Math.PI * 2);
+  } else if (shape.type === 'star') {
+    const pts = (shape.params && shape.params.points) || 5;
+    const inner = r * ((shape.params && shape.params.innerRatio) || 0.45);
+    for (let i = 0; i < pts * 2; i++) {
+      const ri = (i % 2 === 0) ? r : inner;
+      const a = i * Math.PI / pts - Math.PI / 2;
+      if (i === 0) p.moveTo(Math.cos(a)*ri, Math.sin(a)*ri);
+      else p.lineTo(Math.cos(a)*ri, Math.sin(a)*ri);
+    }
+    p.closePath();
+  } else if (shape.type === 'polygon') {
+    const sides = (shape.params && shape.params.sides) || 6;
+    for (let i = 0; i < sides; i++) {
+      const a = i * Math.PI * 2 / sides - Math.PI / 2;
+      if (i === 0) p.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+      else p.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    p.closePath();
+  }
+  return p;
+}
+
+function renderShapeInContext(tCtx, shape) {
+  const path = getShapePath2D(shape);
+  tCtx.save();
+  tCtx.globalAlpha = shape.opacity || 1;
+  tCtx.lineCap = shape.lineCap || 'round';
+  tCtx.lineJoin = shape.lineJoin || 'round';
+  tCtx.setLineDash(shape.dash || []);
+  if (shape.fill) { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
+  tCtx.strokeStyle = shape.color;
+  tCtx.lineWidth = shape.thickness;
+  tCtx.stroke(path);
+  tCtx.restore();
+}
+
+function renderShapeSymmetric(tCtx, m, shape) {
+  const n = shape.axes != null ? shape.axes : m.axes;
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const doMirror = shape.mirror !== false;
+  const effectiveN = n === 0 ? 1 : (doMirror ? n : n * 2);
+  const effectiveMirror = n === 0 ? false : doMirror;
+  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+  tCtx.save();
+  tCtx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < effectiveN; i++) {
+    for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
+      tCtx.save();
+      tCtx.translate(m.cx, m.cy);
+      tCtx.rotate(rotRad + segAngle * i);
+      if (flip === 1) tCtx.scale(1, -1);
+      tCtx.translate(shape.x, shape.y);
+      if (shape.rotation) tCtx.rotate(shape.rotation);
+      renderShapeInContext(tCtx, shape);
+      tCtx.restore();
+    }
+  }
+  tCtx.restore();
+}
+
+function shapeContainsPoint(m, shape, wx, wy) {
+  const n = shape.axes != null ? shape.axes : m.axes;
+  const doMirror = shape.mirror !== false;
+  const effectiveN = n === 0 ? 1 : (doMirror ? n : n * 2);
+  const effectiveMirror = n === 0 ? false : doMirror;
+  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const hitR = shape.r + (shape.thickness || 2) / 2 + 8;
+  for (let i = 0; i < effectiveN; i++) {
+    for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
+      const ang = rotRad + segAngle * i;
+      const dx = wx - m.cx, dy = wy - m.cy;
+      const cos = Math.cos(-ang), sin = Math.sin(-ang);
+      let lx = cos * dx - sin * dy;
+      let ly = sin * dx + cos * dy;
+      if (flip === 1) ly = -ly;
+      if (Math.hypot(lx - shape.x, ly - shape.y) <= hitR) return true;
+    }
+  }
+  return false;
+}
+
+function hitTestShapes(wx, wy) {
+  for (const m of [...S.mandalas].reverse()) {
+    if (!m.visible) continue;
+    for (const shape of [...(m.shapes || [])].reverse()) {
+      if (shapeContainsPoint(m, shape, wx, wy)) return { shape, mandala: m };
+    }
+  }
+  return null;
+}
+
+function findSelectedShape() {
+  if (!S.selectedShapeId) return null;
+  for (const m of S.mandalas) {
+    const shape = (m.shapes || []).find(s => s.id === S.selectedShapeId);
+    if (shape) return { shape, mandala: m };
+  }
+  return null;
+}
+
+function shapeWorldCenter(m, shape) {
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  return {
+    x: m.cx + Math.cos(rotRad) * shape.x - Math.sin(rotRad) * shape.y,
+    y: m.cy + Math.sin(rotRad) * shape.x + Math.cos(rotRad) * shape.y,
+  };
+}
+
+function getShapeHandleAtPoint(wx, wy) {
+  if (!S.selectedShapeId || S.tool !== 'select') return null;
+  const found = findSelectedShape();
+  if (!found) return null;
+  const { shape, mandala: m } = found;
+  const { x: cx, y: cy } = shapeWorldCenter(m, shape);
+  const scaleHx = cx + shape.r + shape.thickness / 2 + 4;
+  if (Math.hypot(wx - scaleHx, wy - cy) < HANDLE_RADIUS + 4) return 'shape-scale';
+  if (Math.hypot(wx - cx, wy - cy) < shape.r + 8) return 'shape-move';
+  return null;
+}
+
+function renderShapeSelectionHandles() {
+  const found = findSelectedShape();
+  if (!found) return;
+  const { shape, mandala: m } = found;
+  const { x: cx, y: cy } = shapeWorldCenter(m, shape);
+  ctx.save();
+  ctx.strokeStyle = '#7c6af0';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(cx, cy, shape.r + shape.thickness / 2 + 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#7c6af0';
+  ctx.beginPath();
+  ctx.arc(cx, cy, HANDLE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  const scaleHx = cx + shape.r + shape.thickness / 2 + 4;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#7c6af0';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(scaleHx, cy, HANDLE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function handleShapeDragFn(pos) {
+  const found = findSelectedShape();
+  if (!found) return;
+  const { shape, mandala: m } = found;
+  const orig = S.shapeDragOrigin;
+  const dx = pos.x - S.shapeHandleStart.x;
+  const dy = pos.y - S.shapeHandleStart.y;
+  if (S.shapeHandleDrag === 'shape-move') {
+    const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+    const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
+    shape.x = orig.x + (cos * dx - sin * dy);
+    shape.y = orig.y + (sin * dx + cos * dy);
+  } else if (S.shapeHandleDrag === 'shape-scale') {
+    shape.r = Math.max(2, orig.r + dx);
+  }
+  updateShapeProps();
+}
+
+// ── Shape properties panel (right panel) ─────────────────
+function updateShapeProps() {
+  const panel = document.getElementById('shape-props');
+  if (!panel) return;
+  const found = findSelectedShape();
+  if (!found) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const { shape } = found;
+  document.getElementById('sp-type-label').textContent =
+    shape.type.charAt(0).toUpperCase() + shape.type.slice(1);
+  document.getElementById('sp-radius').value = Math.round(shape.r);
+  document.getElementById('sp-radius-val').textContent = Math.round(shape.r) + 'px';
+  document.getElementById('sp-color').value = shape.color;
+  document.getElementById('sp-thickness').value = shape.thickness;
+  document.getElementById('sp-thickness-val').textContent = shape.thickness;
+  document.getElementById('sp-opacity').value = shape.opacity;
+  document.getElementById('sp-opacity-val').textContent = Math.round(shape.opacity * 100) + '%';
+  const hasFill = !!shape.fill;
+  document.getElementById('sp-fill-on').checked = hasFill;
+  document.getElementById('sp-fill').value = shape.fill || shape.color;
+  document.getElementById('sp-fill').disabled = !hasFill;
+  document.getElementById('sp-cap').value = shape.lineCap || 'round';
+  document.getElementById('sp-join').value = shape.lineJoin || 'round';
+  document.getElementById('sp-dash').value = (shape.dash || []).join(',');
+  const starRow = document.getElementById('sp-star-row');
+  const polyRow = document.getElementById('sp-poly-row');
+  if (starRow) starRow.style.display = shape.type === 'star' ? '' : 'none';
+  if (polyRow) polyRow.style.display = shape.type === 'polygon' ? '' : 'none';
+  if (shape.type === 'star' && shape.params) {
+    document.getElementById('sp-points').value = shape.params.points || 5;
+    document.getElementById('sp-inner').value = Math.round((shape.params.innerRatio || 0.45) * 100);
+    document.getElementById('sp-inner-val').textContent = Math.round((shape.params.innerRatio || 0.45) * 100) + '%';
+  }
+  if (shape.type === 'polygon' && shape.params) {
+    document.getElementById('sp-sides').value = shape.params.sides || 6;
+  }
+}
+
+function wireShapeProps() {
+  function forShape(fn) { const f = findSelectedShape(); if (f) fn(f.shape); }
+  document.getElementById('sp-radius').addEventListener('input', e => {
+    forShape(s => { s.r = parseInt(e.target.value) || 10; document.getElementById('sp-radius-val').textContent = s.r + 'px'; });
+  });
+  document.getElementById('sp-color').addEventListener('input', e => forShape(s => s.color = e.target.value));
+  document.getElementById('sp-thickness').addEventListener('input', e => {
+    forShape(s => { s.thickness = parseInt(e.target.value) || 1; document.getElementById('sp-thickness-val').textContent = s.thickness; });
+  });
+  document.getElementById('sp-opacity').addEventListener('input', e => {
+    forShape(s => { s.opacity = parseFloat(e.target.value); document.getElementById('sp-opacity-val').textContent = Math.round(s.opacity * 100) + '%'; });
+  });
+  document.getElementById('sp-fill-on').addEventListener('change', e => {
+    forShape(s => {
+      s.fill = e.target.checked ? (document.getElementById('sp-fill').value || s.color) : null;
+      document.getElementById('sp-fill').disabled = !e.target.checked;
+    });
+  });
+  document.getElementById('sp-fill').addEventListener('input', e => forShape(s => { if (s.fill) s.fill = e.target.value; }));
+  document.getElementById('sp-cap').addEventListener('change', e => forShape(s => s.lineCap = e.target.value));
+  document.getElementById('sp-join').addEventListener('change', e => forShape(s => s.lineJoin = e.target.value));
+  document.getElementById('sp-dash').addEventListener('change', e => {
+    forShape(s => { s.dash = e.target.value ? e.target.value.split(',').map(Number) : []; });
+  });
+  document.getElementById('sp-points').addEventListener('input', e => {
+    forShape(s => { if (!s.params) s.params = {}; s.params.points = parseInt(e.target.value) || 5; });
+    document.getElementById('sp-points-val').textContent = e.target.value;
+  });
+  document.getElementById('sp-inner').addEventListener('input', e => {
+    forShape(s => {
+      if (!s.params) s.params = {};
+      s.params.innerRatio = parseInt(e.target.value) / 100;
+      document.getElementById('sp-inner-val').textContent = e.target.value + '%';
+    });
+  });
+  document.getElementById('sp-sides').addEventListener('input', e => {
+    forShape(s => { if (!s.params) s.params = {}; s.params.sides = parseInt(e.target.value) || 6; });
+    document.getElementById('sp-sides-val').textContent = e.target.value;
+  });
+  document.getElementById('sp-delete').addEventListener('click', () => {
+    const found = findSelectedShape();
+    if (!found || !confirm('Delete this shape?')) return;
+    historySnapshot();
+    found.mandala.shapes = (found.mandala.shapes || []).filter(s => s.id !== found.shape.id);
+    S.selectedShapeId = null;
+    updateShapeProps();
+  });
+}
+
+// ── Shape panel (contextual bar above status bar) ─────────
+function updateShapePanel() {
+  const panel = document.getElementById('shape-panel');
+  if (!panel) return;
+  const isShape = ['circle','star','polygon'].includes(S.tool);
+  panel.classList.toggle('visible', isShape);
+  if (!isShape) return;
+  document.getElementById('shapep-star-row').style.display = S.tool === 'star' ? 'flex' : 'none';
+  document.getElementById('shapep-poly-row').style.display = S.tool === 'polygon' ? 'flex' : 'none';
+  document.getElementById('shapep-fill-on').checked = !!S.shapeFill;
+  document.getElementById('shapep-fill').value = S.shapeFill || S.color;
+  document.getElementById('shapep-fill').disabled = !S.shapeFill;
+  document.getElementById('shapep-points').value = S.shapeParams.points || 5;
+  const innerPct = Math.round((S.shapeParams.innerRatio || 0.45) * 100);
+  document.getElementById('shapep-inner').value = innerPct;
+  document.getElementById('shapep-inner-val').textContent = innerPct + '%';
+  document.getElementById('shapep-sides').value = S.shapeParams.sides || 6;
+  document.getElementById('btn-stamp-mode').classList.toggle('active', S.shapeStampMode);
+}
+
+function wireShapePanel() {
+  document.getElementById('shapep-fill-on').addEventListener('change', e => {
+    S.shapeFill = e.target.checked ? document.getElementById('shapep-fill').value : null;
+    document.getElementById('shapep-fill').disabled = !e.target.checked;
+  });
+  document.getElementById('shapep-fill').addEventListener('input', e => { if (S.shapeFill) S.shapeFill = e.target.value; });
+  document.getElementById('shapep-dash').addEventListener('change', e => {
+    S.shapeDash = e.target.value ? e.target.value.split(',').map(Number) : [];
+  });
+  document.getElementById('shapep-cap').addEventListener('change', e => { S.shapeLineCap = e.target.value; });
+  document.getElementById('shapep-join').addEventListener('change', e => { S.shapeLineJoin = e.target.value; });
+  document.getElementById('shapep-points').addEventListener('input', e => { S.shapeParams.points = parseInt(e.target.value) || 5; });
+  document.getElementById('shapep-inner').addEventListener('input', e => {
+    S.shapeParams.innerRatio = parseInt(e.target.value) / 100;
+    document.getElementById('shapep-inner-val').textContent = e.target.value + '%';
+  });
+  document.getElementById('shapep-sides').addEventListener('input', e => { S.shapeParams.sides = parseInt(e.target.value) || 6; });
+  document.getElementById('btn-stamp-mode').addEventListener('click', () => {
+    S.shapeStampMode = !S.shapeStampMode;
+    document.getElementById('btn-stamp-mode').classList.toggle('active', S.shapeStampMode);
+  });
+}
+
+// ── Snap UI wiring ────────────────────────────────────────
+function wireSnapUI() {
+  const gridBtn = document.getElementById('btn-snap-grid');
+  const axesBtn = document.getElementById('btn-snap-axes');
+  const gridOpts = document.getElementById('snap-grid-opts');
+  const axesOpts = document.getElementById('snap-axes-opts');
+  gridBtn.addEventListener('click', () => {
+    S.snapGrid.enabled = !S.snapGrid.enabled;
+    gridBtn.classList.toggle('active', S.snapGrid.enabled);
+    if (gridOpts) gridOpts.style.display = S.snapGrid.enabled ? 'contents' : 'none';
+  });
+  axesBtn.addEventListener('click', () => {
+    S.snapAxes.enabled = !S.snapAxes.enabled;
+    axesBtn.classList.toggle('active', S.snapAxes.enabled);
+    if (axesOpts) axesOpts.style.display = S.snapAxes.enabled ? 'contents' : 'none';
+  });
+  document.getElementById('snap-grid-x').addEventListener('input', e => { S.snapGrid.x = parseInt(e.target.value) || 20; });
+  document.getElementById('snap-grid-y').addEventListener('input', e => { S.snapGrid.y = parseInt(e.target.value) || 20; });
+  document.getElementById('snap-axes-step').addEventListener('input', e => { S.snapAxes.step = parseInt(e.target.value) || 1; });
+}
+
 // ── Tools ────────────────────────────────────────────────
 function toMandalaLocal(m, wx, wy) {
   return { x: wx - m.cx, y: wy - m.cy };
@@ -1736,7 +2148,9 @@ function toMandalaLocal(m, wx, wy) {
 
 function onMouseDown(e) {
   if (e.button !== 0) return;
-  const pos = canvasPos(e);
+  const rawPos = canvasPos(e);
+  const m = getActiveMandala();
+  const pos = applySnap(rawPos.x, rawPos.y, m);
 
   if (S.tool === 'eyedropper') {
     pickColor(pos.x, pos.y);
@@ -1744,7 +2158,7 @@ function onMouseDown(e) {
   }
 
   if (S.tool === 'select') {
-    // 1. Check sprite transform handles first
+    // 1. Sprite transform handles
     const handle = getHandleAtPoint(pos.x, pos.y);
     if (handle) {
       S.dragHandle = handle;
@@ -1754,30 +2168,55 @@ function onMouseDown(e) {
       return;
     }
 
-    // 2. Check mandala centre drag
+    // 1b. Shape handles
+    const shapeHandle = getShapeHandleAtPoint(pos.x, pos.y);
+    if (shapeHandle) {
+      S.shapeHandleDrag = shapeHandle;
+      S.shapeHandleStart = pos;
+      const found = findSelectedShape();
+      if (found) S.shapeDragOrigin = { ...found.shape };
+      return;
+    }
+
+    // 2. Mandala centre drag
     const mHit = hitTestMandalaCenter(pos.x, pos.y);
     if (mHit) {
       S.dragHandle = 'mandala-move';
       S.dragMandalaId = mHit.id;
       S.dragStart = pos;
       S.mandalaOrigin = { cx: mHit.cx, cy: mHit.cy };
-      // Make the dragged mandala the active one
       const idx = S.mandalas.indexOf(mHit);
       if (idx !== -1) { S.activeIdx = idx; updateMandalaList(); updateAxesDisplay(); }
       return;
     }
 
-    // 3. Check sprite body
+    // 3. Sprite body
     const hit = hitTestSprites(pos.x, pos.y);
     if (hit) {
       S.selectedSpriteId = hit.sprite.id;
+      S.selectedShapeId = null;
       S.dragHandle = 'move';
       S.dragStart = pos;
       S.spriteDragOrigin = { ...hit.sprite };
       updateSpriteProps();
+      updateShapeProps();
     } else {
-      S.selectedSpriteId = null;
-      updateSpriteProps();
+      // 3b. Shape body
+      const shapeHit = hitTestShapes(pos.x, pos.y);
+      if (shapeHit) {
+        S.selectedShapeId = shapeHit.shape.id;
+        S.selectedSpriteId = null;
+        S.shapeHandleDrag = 'shape-move';
+        S.shapeHandleStart = pos;
+        S.shapeDragOrigin = { ...shapeHit.shape };
+        updateShapeProps();
+        updateSpriteProps();
+      } else {
+        S.selectedSpriteId = null;
+        S.selectedShapeId = null;
+        updateSpriteProps();
+        updateShapeProps();
+      }
     }
     return;
   }
@@ -1787,8 +2226,32 @@ function onMouseDown(e) {
     return;
   }
 
-  // Drawing tools
-  const m = getActiveMandala();
+  // Shape drawing tools
+  if (['circle', 'star', 'polygon'].includes(S.tool)) {
+    if (!m) return;
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    S.shapeDragging = true;
+    S.shapePreview = {
+      type: S.tool,
+      x: local.x, y: local.y,
+      r: 0,
+      color: S.color,
+      thickness: S.thickness,
+      opacity: S.opacity,
+      fill: S.shapeFill,
+      lineCap: S.shapeLineCap,
+      lineJoin: S.shapeLineJoin,
+      dash: [...S.shapeDash],
+      params: { ...S.shapeParams },
+      axes: m.axes,
+      axisRotation: m.axisRotation,
+      mirror: m.mirror,
+      _startX: pos.x, _startY: pos.y,
+    };
+    return;
+  }
+
+  // Brush / line / erase drawing
   if (!m) return;
   const local = toMandalaLocal(m, pos.x, pos.y);
   S.drawing = true;
@@ -1797,16 +2260,18 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
-  const pos = canvasPos(e);
+  const rawPos = canvasPos(e);
+  const m = getActiveMandala();
+  const pos = applySnap(rawPos.x, rawPos.y, m);
   S.mousePos = pos;
   document.getElementById('cursor-pos').textContent = `x:${Math.round(pos.x)} y:${Math.round(pos.y)}`;
 
   if (S.tool === 'select' && S.dragHandle && S.dragStart) {
     if (S.dragHandle === 'mandala-move') {
-      const m = S.mandalas.find(x => x.id === S.dragMandalaId);
-      if (m && S.mandalaOrigin) {
-        m.cx = S.mandalaOrigin.cx + (pos.x - S.dragStart.x);
-        m.cy = S.mandalaOrigin.cy + (pos.y - S.dragStart.y);
+      const dm = S.mandalas.find(x => x.id === S.dragMandalaId);
+      if (dm && S.mandalaOrigin) {
+        dm.cx = S.mandalaOrigin.cx + (pos.x - S.dragStart.x);
+        dm.cy = S.mandalaOrigin.cy + (pos.y - S.dragStart.y);
       }
     } else {
       handleSpriteDrag(pos);
@@ -1814,19 +2279,34 @@ function onMouseMove(e) {
     return;
   }
 
-  // Update cursor when hovering over the canvas in select mode
-  if (S.tool === 'select' && !S.dragHandle) {
+  if (S.tool === 'select' && S.shapeHandleDrag) {
+    handleShapeDragFn(pos);
+    return;
+  }
+
+  // Shape preview drag
+  if (S.shapeDragging && S.shapePreview) {
+    const dx = pos.x - S.shapePreview._startX;
+    const dy = pos.y - S.shapePreview._startY;
+    S.shapePreview.r = Math.max(1, Math.hypot(dx, dy));
+    return;
+  }
+
+  // Update cursor in select mode
+  if (S.tool === 'select' && !S.dragHandle && !S.shapeHandleDrag) {
     const handle = getHandleAtPoint(pos.x, pos.y);
+    const shapeHandle = getShapeHandleAtPoint(pos.x, pos.y);
     const mHit = hitTestMandalaCenter(pos.x, pos.y);
     overlayCanvas.style.cursor =
-      handle === 'move'   ? 'grab' :
-      handle === 'rotate' ? 'crosshair' :
-      handle              ? 'nwse-resize' :
-      mHit                ? 'move' : 'default';
+      handle === 'move'          ? 'grab' :
+      handle === 'rotate'        ? 'crosshair' :
+      handle                     ? 'nwse-resize' :
+      shapeHandle === 'shape-scale' ? 'ew-resize' :
+      shapeHandle                ? 'grab' :
+      mHit                       ? 'move' : 'default';
   }
 
   if (!S.drawing) return;
-  const m = getActiveMandala();
   if (!m) return;
 
   const local = toMandalaLocal(m, pos.x, pos.y);
@@ -1848,6 +2328,32 @@ function onMouseUp(e) {
     S.dragMandalaId = null;
     S.mandalaOrigin = null;
     historySnapshot();
+    return;
+  }
+
+  if (S.shapeHandleDrag) {
+    S.shapeHandleDrag = null;
+    S.shapeHandleStart = null;
+    S.shapeDragOrigin = null;
+    historySnapshot();
+    return;
+  }
+
+  // Shape placement
+  if (S.shapeDragging) {
+    S.shapeDragging = false;
+    const m = getActiveMandala();
+    if (m && S.shapePreview && S.shapePreview.r > 2) {
+      historySnapshot();
+      const shape = { ...S.shapePreview, id: uid() };
+      delete shape._startX; delete shape._startY;
+      if (!m.shapes) m.shapes = [];
+      m.shapes.push(shape);
+      S.selectedShapeId = shape.id;
+      updateShapeProps();
+      if (!S.shapeStampMode) setTool('select');
+    }
+    S.shapePreview = null;
     return;
   }
 
@@ -2139,12 +2645,18 @@ function setTool(tool) {
   document.querySelectorAll('.tool-btn[data-tool]').forEach(b => {
     b.classList.toggle('active', b.dataset.tool === tool);
   });
-  // Select tool cursor is dynamic (updated in onMouseMove); seed with default
-  overlayCanvas.style.cursor = tool === 'erase'      ? 'none'      :
-                              tool === 'eyedropper' ? 'crosshair'  :
-                              tool === 'select'     ? 'default'    :
-                              tool === 'place'      ? 'copy'       : 'crosshair';
-  if (tool !== 'select') { S.selectedSpriteId = null; updateSpriteProps(); }
+  overlayCanvas.style.cursor =
+    tool === 'erase'      ? 'none'      :
+    tool === 'eyedropper' ? 'crosshair'  :
+    tool === 'select'     ? 'default'    :
+    tool === 'place'      ? 'copy'       : 'crosshair';
+  if (tool !== 'select') {
+    S.selectedSpriteId = null;
+    S.selectedShapeId = null;
+    updateSpriteProps();
+    updateShapeProps();
+  }
+  updateShapePanel();
 }
 
 function updateUndoButtons() {
@@ -3366,10 +3878,12 @@ function wireEvents() {
       if (S.lastStampedId) { S.selectedSpriteId = S.lastStampedId; updateSpriteProps(); }
       return;
     }
-    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper' };
+    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
+    if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (S.selectedSpriteId) document.getElementById('btn-delete-sprite').click();
+      if (S.selectedShapeId) document.getElementById('sp-delete')?.click();
     }
     if (e.key === '[') {
       S.thickness = Math.max(1, S.thickness - 1);
@@ -3385,6 +3899,11 @@ function wireEvents() {
 
   // ── Gradient panel ──────────────────────────────────────
   initGradientUI();
+
+  // ── Shape panel + snap ───────────────────────────────────
+  wireShapePanel();
+  wireShapeProps();
+  wireSnapUI();
 }
 
 // ── Gradient UI ──────────────────────────────────────────
