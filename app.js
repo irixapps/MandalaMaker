@@ -1408,6 +1408,36 @@ function spriteCanvasCenter(spr, m) {
   return { x: m.cx + spr.x, y: m.cy + spr.y };
 }
 
+// Returns the actual canvas position of the primary (i=0) copy of a sprite,
+// accounting for animated orbit, offsetX/Y — matching the render transform chain.
+function spriteAnimatedCenter(spr, m) {
+  if (spr.warpMode) return warpArcCenter(spr, m);
+  const clk = S.animClock;
+  const rotRad  = ((spr.axisRotation != null ? spr.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const sprOrbit = (getAnimValue(spr, 'orbit', clk) ?? (spr.orbitAngle || 0)) * Math.PI / 180;
+  const sprX    = getAnimValue(spr, 'offsetX', clk) ?? spr.x;
+  const sprY    = getAnimValue(spr, 'offsetY', clk) ?? spr.y;
+  const angle   = rotRad + sprOrbit;
+  return {
+    x: m.cx + Math.cos(angle) * sprX - Math.sin(angle) * sprY,
+    y: m.cy + Math.sin(angle) * sprX + Math.cos(angle) * sprY,
+  };
+}
+
+// Animated version of shapeWorldCenter — accounts for orbit and animated offsetX/Y.
+function shapeAnimatedWorldCenter(m, shape) {
+  const clk = S.animClock;
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const orbit  = (getAnimValue(shape, 'orbit', clk) ?? (shape.orbit || 0)) * Math.PI / 180;
+  const ox = getAnimValue(shape, 'offsetX', clk) ?? shape.x;
+  const oy = getAnimValue(shape, 'offsetY', clk) ?? shape.y;
+  const angle = rotRad + orbit;
+  return {
+    x: m.cx + Math.cos(angle) * ox - Math.sin(angle) * oy,
+    y: m.cy + Math.sin(angle) * ox + Math.cos(angle) * oy,
+  };
+}
+
 function isSpriteOffCanvas(spr, m) {
   const { x, y } = spriteCanvasCenter(spr, m);
   const margin = 60;
@@ -1915,14 +1945,20 @@ function renderSelectionHandles() {
   const item = getPaletteItem(spr.paletteId);
   if (!item) return;
   const drawable = getDrawableImage(item);
-  const iw = (drawable?.width || drawable?.naturalWidth || 64) * spr.scale;
-  const ih = (drawable?.height || drawable?.naturalHeight || 64) * spr.scale;
 
-  const { x: cx, y: cy } = spr.warpMode ? warpArcCenter(spr, m) : { x: m.cx + spr.x, y: m.cy + spr.y };
+  // Use animated values to match what the renderer actually draws
+  const clk = S.animClock;
+  const animScale    = getAnimValue(spr, 'scale',    clk) ?? spr.scale;
+  const animRotation = getAnimValue(spr, 'rotation', clk);
+  const sprRotation  = animRotation != null ? animRotation * Math.PI / 180 : spr.rotation;
+  const iw = (drawable?.width || drawable?.naturalWidth || 64) * animScale;
+  const ih = (drawable?.height || drawable?.naturalHeight || 64) * animScale;
+
+  const { x: cx, y: cy } = spriteAnimatedCenter(spr, m);
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(spr.warpMode ? 0 : spr.rotation);
+  ctx.rotate(spr.warpMode ? 0 : sprRotation);
 
   // Bounding box
   ctx.strokeStyle = '#7c6af0';
@@ -2018,13 +2054,17 @@ function getHandleAtPoint(x, y) {
   const { sprite: spr, mandala: m } = found;
   const item = getPaletteItem(spr.paletteId);
   const drawable = getDrawableImage(item);
-  const iw = (drawable?.width || drawable?.naturalWidth || 64) * spr.scale;
-  const ih = (drawable?.height || drawable?.naturalHeight || 64) * spr.scale;
-  const { x: cx, y: cy } = spr.warpMode ? warpArcCenter(spr, m) : { x: m.cx + spr.x, y: m.cy + spr.y };
+  const clk = S.animClock;
+  const animScale    = getAnimValue(spr, 'scale',    clk) ?? spr.scale;
+  const animRotation = getAnimValue(spr, 'rotation', clk);
+  const sprRotation  = animRotation != null ? animRotation * Math.PI / 180 : spr.rotation;
+  const iw = (drawable?.width || drawable?.naturalWidth || 64) * animScale;
+  const ih = (drawable?.height || drawable?.naturalHeight || 64) * animScale;
+  const { x: cx, y: cy } = spriteAnimatedCenter(spr, m);
 
   // Transform point into handle space
   const dx = x - cx, dy = y - cy;
-  const rot = spr.warpMode ? 0 : spr.rotation;
+  const rot = spr.warpMode ? 0 : sprRotation;
   const cos = Math.cos(-rot), sin = Math.sin(-rot);
   const lx = cos * dx - sin * dy;
   const ly = sin * dx + cos * dy;
@@ -2337,10 +2377,12 @@ function getShapeHandleAtPoint(wx, wy) {
   const found = findSelectedShape();
   if (!found) return null;
   const { shape, mandala: m } = found;
-  const { x: cx, y: cy } = shapeWorldCenter(m, shape);
-  const scaleHx = cx + shape.r + shape.thickness / 2 + 4;
+  const clk = S.animClock;
+  const animR = getAnimValue(shape, 'radius', clk) ?? shape.r;
+  const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
+  const scaleHx = cx + animR + shape.thickness / 2 + 4;
   if (Math.hypot(wx - scaleHx, wy - cy) < HANDLE_RADIUS + 4) return 'shape-scale';
-  if (Math.hypot(wx - cx, wy - cy) < shape.r + 8) return 'shape-move';
+  if (Math.hypot(wx - cx, wy - cy) < animR + 8) return 'shape-move';
   return null;
 }
 
@@ -2348,21 +2390,23 @@ function renderShapeSelectionHandles() {
   const found = findSelectedShape();
   if (!found) return;
   const { shape, mandala: m } = found;
-  const { x: cx, y: cy } = shapeWorldCenter(m, shape);
+  const clk = S.animClock;
+  const animR = getAnimValue(shape, 'radius', clk) ?? shape.r;
+  const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
   ctx.save();
   ctx.strokeStyle = '#7c6af0';
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 3]);
   ctx.globalAlpha = 0.85;
   ctx.beginPath();
-  ctx.arc(cx, cy, shape.r + shape.thickness / 2 + 4, 0, Math.PI * 2);
+  ctx.arc(cx, cy, animR + shape.thickness / 2 + 4, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = '#7c6af0';
   ctx.beginPath();
   ctx.arc(cx, cy, HANDLE_RADIUS, 0, Math.PI * 2);
   ctx.fill();
-  const scaleHx = cx + shape.r + shape.thickness / 2 + 4;
+  const scaleHx = cx + animR + shape.thickness / 2 + 4;
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = '#7c6af0';
   ctx.lineWidth = 1.5;
@@ -3195,21 +3239,24 @@ function renderLayerHoverHighlight() {
   } else {
     const spr = m.sprites.find(s => s.id === _layersHoverItem.id);
     if (!spr) return;
-    const { x: cx, y: cy } = spriteCanvasCenter(spr, m);
+    const { x: cx, y: cy } = spriteAnimatedCenter(spr, m);
     const item = getPaletteItem(spr.paletteId);
     const drawable = item ? getDrawableImage(item) : null;
     const iw = drawable ? (drawable.width  || drawable.naturalWidth  || 64) : 64;
     const ih = drawable ? (drawable.height || drawable.naturalHeight || 64) : 64;
-    const hw = iw * spr.scale / 2 + 6;
-    const hh = ih * spr.scale / 2 + 6;
+    const animScale = getAnimValue(spr, 'scale', S.animClock) ?? spr.scale;
+    const hw = iw * animScale / 2 + 6;
+    const hh = ih * animScale / 2 + 6;
     ctx.save();
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = `rgba(255,255,255,${pulse.toFixed(2)})`;
     ctx.lineWidth = 2;
     ctx.shadowColor = 'white';
     ctx.shadowBlur = 6;
+    const animRot = getAnimValue(spr, 'rotation', S.animClock);
+    const sprRot  = animRot != null ? animRot * Math.PI / 180 : (spr.rotation || 0);
     ctx.translate(cx, cy);
-    ctx.rotate((spr.rotation || 0) * Math.PI / 180);
+    ctx.rotate(sprRot);
     ctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
     ctx.restore();
   }
