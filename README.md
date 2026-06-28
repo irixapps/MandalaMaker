@@ -2,6 +2,8 @@
 
 A browser-based mandala drawing and compositing tool. Draw symmetrical art, stamp images, and compose layered mandalas with full radial symmetry, keyframe animation, and pan/zoom viewport.
 
+![Mandala Maker demo](assets/Arcade.webp)
+
 ---
 
 ## Getting Started
