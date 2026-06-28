@@ -13,16 +13,17 @@ body.showcase #left-panel,
 body.showcase #right-panel,
 body.showcase #status-bar,
 body.showcase #shape-panel { display: none !important; }
-body.showcase #canvas-area {
+body.showcase #canvas-container {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  background: var(--bg);
+  background: #0d0d1a;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 500;
+  overflow: hidden;
 }
 body.showcase #showcase-hint {
   display: block;
@@ -793,12 +794,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
   </div>
 </div>
 
-<!-- GIF frame decoder (locally bundled — CDN version is CommonJS-only, has no browser globals) -->
-<script src="gifuct.bundle.js"></script>
-<!-- GIF encoder (locally bundled) -->
-<script src="gifenc.bundle.js"></script>
-<script src="app.js"></script>
-
 <div id="showcase-hint">Press Esc to exit Showcase</div>
 
 <!-- ── Help overlay ── -->
@@ -855,5 +850,9 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
   </div>
 </div>
 
+<!-- Scripts last so all DOM elements above are parsed before app.js runs -->
+<script src="gifuct.bundle.js"></script>
+<script src="gifenc.bundle.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

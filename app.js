@@ -4622,4 +4622,10 @@ function init() {
   requestAnimationFrame(render);
 }
 
-init();
+// Scripts are placed at end of <body> so DOM is ready by the time this runs.
+// DOMContentLoaded guard ensures safety even if the script tag is ever moved.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
