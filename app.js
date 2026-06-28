@@ -558,6 +558,7 @@ function historySnapshot() {
 function restoreSnapshot(snap) {
   S.mandalas = JSON.parse(snap);
   S.selectedSpriteId = null;
+  invalidateStrokeCache();
   updateMandalaList();
   updateSpriteProps();
 }
@@ -958,6 +959,40 @@ function getDrawableImage(item, noCache = false) {
   return item.processedCache;
 }
 
+// ── Stroke cache (offscreen canvas for solid strokes) ────
+// Re-renders only when strokes/BG change; gradient strokes + sprites
+// are always rendered live on top.
+let _strokeCache = null;
+let _strokeCacheDirty = true;
+
+function invalidateStrokeCache() { _strokeCacheDirty = true; }
+
+function rebuildStrokeCache() {
+  if (!_strokeCache || _strokeCache.width !== canvas.width || _strokeCache.height !== canvas.height) {
+    _strokeCache = document.createElement('canvas');
+    _strokeCache.width  = canvas.width;
+    _strokeCache.height = canvas.height;
+  }
+  const cc = _strokeCache.getContext('2d');
+  cc.clearRect(0, 0, canvas.width, canvas.height);
+  cc.fillStyle = S.bgColor;
+  cc.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (const m of S.mandalas) {
+    if (!m.visible) continue;
+    for (const stroke of m.strokes) {
+      if (stroke.pts.length < 2 || stroke.gradient) continue; // skip gradient — rendered live
+      const axes = stroke.axes != null ? stroke.axes : m.axes;
+      const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+      // Use the offscreen ctx, not the main ctx
+      const savedCtx = ctx;
+      // Temporarily rebind renderStrokeSymmetric to use cc
+      renderStrokeSymmetricTo(cc, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, null);
+    }
+  }
+  _strokeCacheDirty = false;
+}
+
 // ── Rendering ────────────────────────────────────────────
 function render(timestamp) {
   S.rafId = requestAnimationFrame(render);
@@ -968,16 +1003,15 @@ function render(timestamp) {
     refreshAllTimelines();
   }
 
+  // Composite cached solid strokes (rebuilds if dirty)
+  if (_strokeCacheDirty) rebuildStrokeCache();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(_strokeCache, 0, 0);
 
-  // Background
-  ctx.fillStyle = S.bgColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Render each mandala
+  // Live layer: gradient strokes + sprites for all mandalas
   for (const m of S.mandalas) {
     if (!m.visible) continue;
-    renderMandala(m, false);
+    renderMandalaLive(m);
   }
 
   // Current stroke preview
@@ -1234,18 +1268,60 @@ function renderOverlay() {
   }
 }
 
+// Full render — used by GIF/WebP export (no cache)
 function renderMandala(m, forExport) {
-  // Draw strokes — each uses its own snapshotted axes + rotation
   for (const stroke of m.strokes) {
     if (stroke.pts.length < 2) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
-    const rot = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+    const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
-  // Draw sprites — each uses its own snapshotted axes count
-  for (const spr of m.sprites) {
-    renderSprite(ctx, m, spr);
+  for (const spr of m.sprites) renderSprite(ctx, m, spr);
+}
+
+// Live render — only gradient strokes + sprites (solid strokes come from cache)
+function renderMandalaLive(m) {
+  for (const stroke of m.strokes) {
+    if (stroke.pts.length < 2 || !stroke.gradient) continue;
+    const axes = stroke.axes != null ? stroke.axes : m.axes;
+    const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, false, stroke.mirror !== false, axes, rot, stroke.gradient);
   }
+  for (const spr of m.sprites) renderSprite(ctx, m, spr);
+}
+
+// Renders a stroke into an arbitrary 2D context (used by stroke cache builder)
+function renderStrokeSymmetricTo(tgt, m, pts, color, thickness, opacity, erase, mirror, axes, axisRotation, gradient) {
+  const n = (axes != null ? axes : m.axes);
+  const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
+  const effectiveMirror = n === 0 ? false : mirror;
+  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+  tgt.save();
+  tgt.globalCompositeOperation = 'source-over';
+  tgt.globalAlpha = opacity;
+  tgt.strokeStyle = erase ? S.bgColor : color;
+  tgt.lineWidth = thickness;
+  tgt.lineCap = 'round';
+  tgt.lineJoin = 'round';
+  for (let i = 0; i < effectiveN; i++) {
+    for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
+      tgt.save();
+      tgt.translate(m.cx, m.cy);
+      tgt.rotate(rotRad + segAngle * i);
+      if (flip === 1) tgt.scale(1, -1);
+      tgt.beginPath();
+      tgt.moveTo(pts[0].x, pts[0].y);
+      for (let j = 1; j < pts.length; j++) {
+        const mp = pts[j-1], cp = pts[j];
+        tgt.quadraticCurveTo(mp.x, mp.y, (mp.x+cp.x)/2, (mp.y+cp.y)/2);
+      }
+      tgt.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+      tgt.stroke();
+      tgt.restore();
+    }
+  }
+  tgt.restore();
 }
 
 function renderStrokeSymmetric(ctx, m, pts, color, thickness, opacity, erase, mirror, axes, axisRotation, gradient) {
@@ -1785,7 +1861,7 @@ function onMouseUp(e) {
 
   const pts = S.tool === 'brush' ? smoothPoints(S.pts, S.smooth) : S.pts;
 
-  m.strokes.push({
+  const newStroke = {
     id: uid(),
     pts: pts,
     color: S.color,
@@ -1796,7 +1872,9 @@ function onMouseUp(e) {
     axisRotation: m.axisRotation,
     mirror: m.mirror,
     gradient: (S.gradientMode && S.tool !== 'erase') ? JSON.parse(JSON.stringify(S.gradient)) : null,
-  });
+  };
+  m.strokes.push(newStroke);
+  if (!newStroke.gradient) invalidateStrokeCache(); // gradient strokes render live, no cache needed
 
   S.pts = [];
   S.lineStart = null;
@@ -2485,6 +2563,7 @@ function loadProject(json) {
     S.canvasH = data.canvasH || 900;
     resizeCanvas(S.canvasW, S.canvasH);
     S.mandalas = data.mandalas || [];
+    invalidateStrokeCache();
     S.palette = [];
     S.selectedSpriteId = null;
     hiddenImgs.innerHTML = '';
@@ -2873,6 +2952,7 @@ async function doExportGIF() {
 function resizeCanvas(w, h) {
   S.canvasW = w; S.canvasH = h;
   canvas.width = w; canvas.height = h;
+  invalidateStrokeCache();
   centerCanvasView();
 }
 
@@ -2887,6 +2967,7 @@ function newProject() {
   hiddenImgs.innerHTML = '';
   S.bgColor = '#0d0d1a';
   document.getElementById('bg-color').value = S.bgColor;
+  invalidateStrokeCache();
   addMandala();
   renderPaletteList();
   updateSpriteProps();
@@ -2970,7 +3051,7 @@ function wireEvents() {
     if (total === 0) return;
     if (confirm(`Clear all ${total} stroke${total !== 1 ? 's' : ''} and sprite${total !== 1 ? 's' : ''} from this mandala? This cannot be undone.`)) {
       historySnapshot();
-      m.strokes = [];
+      m.strokes = []; invalidateStrokeCache();
       m.sprites = [];
       S.selectedSpriteId = null;
       updateSpriteProps();
@@ -3021,7 +3102,7 @@ function wireEvents() {
     m.mirror = e.target.checked;
   });
   document.getElementById('cb-guides').addEventListener('change', e => { S.showGuides = e.target.checked; });
-  document.getElementById('bg-color').addEventListener('input', e => { S.bgColor = e.target.value; });
+  document.getElementById('bg-color').addEventListener('input', e => { S.bgColor = e.target.value; invalidateStrokeCache(); });
   wireViewport();
 
   // Tool buttons
@@ -3308,61 +3389,91 @@ function wireEvents() {
 
 // ── Gradient UI ──────────────────────────────────────────
 let _selectedStopIdx = 0;
+const HANDLE_H = 5; // triangle height at top + bottom of bar
 
 function initGradientUI() {
-  // Populate preset dropdown
   const sel = document.getElementById('grad-preset');
   for (const name of Object.keys(GRADIENT_PRESETS)) {
     const opt = document.createElement('option');
     opt.value = name; opt.textContent = name;
     sel.appendChild(opt);
   }
-
   sel.addEventListener('change', () => {
     S.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[sel.value]));
     _selectedStopIdx = 0;
     renderGradientUI();
   });
-
   document.getElementById('grad-scale').addEventListener('input', e => {
     S.gradient.scale = parseInt(e.target.value);
     document.getElementById('grad-scale-val').textContent = S.gradient.scale + 'px';
   });
-
   document.getElementById('grad-speed').addEventListener('input', e => {
     S.gradient.speed = parseInt(e.target.value) / 100;
     document.getElementById('grad-speed-val').textContent = S.gradient.speed.toFixed(1) + '×';
     if (S.gradient.speed > 0 && !S.rafId) S.rafId = requestAnimationFrame(render);
   });
-
   document.getElementById('btn-gradient-mode').addEventListener('click', () => {
     S.gradientMode = !S.gradientMode;
     document.getElementById('btn-gradient-mode').classList.toggle('active', S.gradientMode);
     document.getElementById('gradient-panel').classList.toggle('visible', S.gradientMode);
   });
 
-  // Click on gradient preview bar: add stop / select stop
-  document.getElementById('grad-preview').addEventListener('click', e => {
-    const rect = e.target.getBoundingClientRect();
-    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    // If no stop within 5% of click → add a new one
-    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < 0.05);
-    if (near >= 0) { _selectedStopIdx = near; }
-    else {
+  // All handle interaction on the canvas via pointerdown
+  const cvs = document.getElementById('grad-preview');
+  cvs.addEventListener('pointerdown', e => {
+    const rect = cvs.getBoundingClientRect();
+    const w = rect.width;
+    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / w));
+    const THRESH = 8 / w; // 8px hit zone
+    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < THRESH);
+
+    if (near >= 0) {
+      // Select existing stop + drag
+      _selectedStopIdx = near;
+      renderGradientUI();
+      const stop = S.gradient.stops[near];
+      const startX = e.clientX, startPos = stop.pos;
+      let moved = false;
+      const onMove = ev => {
+        moved = true;
+        const dx = ev.clientX - startX;
+        stop.pos = Math.max(0, Math.min(1, startPos + dx / w));
+        S.gradient.stops.sort((a, b) => a.pos - b.pos);
+        _selectedStopIdx = S.gradient.stops.findIndex(s => s === stop);
+        renderGradientUI();
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        if (!moved) {
+          // Single click on handle: open colour picker
+          const picker = document.createElement('input');
+          picker.type = 'color'; picker.value = stop.color;
+          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+          document.body.appendChild(picker);
+          picker.addEventListener('input', ev => { stop.color = ev.target.value; renderGradientUI(); });
+          picker.addEventListener('change', () => picker.remove());
+          picker.click();
+        }
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    } else {
+      // Click on empty area: add new stop
       const color = sampleGradient(S.gradient.stops, t);
-      S.gradient.stops.push({ pos: t, color });
+      const newStop = { pos: t, color };
+      S.gradient.stops.push(newStop);
       S.gradient.stops.sort((a, b) => a.pos - b.pos);
-      _selectedStopIdx = S.gradient.stops.findIndex(s => s.pos === t);
+      _selectedStopIdx = S.gradient.stops.findIndex(s => s === newStop);
+      renderGradientUI();
     }
-    renderGradientUI();
   });
 
-  // Double-click on preview: remove selected stop (min 2 stops)
-  document.getElementById('grad-preview').addEventListener('dblclick', e => {
+  cvs.addEventListener('dblclick', e => {
     if (S.gradient.stops.length <= 2) return;
-    const rect = e.target.getBoundingClientRect();
-    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < 0.06);
+    const rect = cvs.getBoundingClientRect();
+    const t = (e.clientX - rect.left) / rect.width;
+    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < 10 / rect.width);
     if (near >= 0) {
       S.gradient.stops.splice(near, 1);
       _selectedStopIdx = Math.min(_selectedStopIdx, S.gradient.stops.length - 1);
@@ -3375,87 +3486,60 @@ function initGradientUI() {
 
 function renderGradientUI() {
   const { stops, scale, speed } = S.gradient;
+  const cvs = document.getElementById('grad-preview');
+  const rect = cvs.getBoundingClientRect();
+  // Sync canvas pixel size to CSS size so it's crisp
+  const dpr = window.devicePixelRatio || 1;
+  const cw = Math.round(rect.width * dpr) || 300;
+  const ch = Math.round(rect.height * dpr) || 28 * dpr;
+  if (cvs.width !== cw || cvs.height !== ch) { cvs.width = cw; cvs.height = ch; }
 
-  // Draw gradient preview bar
-  const preview = document.getElementById('grad-preview');
-  const w = preview.width, h = preview.height;
-  const pc = preview.getContext('2d');
-  const grad = pc.createLinearGradient(0, 0, w, 0);
-  for (const s of stops) grad.addColorStop(s.pos, s.color);
-  // Wrap: add first stop at pos=1 so the gradient visually loops
-  grad.addColorStop(1, stops[0].color);
+  const pc = cvs.getContext('2d');
+  pc.clearRect(0, 0, cw, ch);
+  pc.save(); pc.scale(dpr, dpr);
+
+  const W = cw / dpr, H = ch / dpr;
+  const barTop = HANDLE_H, barH = H - HANDLE_H * 2;
+
+  // Gradient bar
+  const grad = pc.createLinearGradient(0, 0, W, 0);
+  for (const s of stops) grad.addColorStop(Math.min(1, Math.max(0, s.pos)), s.color);
+  grad.addColorStop(1, stops[0].color); // seamless wrap hint
   pc.fillStyle = grad;
-  pc.fillRect(0, 0, w, h);
+  pc.beginPath();
+  pc.roundRect(0, barTop, W, barH, 3);
+  pc.fill();
 
-  // Render draggable stop handles
-  const row = document.getElementById('grad-stops-row');
-  row.innerHTML = '';
-  const rowRect = row.getBoundingClientRect();
-  const rowW = rowRect.width || 300;
-
+  // Stop handles: triangles at top + bottom pointing inward
   stops.forEach((stop, idx) => {
-    const handle = document.createElement('div');
-    handle.className = 'grad-stop-handle' + (idx === _selectedStopIdx ? ' selected' : '');
-    handle.style.left = (stop.pos * 100) + '%';
-    handle.style.setProperty('--stop-color', stop.color);
-    // Colour both knobs
-    handle.style.setProperty('background', 'transparent');
-    handle.title = `Stop ${idx+1}: ${stop.color} — drag to move, dblclick to delete`;
+    const x = stop.pos * W;
+    const sel = idx === _selectedStopIdx;
+    const hc = sel ? '#ffe66d' : '#fff';
 
-    // Inner dots coloured to stop colour
-    const top = document.createElement('span');
-    top.style.cssText = `display:block;width:10px;height:10px;border-radius:50%;background:${stop.color};border:2px solid ${idx===_selectedStopIdx?'#ffe66d':'#fff'};box-shadow:0 0 3px rgba(0,0,0,.6);margin-top:1px`;
-    const bot = document.createElement('span');
-    bot.style.cssText = top.style.cssText + ';margin-top:4px;margin-bottom:1px';
-    handle.appendChild(top); handle.appendChild(bot);
-    handle.style.display = 'flex'; handle.style.flexDirection = 'column'; handle.style.alignItems = 'center';
+    pc.fillStyle = stop.color;
+    pc.strokeStyle = hc;
+    pc.lineWidth = sel ? 1.5 : 1;
 
-    // Click to select
-    handle.addEventListener('pointerdown', e => {
-      e.stopPropagation();
-      _selectedStopIdx = idx;
-      renderGradientUI();
+    // Top triangle (pointing down into bar)
+    pc.beginPath();
+    pc.moveTo(x, 0);
+    pc.lineTo(x - HANDLE_H, barTop - 1);
+    pc.lineTo(x + HANDLE_H, barTop - 1);
+    pc.closePath();
+    pc.fill(); pc.stroke();
 
-      // Open colour picker for this stop
-      const picker = document.createElement('input');
-      picker.type = 'color'; picker.value = stop.color;
-      picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-      document.body.appendChild(picker);
-      picker.addEventListener('input', ev => {
-        S.gradient.stops[idx].color = ev.target.value;
-        renderGradientUI();
-      });
-      picker.addEventListener('change', () => picker.remove());
-      picker.click();
-
-      // Drag logic
-      const startX = e.clientX, startPos = stop.pos;
-      const onMove = ev => {
-        const dx = ev.clientX - startX;
-        const newPos = Math.max(0, Math.min(1, startPos + dx / (rowW || 300)));
-        S.gradient.stops[idx].pos = newPos;
-        S.gradient.stops.sort((a, b) => a.pos - b.pos);
-        _selectedStopIdx = S.gradient.stops.findIndex(s => s === stop);
-        renderGradientUI();
-      };
-      const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-    });
-
-    // Dblclick on handle to delete
-    handle.addEventListener('dblclick', e => {
-      e.stopPropagation();
-      if (stops.length <= 2) return;
-      S.gradient.stops.splice(idx, 1);
-      _selectedStopIdx = Math.min(_selectedStopIdx, S.gradient.stops.length - 1);
-      renderGradientUI();
-    });
-
-    row.appendChild(handle);
+    // Bottom triangle (pointing up into bar)
+    pc.beginPath();
+    pc.moveTo(x, H);
+    pc.lineTo(x - HANDLE_H, H - barTop + 1);
+    pc.lineTo(x + HANDLE_H, H - barTop + 1);
+    pc.closePath();
+    pc.fill(); pc.stroke();
   });
 
-  // Sync slider displays
+  pc.restore();
+
+  // Sync sliders
   document.getElementById('grad-scale-val').textContent = scale + 'px';
   document.getElementById('grad-speed-val').textContent = speed.toFixed(1) + '×';
   document.getElementById('grad-scale').value = scale;

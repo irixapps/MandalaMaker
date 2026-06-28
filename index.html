@@ -344,19 +344,14 @@
 
   <!-- Gradient panel (sits above status bar, hidden by default) -->
   <div id="gradient-panel">
-    <div class="grad-row">
-      <select id="grad-preset" style="font-size:11px;padding:2px 4px;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer"></select>
-      <canvas id="grad-preview" width="200" height="22" style="border-radius:3px;cursor:crosshair;flex:1;min-width:80px"></canvas>
-    </div>
-    <div id="grad-stops-row" style="position:relative;height:28px;margin:2px 0"></div>
-    <div class="grad-row" style="gap:12px">
-      <label style="font-size:11px;opacity:.7;white-space:nowrap">Spread</label>
-      <input type="range" id="grad-scale" min="20" max="2000" value="400" style="flex:1">
-      <span id="grad-scale-val" style="font-size:11px;min-width:36px;text-align:right">400px</span>
-      <label style="font-size:11px;opacity:.7;white-space:nowrap;margin-left:8px">Speed</label>
-      <input type="range" id="grad-speed" min="0" max="200" value="30" style="flex:1">
-      <span id="grad-speed-val" style="font-size:11px;min-width:36px;text-align:right">0.3×</span>
-    </div>
+    <select id="grad-preset"></select>
+    <canvas id="grad-preview" height="28" style="cursor:crosshair;border-radius:4px;flex:1;min-width:60px"></canvas>
+    <span class="grad-label">Spread</span>
+    <input type="range" id="grad-scale" min="20" max="2000" value="400" class="grad-slider">
+    <span id="grad-scale-val" class="grad-val">400px</span>
+    <span class="grad-label">Speed</span>
+    <input type="range" id="grad-speed" min="0" max="200" value="30" class="grad-slider">
+    <span id="grad-speed-val" class="grad-val">0.3×</span>
   </div>
 
   <footer id="status-bar">
