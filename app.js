@@ -2473,13 +2473,19 @@ function gifFrameAtTime(item, tSec) {
   return item.gifFrames.length - 1;
 }
 
-function showGifModal() {
-  if (typeof gifenc === 'undefined') {
-    alert('GIF encoder library failed to load — check your internet connection.');
+// S._exportFormat: 'gif' | 'webp'
+function showGifModal(format = 'gif') {
+  if (format === 'gif' && typeof gifenc === 'undefined') {
+    alert('GIF encoder library failed to load.');
     return;
   }
+  S._exportFormat = format;
   const rec = gifRecommendations();
   const el = id => document.getElementById(id);
+
+  el('gif-modal-title').textContent = format === 'webp' ? 'Export Animated WebP' : 'Export Animated GIF';
+  el('gif-colors-row').style.display  = format === 'gif'  ? '' : 'none';
+  el('gif-quality-row').style.display = format === 'webp' ? '' : 'none';
 
   el('gif-fps').value = rec.fps;
   el('gif-fps-val').textContent = rec.fps;
@@ -2495,13 +2501,159 @@ function showGifModal() {
       `Recommended ${rec.frames} frames for seamless ${rec.cyclSec.toFixed(1)}s loop`;
   } else {
     el('gif-fps-hint').textContent = `Recommended: ${rec.fps} fps`;
-    el('gif-frames-hint').textContent = 'No animations detected — GIF will be a still image';
+    el('gif-frames-hint').textContent = 'No animations detected — export will be a still image';
   }
 
   el('gif-progress-wrap').style.display = 'none';
   el('gif-progress-bar').style.width = '0%';
   el('gif-export-btn').disabled = false;
   el('gif-modal').style.display = 'flex';
+}
+
+// ── Animated WebP muxer ───────────────────────────────────
+// Extracts the VP8/VP8L chunk from a single-frame WebP blob,
+// then assembles all frames into an animated WebP RIFF container.
+
+async function extractWebPFrame(blob) {
+  const buf = await blob.arrayBuffer();
+  const view = new DataView(buf);
+  let pos = 12; // skip RIFF(4) + fileSize(4) + WEBP(4)
+  while (pos < buf.byteLength - 8) {
+    const id = String.fromCharCode(view.getUint8(pos), view.getUint8(pos+1),
+                                   view.getUint8(pos+2), view.getUint8(pos+3));
+    const size = view.getUint32(pos + 4, true);
+    if (id === 'VP8 ' || id === 'VP8L') {
+      return { id, data: new Uint8Array(buf, pos + 8, size) };
+    }
+    pos += 8 + size + (size & 1);
+  }
+  throw new Error('No VP8 chunk found in WebP frame');
+}
+
+function buildAnimatedWebP(frames, width, height, loopCount) {
+  // frames: [{id: 'VP8 '|'VP8L', data: Uint8Array, delayMs: number}]
+  const w24 = n => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff];
+  const w32 = n => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff];
+  const cc  = s => [...s].map(c => c.charCodeAt(0));
+
+  function mkChunk(id, data) {
+    const arr = Array.isArray(data) ? data : Array.from(data);
+    const pad = arr.length & 1 ? [0] : [];
+    return [...cc(id.padEnd(4, ' ')), ...w32(arr.length), ...arr, ...pad];
+  }
+
+  const vp8x = mkChunk('VP8X', [
+    0x02, 0x00, 0x00, 0x00, // flags: animation bit set
+    ...w24(width - 1),
+    ...w24(height - 1),
+  ]);
+
+  const anim = mkChunk('ANIM', [
+    0xff, 0xff, 0xff, 0x00,  // background BGRA (white, transparent)
+    loopCount & 0xff, (loopCount >> 8) & 0xff,
+  ]);
+
+  const anmfs = frames.flatMap(({ id, data, delayMs }) => {
+    const inner = mkChunk(id, data);
+    return mkChunk('ANMF', [
+      ...w24(0), ...w24(0),          // frame x/2, y/2 (both 0 = full canvas)
+      ...w24(width - 1),
+      ...w24(height - 1),
+      ...w24(Math.round(delayMs)),   // frame duration in ms
+      0x00,                          // flags: no blending, no disposal
+      ...inner,
+    ]);
+  });
+
+  const body = [...cc('WEBP'), ...vp8x, ...anim, ...anmfs];
+  return new Uint8Array([...cc('RIFF'), ...w32(body.length), ...body]);
+}
+
+async function doExportWebP() {
+  const el = id => document.getElementById(id);
+  const fps     = Math.max(1, parseInt(el('gif-fps').value)    || 12);
+  const frames  = Math.max(1, parseInt(el('gif-frames').value) || 24);
+  const expW    = Math.max(50, Math.min(4096, parseInt(el('gif-width').value) || S.canvasW));
+  const expH    = Math.round(expW * S.canvasH / S.canvasW);
+  const quality = (parseInt(el('gif-quality').value) || 85) / 100;
+  const repeat  = parseInt(el('gif-loop').value);
+  const delayMs = Math.round(1000 / fps);
+
+  el('gif-progress-wrap').style.display = 'block';
+  el('gif-export-btn').disabled = true;
+  el('gif-cancel-btn').disabled = true;
+
+  cancelAnimationFrame(S.rafId); S.rafId = null;
+  const wasGuides = S.showGuides, wasSel = S.selectedSpriteId, wasClk = S.animClock;
+  S.showGuides = false; S.selectedSpriteId = null;
+
+  const gifSnap = S.palette.map(p => ({ idx: p.gifFrameIdx, cache: p.processedCache, animCanvas: p._animCanvas, animFrameIdx: p._animFrameIdx }));
+
+  const offC = document.createElement('canvas');
+  offC.width = expW; offC.height = expH;
+  const offCtx = offC.getContext('2d');
+
+  const webpFrames = [];
+
+  try {
+    for (let i = 0; i < frames; i++) {
+      S.animClock = i / fps;
+
+      const nowTs = performance.now();
+      for (const item of S.palette) {
+        if ((item.isGif || item.isWebP) && item.gifFrames?.length) {
+          const newIdx = gifFrameAtTime(item, S.animClock);
+          if (newIdx !== item.gifFrameIdx) {
+            item.gifFrameIdx   = newIdx;
+            item._animCanvas   = null;
+            item._animFrameIdx = -1;
+            item.processedCache = null;
+          }
+          item.gifFrameTime = nowTs;
+        }
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = S.bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+
+      offCtx.clearRect(0, 0, expW, expH);
+      offCtx.drawImage(canvas, 0, 0, expW, expH);
+
+      const blob = await new Promise(res => offC.toBlob(res, 'image/webp', quality));
+      if (!blob) throw new Error('WebP encoding not supported in this browser');
+      const frame = await extractWebPFrame(blob);
+      webpFrames.push({ ...frame, delayMs });
+
+      const pct = Math.round((i + 1) / frames * 100);
+      el('gif-progress-bar').style.width = pct + '%';
+      el('gif-progress-label').textContent = `Encoding frame ${i + 1} / ${frames}…`;
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    const webpBytes = buildAnimatedWebP(webpFrames, expW, expH, repeat);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([webpBytes], { type: 'image/webp' }));
+    a.download = 'mandala.webp';
+    a.click();
+
+    el('gif-modal').style.display = 'none';
+  } catch (err) {
+    alert('WebP export failed: ' + err.message);
+  } finally {
+    S.showGuides = wasGuides; S.selectedSpriteId = wasSel; S.animClock = wasClk;
+    S.palette.forEach((p, i) => {
+      p.gifFrameIdx    = gifSnap[i].idx;
+      p.processedCache = gifSnap[i].cache;
+      p._animCanvas    = gifSnap[i].animCanvas;
+      p._animFrameIdx  = gifSnap[i].animFrameIdx;
+    });
+    el('gif-cancel-btn').disabled = false;
+    el('gif-export-btn').disabled = false;
+    S.lastTime = 0;
+    S.rafId = requestAnimationFrame(render);
+  }
 }
 
 async function doExportGIF() {
@@ -2663,11 +2815,17 @@ function wireEvents() {
   document.getElementById('btn-new').addEventListener('click', newProject);
   document.getElementById('btn-save').addEventListener('click', saveProject);
   document.getElementById('btn-export').addEventListener('click', exportPNG);
-  document.getElementById('btn-export-gif').addEventListener('click', showGifModal);
+  document.getElementById('btn-export-gif').addEventListener('click', () => showGifModal('gif'));
+  document.getElementById('btn-export-webp').addEventListener('click', () => showGifModal('webp'));
   document.getElementById('gif-cancel-btn').addEventListener('click', () => {
     document.getElementById('gif-modal').style.display = 'none';
   });
-  document.getElementById('gif-export-btn').addEventListener('click', doExportGIF);
+  document.getElementById('gif-export-btn').addEventListener('click', () => {
+    if (S._exportFormat === 'webp') doExportWebP(); else doExportGIF();
+  });
+  document.getElementById('gif-quality').addEventListener('input', e => {
+    document.getElementById('gif-quality-val').textContent = e.target.value;
+  });
 
   // Live updates in GIF modal
   document.getElementById('gif-fps').addEventListener('input', e => {
