@@ -373,13 +373,7 @@
 <!-- GIF images need to render at natural size (even off-screen) so the browser advances their animation frames -->
 <div id="hidden-imgs" style="position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;z-index:-1"></div>
 
-<!-- GIF frame decoder (locally bundled — CDN version is CommonJS-only, has no browser globals) -->
-<script src="gifuct.bundle.js"></script>
-<!-- GIF encoder (locally bundled) -->
-<script src="gifenc.bundle.js"></script>
-<script src="app.js"></script>
-
-<!-- GIF Export Modal -->
+<!-- GIF Export Modal (must be in DOM before app.js runs) -->
 <div id="gif-modal" class="modal-overlay" style="display:none">
   <div class="modal-dialog" style="width:340px;gap:0">
     <h3 style="margin:0 0 14px;font-size:14px">Export Animated GIF</h3>
@@ -438,5 +432,11 @@
     </div>
   </div>
 </div>
+
+<!-- GIF frame decoder (locally bundled — CDN version is CommonJS-only, has no browser globals) -->
+<script src="gifuct.bundle.js"></script>
+<!-- GIF encoder (locally bundled) -->
+<script src="gifenc.bundle.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
