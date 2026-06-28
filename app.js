@@ -2557,24 +2557,6 @@ function wireShapePanel() {
     const mainBtn = document.getElementById('btn-gradient-mode');
     if (mainBtn) mainBtn.classList.toggle('active', S.gradientMode);
   });
-  document.getElementById('btn-clone-shape').addEventListener('click', () => {
-    const m = getActiveMandala();
-    if (!m) return;
-    // Use the selected shape, or fall back to last drawn shape settings
-    const sel = findSelectedShape();
-    const src = sel?.shape || S._lastShapeSettings;
-    if (!src) return;
-    historySnapshot();
-    const clone = {
-      ...src,
-      id: uid(),
-      x: 0, y: 0,  // place at mandala center offset
-      anim: {},
-    };
-    m.shapes.push(clone);
-    S.selectedShapeId = clone.id;
-    updateShapeProps();
-  });
 }
 
 // ── Snap UI wiring ────────────────────────────────────────
@@ -2839,7 +2821,6 @@ function onMouseUp(e) {
       delete shape._startX; delete shape._startY;
       if (!m.shapes) m.shapes = [];
       m.shapes.push(shape);
-      S._lastShapeSettings = shape;
       S.selectedShapeId = shape.id;
       updateShapeProps();
       setTool('select');
