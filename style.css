@@ -465,6 +465,17 @@ select { cursor: pointer; }
 }
 .modal-dialog h3 { font-size: 13px; color: var(--text); }
 
+/* ── GIF export modal ── */
+.gif-row { display:flex; align-items:center; gap:8px; }
+.gif-label { font-size:12px; min-width:72px; opacity:0.8; }
+.gif-num { font-size:12px; min-width:24px; text-align:right; }
+.gif-unit { font-size:11px; opacity:0.6; white-space:nowrap; }
+.gif-dur { opacity:0.6; font-size:11px; }
+.gif-hint { font-size:11px; opacity:0.55; margin-left:80px; min-height:14px; margin-bottom:2px; }
+#gif-fps { flex:1; }
+#gif-modal .modal-dialog input[type=number] { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:3px 6px; font-size:12px; }
+#gif-modal .modal-dialog select { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:3px 6px; font-size:12px; flex:1; }
+
 /* ── Transparency overlay dialog ── */
 #trans-overlay {
   position: fixed; inset: 0;

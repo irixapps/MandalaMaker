@@ -2428,6 +2428,179 @@ function exportPNG() {
   S.selectedSpriteId = wasSel;
 }
 
+// ── Animated GIF export ──────────────────────────────────
+
+function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+function lcm(a, b) { return Math.round(a / gcd(a, b) * b); }
+
+function gifRecommendations() {
+  // Collect cycle lengths (seconds) from keyframe animations and animated palettes
+  const cycs = []; // in centiseconds (integer-friendly)
+
+  for (const m of S.mandalas) {
+    for (const spr of m.sprites) {
+      if (!spr.anim) continue;
+      for (const ap of Object.values(spr.anim)) {
+        if (ap.enabled && ap.duration > 0) cycs.push(Math.round(ap.duration * 100));
+      }
+    }
+  }
+  for (const item of S.palette) {
+    if ((item.isGif || item.isWebP) && item.gifFrames?.length) {
+      const ms = item.gifFrames.reduce((s, f) => s + (f.delay || 100), 0);
+      cycs.push(Math.round(ms / 10)); // ms → cs
+    }
+  }
+
+  const hasAnim = cycs.length > 0;
+  let cyclCs = hasAnim ? cycs.reduce(lcm) : 200; // centiseconds
+  cyclCs = Math.min(cyclCs, 3000); // cap at 30s
+  const cyclSec = cyclCs / 100;
+
+  const fps = cyclSec <= 4 ? 15 : 12;
+  const frames = Math.max(1, Math.round(cyclSec * fps));
+  return { fps, frames, cyclSec, hasAnim };
+}
+
+function gifFrameAtTime(item, tSec) {
+  if (!item.gifFrames?.length) return 0;
+  const totalMs = item.gifFrames.reduce((s, f) => s + (f.delay || 100), 0);
+  let tMs = (tSec * 1000) % totalMs;
+  for (let i = 0; i < item.gifFrames.length; i++) {
+    tMs -= item.gifFrames[i].delay || 100;
+    if (tMs < 0) return i;
+  }
+  return item.gifFrames.length - 1;
+}
+
+function showGifModal() {
+  if (typeof gifenc === 'undefined') {
+    alert('GIF encoder library failed to load — check your internet connection.');
+    return;
+  }
+  const rec = gifRecommendations();
+  const el = id => document.getElementById(id);
+
+  el('gif-fps').value = rec.fps;
+  el('gif-fps-val').textContent = rec.fps;
+  el('gif-frames').value = rec.frames;
+  el('gif-dur-label').textContent = (rec.frames / rec.fps).toFixed(1);
+  el('gif-width').value = S.canvasW;
+  el('gif-height-label').textContent = `× ${S.canvasH}`;
+  el('gif-size-hint').textContent = `Original: ${S.canvasW}×${S.canvasH} — resize to reduce file size`;
+
+  if (rec.hasAnim) {
+    el('gif-fps-hint').textContent = `Recommended: ${rec.fps} fps`;
+    el('gif-frames-hint').textContent =
+      `Recommended ${rec.frames} frames for seamless ${rec.cyclSec.toFixed(1)}s loop`;
+  } else {
+    el('gif-fps-hint').textContent = `Recommended: ${rec.fps} fps`;
+    el('gif-frames-hint').textContent = 'No animations detected — GIF will be a still image';
+  }
+
+  el('gif-progress-wrap').style.display = 'none';
+  el('gif-progress-bar').style.width = '0%';
+  el('gif-export-btn').disabled = false;
+  el('gif-modal').style.display = 'flex';
+}
+
+async function doExportGIF() {
+  const el = id => document.getElementById(id);
+  const fps    = Math.max(1, parseInt(el('gif-fps').value)    || 12);
+  const frames = Math.max(1, parseInt(el('gif-frames').value) || 24);
+  const expW   = Math.max(50, Math.min(4096, parseInt(el('gif-width').value) || S.canvasW));
+  const expH   = Math.round(expW * S.canvasH / S.canvasW);
+  const colors = parseInt(el('gif-colors').value) || 256;
+  const repeat = parseInt(el('gif-loop').value);
+  const delayCs = Math.max(2, Math.round(100 / fps)); // centiseconds per frame
+
+  el('gif-progress-wrap').style.display = 'block';
+  el('gif-export-btn').disabled = true;
+  el('gif-cancel-btn').disabled = true;
+
+  // Pause RAF, hide guides/selection
+  cancelAnimationFrame(S.rafId); S.rafId = null;
+  const wasGuides = S.showGuides, wasSel = S.selectedSpriteId, wasClk = S.animClock;
+  S.showGuides = false; S.selectedSpriteId = null;
+
+  // Snapshot GIF/WebP states so we can restore
+  const gifSnap = S.palette.map(p => ({ idx: p.gifFrameIdx, cache: p.processedCache, animCanvas: p._animCanvas, animFrameIdx: p._animFrameIdx }));
+
+  // Offscreen canvas for scaling output
+  const offC = document.createElement('canvas');
+  offC.width = expW; offC.height = expH;
+  const offCtx = offC.getContext('2d', { willReadFrequently: true });
+
+  const { GIFEncoder, quantize, applyPalette } = gifenc;
+  const enc = GIFEncoder();
+
+  try {
+    for (let i = 0; i < frames; i++) {
+      const tSec = i / fps;
+      S.animClock = tSec;
+
+      // Seek animated palette items to this time
+      for (const item of S.palette) {
+        if ((item.isGif || item.isWebP) && item.gifFrames?.length) {
+          const newIdx = gifFrameAtTime(item, tSec);
+          if (newIdx !== item.gifFrameIdx) {
+            item.gifFrameIdx = newIdx;
+            item.processedCache = null;
+            item._animCanvas = null;
+          }
+        }
+      }
+
+      // Render frame to main canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = S.bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+
+      // Scale down to export size
+      offCtx.clearRect(0, 0, expW, expH);
+      offCtx.drawImage(canvas, 0, 0, expW, expH);
+
+      // Quantize and encode
+      const imgData = offCtx.getImageData(0, 0, expW, expH);
+      const palette = quantize(imgData.data, colors);
+      const index   = applyPalette(imgData.data, palette);
+      enc.writeFrame(index, expW, expH, { palette, delay: delayCs, repeat: i === 0 ? repeat : undefined });
+
+      // Progress
+      const pct = Math.round((i + 1) / frames * 100);
+      el('gif-progress-bar').style.width = pct + '%';
+      el('gif-progress-label').textContent = `Encoding frame ${i + 1} / ${frames}…`;
+      await new Promise(r => setTimeout(r, 0)); // yield to browser
+    }
+
+    enc.finish();
+
+    const blob = new Blob([enc.bytesView()], { type: 'image/gif' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mandala.gif';
+    a.click();
+
+    el('gif-modal').style.display = 'none';
+  } catch (err) {
+    alert('GIF export failed: ' + err.message);
+  } finally {
+    // Restore state
+    S.showGuides = wasGuides; S.selectedSpriteId = wasSel; S.animClock = wasClk;
+    S.palette.forEach((p, i) => {
+      p.gifFrameIdx   = gifSnap[i].idx;
+      p.processedCache = gifSnap[i].cache;
+      p._animCanvas   = gifSnap[i].animCanvas;
+      p._animFrameIdx = gifSnap[i].animFrameIdx;
+    });
+    el('gif-cancel-btn').disabled = false;
+    el('gif-export-btn').disabled = false;
+    S.lastTime = 0;
+    S.rafId = requestAnimationFrame(render);
+  }
+}
+
 function resizeCanvas(w, h) {
   S.canvasW = w; S.canvasH = h;
   canvas.width = w; canvas.height = h;
@@ -2480,6 +2653,29 @@ function wireEvents() {
   document.getElementById('btn-new').addEventListener('click', newProject);
   document.getElementById('btn-save').addEventListener('click', saveProject);
   document.getElementById('btn-export').addEventListener('click', exportPNG);
+  document.getElementById('btn-export-gif').addEventListener('click', showGifModal);
+  document.getElementById('gif-cancel-btn').addEventListener('click', () => {
+    document.getElementById('gif-modal').style.display = 'none';
+  });
+  document.getElementById('gif-export-btn').addEventListener('click', doExportGIF);
+
+  // Live updates in GIF modal
+  document.getElementById('gif-fps').addEventListener('input', e => {
+    const fps = parseInt(e.target.value);
+    document.getElementById('gif-fps-val').textContent = fps;
+    const frames = parseInt(document.getElementById('gif-frames').value) || 1;
+    document.getElementById('gif-dur-label').textContent = (frames / fps).toFixed(1);
+  });
+  document.getElementById('gif-frames').addEventListener('input', e => {
+    const frames = parseInt(e.target.value) || 1;
+    const fps = parseInt(document.getElementById('gif-fps').value) || 12;
+    document.getElementById('gif-dur-label').textContent = (frames / fps).toFixed(1);
+  });
+  document.getElementById('gif-width').addEventListener('input', e => {
+    const w = parseInt(e.target.value) || S.canvasW;
+    const h = Math.round(w * S.canvasH / S.canvasW);
+    document.getElementById('gif-height-label').textContent = `× ${h}`;
+  });
   document.getElementById('btn-load').addEventListener('click', () => document.getElementById('file-load').click());
   document.getElementById('file-load').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return;
