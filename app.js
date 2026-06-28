@@ -4314,9 +4314,21 @@ function wireEvents() {
   document.getElementById('btn-export').addEventListener('click', exportPNG);
   document.getElementById('btn-export-gif').addEventListener('click', () => showGifModal('gif'));
   document.getElementById('btn-export-webp').addEventListener('click', () => showGifModal('webp'));
+  function syncPlayPauseBtns() {
+    const icon = S.animPaused ? '▶' : '⏸';
+    document.getElementById('btn-anim-playpause').textContent = icon;
+    const l = document.getElementById('btn-anim-playpause-layers');
+    if (l) l.textContent = icon;
+  }
   document.getElementById('btn-anim-playpause').addEventListener('click', () => {
     S.animPaused = !S.animPaused;
-    document.getElementById('btn-anim-playpause').textContent = S.animPaused ? '▶' : '⏸';
+    syncPlayPauseBtns();
+    markRenderDirty();
+    if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+  });
+  document.getElementById('btn-anim-playpause-layers').addEventListener('click', () => {
+    S.animPaused = !S.animPaused;
+    syncPlayPauseBtns();
     markRenderDirty();
     if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
   });
