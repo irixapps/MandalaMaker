@@ -152,30 +152,53 @@ function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 // ── Gradient colour utilities ───────────────────────────
-function lerpHex(c1, c2, t) {
-  const p = s => parseInt(s, 16);
-  const r = Math.round(p(c1.slice(1,3)) + (p(c2.slice(1,3)) - p(c1.slice(1,3))) * t);
-  const g = Math.round(p(c1.slice(3,5)) + (p(c2.slice(3,5)) - p(c1.slice(3,5))) * t);
-  const b = Math.round(p(c1.slice(5,7)) + (p(c2.slice(5,7)) - p(c1.slice(5,7))) * t);
-  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+// Pre-parse gradient stops to integer RGB for the hot render path.
+// WeakMap so entries GC when the stops array is replaced.
+const _parsedStopsCache = new WeakMap();
+function getParsedStops(stops) {
+  let p = _parsedStopsCache.get(stops);
+  if (p) return p;
+  p = stops.map(s => ({
+    pos: s.pos,
+    r: parseInt(s.color.slice(1,3), 16),
+    g: parseInt(s.color.slice(3,5), 16),
+    b: parseInt(s.color.slice(5,7), 16),
+  }));
+  _parsedStopsCache.set(stops, p);
+  return p;
 }
 
-// Sample a cyclic gradient at position t (0–1, wraps seamlessly)
-function sampleGradient(stops, t) {
-  if (!stops?.length) return '#ffffff';
-  if (stops.length === 1) return stops[0].color;
-  t = ((t % 1) + 1) % 1; // normalise to [0,1)
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (t >= stops[i].pos && t < stops[i+1].pos) {
-      const span = stops[i+1].pos - stops[i].pos;
-      return lerpHex(stops[i].color, stops[i+1].color, (t - stops[i].pos) / span);
+// Sample gradient: returns {r,g,b} ints — avoids any string work in the hot path.
+function sampleGradientRGB(stops, t) {
+  const p = getParsedStops(stops);
+  if (!p.length) return { r:255, g:255, b:255 };
+  if (p.length === 1) return { r:p[0].r, g:p[0].g, b:p[0].b };
+  t = ((t % 1) + 1) % 1;
+  for (let i = 0; i < p.length - 1; i++) {
+    if (t >= p[i].pos && t < p[i+1].pos) {
+      const u = (t - p[i].pos) / (p[i+1].pos - p[i].pos);
+      return {
+        r: (p[i].r + (p[i+1].r - p[i].r) * u + 0.5) | 0,
+        g: (p[i].g + (p[i+1].g - p[i].g) * u + 0.5) | 0,
+        b: (p[i].b + (p[i+1].b - p[i].b) * u + 0.5) | 0,
+      };
     }
   }
-  // Wrap zone: from last stop back to first (across the 0/1 boundary)
-  const last = stops[stops.length - 1];
-  const first = stops[0];
+  const last = p[p.length-1], first = p[0];
   const span = 1 - last.pos;
-  return span > 0 ? lerpHex(last.color, first.color, (t - last.pos) / span) : last.color;
+  if (span <= 0) return { r:last.r, g:last.g, b:last.b };
+  const u = (t - last.pos) / span;
+  return {
+    r: (last.r + (first.r - last.r) * u + 0.5) | 0,
+    g: (last.g + (first.g - last.g) * u + 0.5) | 0,
+    b: (last.b + (first.b - last.b) * u + 0.5) | 0,
+  };
+}
+
+// Hex string version kept for non-hot-path uses (gradient preview bar, etc.)
+function sampleGradient(stops, t) {
+  const { r, g, b } = sampleGradientRGB(stops, t);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
 }
 
 // Render a stroke using a cycling gradient along its length.
@@ -194,16 +217,25 @@ function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
     lens.push(lens[i-1] + Math.sqrt(dx*dx + dy*dy));
   }
 
+  const cap = capType || 'round';
   ctx.lineWidth = lineWidth;
-  ctx.lineCap   = capType || 'round';
+  ctx.lineCap   = cap;
   ctx.lineJoin  = 'round';
 
-  // Dash handling: pre-compute dash cycle total; null/empty = solid
+  // Dash handling
   const hasDash = dashArr && dashArr.length >= 2 && dashArr.reduce((a, b) => a + b, 0) > 0;
   const dashCycle = hasDash ? dashArr.reduce((a, b) => a + b, 0) : 0;
 
-  const step = Math.max(0.5, lineWidth * 0.4); // sample resolution
-  let prevColor = null;
+  // Round caps overlap so a larger step is invisible; butt/square need tight sampling.
+  const step = cap === 'round'
+    ? Math.max(1.5, lineWidth * 0.65)
+    : Math.max(0.5, lineWidth * 0.25);
+
+  // Allow neighbouring samples to share a path segment unless colour drifts.
+  // This dramatically reduces ctx.stroke() calls for smooth gradients.
+  const COLOR_TOL = cap === 'round' ? 4 : 2;
+
+  let prevR = -999, prevG = -999, prevB = -999, hasPath = false;
   ctx.beginPath();
 
   for (let i = 0; i < pts.length - 1; i++) {
@@ -211,12 +243,12 @@ function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
     const segLen = Math.sqrt(dx*dx + dy*dy);
     if (segLen === 0) continue;
     const steps = Math.max(1, Math.ceil(segLen / step));
+
     for (let s = 0; s < steps; s++) {
       const ta = s / steps, tb = (s + 1) / steps;
-      const dist = lens[i] + segLen * ta; // arc-length at start of sub-segment
+      const dist = lens[i] + segLen * ta;
 
       if (hasDash) {
-        // Determine if arc-position is inside a dash or a gap
         const cyclePos = dist % dashCycle;
         let cum = 0, drawing = true;
         for (let d = 0; d < dashArr.length; d++) {
@@ -224,25 +256,29 @@ function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
           if (cyclePos < cum) { drawing = (d % 2 === 0); break; }
         }
         if (!drawing) {
-          if (prevColor !== null) { ctx.stroke(); ctx.beginPath(); prevColor = null; }
+          if (hasPath) { ctx.stroke(); ctx.beginPath(); hasPath = false; prevR = -999; }
           continue;
         }
       }
 
+      const { r, g, b } = sampleGradientRGB(stops, dist / scale + timeOffset);
+      const drift = Math.abs(r - prevR) + Math.abs(g - prevG) + Math.abs(b - prevB);
+      if (drift > COLOR_TOL) {
+        if (hasPath) ctx.stroke();
+        ctx.beginPath();
+        ctx.strokeStyle = `rgb(${r},${g},${b})`;
+        prevR = r; prevG = g; prevB = b;
+        hasPath = false;
+      }
+
       const xa = pts[i].x + dx*ta, ya = pts[i].y + dy*ta;
       const xb = pts[i].x + dx*tb, yb = pts[i].y + dy*tb;
-      const color = sampleGradient(stops, dist / scale + timeOffset);
-      if (color !== prevColor) {
-        if (prevColor !== null) ctx.stroke();
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        prevColor = color;
-      }
       ctx.moveTo(xa, ya);
       ctx.lineTo(xb, yb);
+      hasPath = true;
     }
   }
-  if (prevColor !== null) ctx.stroke();
+  if (hasPath) ctx.stroke();
 }
 
 // ── Animation engine ────────────────────────────────────
@@ -296,6 +332,23 @@ function hasAnyAnimation() {
   if (S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0))) return true;
   return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
 }
+
+// Cached version — avoids scanning all mandala data every frame.
+// Call flushHasAnimCache() whenever shapes/sprites/strokes/gradients change.
+let _hasAnimCacheDirty = true;
+let _hasAnimCacheResult = false;
+function flushHasAnimCache() { _hasAnimCacheDirty = true; }
+function hasAnyAnimationCached() {
+  if (_hasAnimCacheDirty) {
+    _hasAnimCacheResult = hasAnyAnimation();
+    _hasAnimCacheDirty = false;
+  }
+  return _hasAnimCacheResult;
+}
+
+// Dirty flag: when false and no animation is running, skip the canvas repaint entirely.
+let _renderDirty = true;
+function markRenderDirty() { _renderDirty = true; }
 
 function applyPreset(preset) {
   return {
@@ -773,6 +826,8 @@ function historySnapshot() {
   S.redoStack = [];
   if (S.history.length > MAX_HISTORY) S.history.shift();
   updateUndoButtons();
+  markRenderDirty();
+  flushHasAnimCache();
 }
 
 function restoreSnapshot(snap) {
@@ -808,6 +863,7 @@ function applyViewport() {
   canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = Math.round(zoom * 100) + '%';
+  markRenderDirty();
 }
 
 function fitCanvas() {
@@ -1185,8 +1241,10 @@ function getDrawableImage(item, noCache = false) {
 // are always rendered live on top.
 let _strokeCache = null;
 let _strokeCacheDirty = true;
+// Reusable proxy object for renderShapeSymmetric — avoids per-frame allocation.
+const _shapeProxy = {};
 
-function invalidateStrokeCache() { _strokeCacheDirty = true; }
+function invalidateStrokeCache() { _strokeCacheDirty = true; markRenderDirty(); flushHasAnimCache(); }
 
 function rebuildStrokeCache() {
   if (!_strokeCache || _strokeCache.width !== canvas.width || _strokeCache.height !== canvas.height) {
@@ -1219,10 +1277,22 @@ function render(timestamp) {
   S.rafId = requestAnimationFrame(render);
   const dt = S.lastTime ? Math.min((timestamp - S.lastTime) / 1000, 0.1) : 0;
   S.lastTime = timestamp;
-  if (hasAnyAnimation()) {
+
+  const animating = hasAnyAnimationCached();
+
+  // Skip repaint entirely when nothing has changed and there's no animation.
+  // Mouse-move with place/erase/draw tools marks dirty via their own handlers.
+  if (!animating && !_renderDirty) return;
+  _renderDirty = false;
+
+  if (animating) {
     if (!S.animPaused) S.animClock += dt;
-    refreshAllTimelines();
-    refreshAllShapeTimelines();
+    // Only redraw timeline canvases when the panel is actually visible.
+    if (document.getElementById('anim-panel-scale')?.offsetParent !== null ||
+        document.getElementById('sa-anim-panel-radius')?.offsetParent !== null) {
+      refreshAllTimelines();
+      refreshAllShapeTimelines();
+    }
   }
 
   // Composite cached solid strokes (rebuilds if dirty)
@@ -2089,30 +2159,43 @@ function getShapePoints(shape) {
   return pts;
 }
 
+// Cache Path2D objects per shape — rebuilds only when geometry changes.
+const _path2DCache = new Map(); // shapeId → {r, type, p0, p1, path}
+function evictPath2DCache(shapeId) { _path2DCache.delete(shapeId); }
+
 function getShapePath2D(shape) {
+  const r   = Math.max(1, shape.r);
+  const p0  = shape.params?.points ?? shape.params?.sides ?? 0;
+  const p1  = shape.params?.innerRatio ?? 0;
+  const cached = _path2DCache.get(shape.id);
+  if (cached && cached.r === r && cached.type === shape.type && cached.p0 === p0 && cached.p1 === p1) {
+    return cached.path;
+  }
+
   const p = new Path2D();
-  const r = Math.max(1, shape.r);
   if (shape.type === 'circle') {
     p.arc(0, 0, r, 0, Math.PI * 2);
   } else if (shape.type === 'star') {
-    const pts = (shape.params && shape.params.points) || 5;
-    const inner = r * ((shape.params && shape.params.innerRatio) || 0.45);
+    const pts   = p0 || 5;
+    const inner = r * (p1 || 0.45);
     for (let i = 0; i < pts * 2; i++) {
       const ri = (i % 2 === 0) ? r : inner;
-      const a = i * Math.PI / pts - Math.PI / 2;
+      const a  = i * Math.PI / pts - Math.PI / 2;
       if (i === 0) p.moveTo(Math.cos(a)*ri, Math.sin(a)*ri);
-      else p.lineTo(Math.cos(a)*ri, Math.sin(a)*ri);
+      else         p.lineTo(Math.cos(a)*ri, Math.sin(a)*ri);
     }
     p.closePath();
   } else if (shape.type === 'polygon') {
-    const sides = (shape.params && shape.params.sides) || 6;
+    const sides = p0 || 6;
     for (let i = 0; i < sides; i++) {
       const a = i * Math.PI * 2 / sides - Math.PI / 2;
       if (i === 0) p.moveTo(Math.cos(a)*r, Math.sin(a)*r);
-      else p.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+      else         p.lineTo(Math.cos(a)*r, Math.sin(a)*r);
     }
     p.closePath();
   }
+
+  _path2DCache.set(shape.id, { r, type: shape.type, p0, p1, path: p });
   return p;
 }
 
@@ -2143,7 +2226,7 @@ function renderShapeInContext(tCtx, shape) {
 }
 
 function renderShapeSymmetric(tCtx, m, shape) {
-  // Resolve animated property values
+  // Resolve animated property values — no object spread, just local vars.
   const clk = S.animClock;
   const animR       = getAnimValue(shape, 'radius',    clk);
   const animThick   = getAnimValue(shape, 'thickness', clk);
@@ -2153,13 +2236,20 @@ function renderShapeSymmetric(tCtx, m, shape) {
   const animOffX    = getAnimValue(shape, 'offsetX',   clk);
   const animOffY    = getAnimValue(shape, 'offsetY',   clk);
 
-  // Build a shallow proxy of the shape with animated overrides for renderShapeInContext
-  const effShape = {
-    ...shape,
-    r:         animR     ?? shape.r,
-    thickness: animThick ?? shape.thickness,
-    opacity:   animOp    ?? (shape.opacity ?? 1),
-  };
+  // Mutate a reused proxy object instead of allocating a new one each frame.
+  _shapeProxy.id        = shape.id;
+  _shapeProxy.type      = shape.type;
+  _shapeProxy.r         = animR     ?? shape.r;
+  _shapeProxy.thickness = animThick ?? shape.thickness;
+  _shapeProxy.opacity   = animOp    ?? (shape.opacity ?? 1);
+  _shapeProxy.color     = shape.color;
+  _shapeProxy.fill      = shape.fill;
+  _shapeProxy.lineCap   = shape.lineCap;
+  _shapeProxy.lineJoin  = shape.lineJoin;
+  _shapeProxy.dash      = shape.dash;
+  _shapeProxy.gradient  = shape.gradient;
+  _shapeProxy.params    = shape.params;
+  const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
   const effOrbitRad = (animOrbit ?? (shape.orbit      || 0)) * Math.PI / 180;
@@ -2569,11 +2659,13 @@ function wireSnapUI() {
     S.snapGrid.enabled = !S.snapGrid.enabled;
     gridBtn.classList.toggle('active', S.snapGrid.enabled);
     if (gridOpts) gridOpts.style.display = S.snapGrid.enabled ? 'contents' : 'none';
+    markRenderDirty();
   });
   axesBtn.addEventListener('click', () => {
     S.snapAxes.enabled = !S.snapAxes.enabled;
     axesBtn.classList.toggle('active', S.snapAxes.enabled);
     if (axesOpts) axesOpts.style.display = S.snapAxes.enabled ? 'contents' : 'none';
+    markRenderDirty();
   });
   const chainBtn = document.getElementById('snap-grid-chain');
   function updateChain() {
@@ -2687,6 +2779,7 @@ function onMouseDown(e) {
         updateShapeProps();
       }
     }
+    markRenderDirty();
     return;
   }
 
@@ -2736,6 +2829,7 @@ function onMouseMove(e) {
   const m = getActiveMandala();
   const pos = applySnap(rawPos.x, rawPos.y, m);
   S.mousePos = pos;
+  markRenderDirty();
   document.getElementById('cursor-pos').textContent = `x:${Math.round(pos.x)} y:${Math.round(pos.y)}`;
 
   if (S.tool === 'select' && S.dragHandle && S.dragStart) {
@@ -4006,7 +4100,7 @@ function wireEvents() {
   overlayCanvas.addEventListener('mousedown', e => { if (!S.spaceDown && e.button !== 1) onMouseDown(e); });
   overlayCanvas.addEventListener('mousemove', onMouseMove);
   overlayCanvas.addEventListener('mouseup', onMouseUp);
-  overlayCanvas.addEventListener('mouseleave', e => { S.mousePos = null; if (S.drawing) onMouseUp(e); });
+  overlayCanvas.addEventListener('mouseleave', e => { S.mousePos = null; markRenderDirty(); if (S.drawing) onMouseUp(e); });
   // Continue drags that leave the overlay (sprite/mandala dragging, drawing)
   window.addEventListener('mousemove', e => {
     if (S.dragHandle || S.drawing) onMouseMove(e);
@@ -4028,6 +4122,7 @@ function wireEvents() {
   document.getElementById('btn-anim-playpause').addEventListener('click', () => {
     S.animPaused = !S.animPaused;
     document.getElementById('btn-anim-playpause').textContent = S.animPaused ? '▶' : '⏸';
+    markRenderDirty();
     if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
   });
   document.getElementById('gif-cancel-btn').addEventListener('click', () => {
@@ -4129,7 +4224,7 @@ function wireEvents() {
     const m = getActiveMandala(); if (!m) return;
     m.mirror = e.target.checked;
   });
-  document.getElementById('cb-guides').addEventListener('change', e => { S.showGuides = e.target.checked; });
+  document.getElementById('cb-guides').addEventListener('change', e => { S.showGuides = e.target.checked; markRenderDirty(); });
   document.getElementById('bg-color').addEventListener('input', e => { S.bgColor = e.target.value; invalidateStrokeCache(); });
   wireViewport();
 
