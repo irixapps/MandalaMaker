@@ -58,7 +58,7 @@ const S = {
   snapAngle: false,
 
   // grid + axes snapping
-  snapGrid: { enabled: false, x: 20, y: 20, linked: true },
+  snapGrid: { enabled: false, x: 15, y: 15, linked: true },
   snapAxes: { enabled: false, step: 1, radial: 40 },
 
   // shape tool state
