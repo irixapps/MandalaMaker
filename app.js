@@ -3700,14 +3700,35 @@ function gcd(a, b) { return b ? gcd(b, a % b) : a; }
 function lcm(a, b) { return Math.round(a / gcd(a, b) * b); }
 
 function gifRecommendations() {
-  // Collect cycle lengths (seconds) from keyframe animations and animated palettes
-  const cycs = []; // in centiseconds (integer-friendly)
+  // Collect cycle lengths in centiseconds (integer-friendly for LCM).
+  const cycs = [];
 
   for (const m of S.mandalas) {
     for (const spr of m.sprites) {
       if (!spr.anim) continue;
       for (const ap of Object.values(spr.anim)) {
         if (ap.enabled && ap.duration > 0) cycs.push(Math.round(ap.duration * 100));
+      }
+    }
+    // Include shape keyframe animations — previously missing from LCM.
+    for (const shape of (m.shapes || [])) {
+      if (!shape.anim) continue;
+      for (const ap of Object.values(shape.anim)) {
+        if (ap.enabled && ap.duration > 0) cycs.push(Math.round(ap.duration * 100));
+      }
+    }
+    // Include animated gradient strokes.
+    for (const stroke of m.strokes) {
+      if (stroke.gradient?.speed > 0) {
+        const periodCs = Math.round(100 / stroke.gradient.speed);
+        if (periodCs > 0 && periodCs <= 3000) cycs.push(periodCs);
+      }
+    }
+    // Include animated gradient shapes.
+    for (const shape of (m.shapes || [])) {
+      if (shape.gradient?.speed > 0) {
+        const periodCs = Math.round(100 / shape.gradient.speed);
+        if (periodCs > 0 && periodCs <= 3000) cycs.push(periodCs);
       }
     }
   }
@@ -3720,12 +3741,17 @@ function gifRecommendations() {
 
   const hasAnim = cycs.length > 0;
   let cyclCs = hasAnim ? cycs.reduce(lcm) : 200; // centiseconds
-  cyclCs = Math.min(cyclCs, 3000); // cap at 30s
-  const cyclSec = cyclCs / 100;
+  cyclCs = Math.min(cyclCs, 3000); // cap at 30 s
 
-  const fps = cyclSec <= 2 ? 30 : cyclSec <= 4 ? 20 : 15;
-  const frames = Math.max(1, Math.round(cyclSec * fps));
-  return { fps, frames, cyclSec, hasAnim };
+  const fps = cyclCs <= 200 ? 30 : cyclCs <= 400 ? 20 : 15;
+
+  // Key fix: derive frame count from the actual per-frame centisecond delay so
+  // that (frames × delayCs) == cyclCs exactly — no drift at the loop boundary.
+  const delayCs = Math.max(1, Math.round(100 / fps));
+  const frames  = Math.max(1, Math.round(cyclCs / delayCs));
+
+  const cyclSec = cyclCs / 100;
+  return { fps, frames, cyclSec, cyclCs, hasAnim };
 }
 
 function gifFrameAtTime(item, tSec) {
@@ -3756,7 +3782,9 @@ function showGifModal(format = 'gif') {
   el('gif-fps').value = rec.fps;
   el('gif-fps-val').textContent = rec.fps;
   el('gif-frames').value = rec.frames;
-  el('gif-dur-label').textContent = (rec.frames / rec.fps).toFixed(1);
+  // Show actual loop duration: frames × delayCs / 100 (not frames/fps, which may differ after cs rounding)
+  const _recDelay = Math.max(1, Math.round(100 / rec.fps));
+  el('gif-dur-label').textContent = (rec.frames * _recDelay / 100).toFixed(2);
   el('gif-width').value = S.canvasW;
   el('gif-height-label').textContent = `× ${S.canvasH}`;
   el('gif-size-hint').textContent = `Original: ${S.canvasW}×${S.canvasH} — resize to reduce file size`;
@@ -3843,7 +3871,9 @@ async function doExportWebP() {
   const expH    = Math.round(expW * S.canvasH / S.canvasW);
   const quality = (parseInt(el('gif-quality').value) || 85) / 100;
   const repeat  = parseInt(el('gif-loop').value);
-  const delayMs = Math.round(1000 / fps);
+  // Round to nearest ms so frame i is at exactly i*delayMs — matches GIF approach.
+  const delayMs  = Math.round(1000 / fps);
+  const stepFpsW = 1000 / delayMs; // actual fps after ms rounding
 
   el('gif-progress-wrap').style.display = 'block';
   el('gif-export-btn').disabled = true;
@@ -3863,7 +3893,7 @@ async function doExportWebP() {
 
   try {
     for (let i = 0; i < frames; i++) {
-      S.animClock = i / fps;
+      S.animClock = i / stepFpsW; // use actual fps after ms rounding, not nominal fps
 
       const nowTs = performance.now();
       for (const item of S.palette) {
@@ -3932,9 +3962,9 @@ async function doExportGIF() {
   const repeat = parseInt(el('gif-loop').value);
   // gifenc.writeFrame delay is in ms; it does Math.round(delay/10) internally to get centiseconds.
   // Compute via centiseconds so the time-stepping matches actual GIF playback rate exactly.
-  const delayCs  = Math.max(1, Math.round(100 / fps)); // what gets written to the GIF file
-  const delayMs  = delayCs * 10;                        // pass to gifenc so it writes delayCs
-  const stepFps  = 100 / delayCs;                       // actual playback fps after rounding
+  const delayCs = Math.max(1, Math.round(100 / fps)); // what gets written to the GIF file
+  const delayMs = delayCs * 10;                        // pass to gifenc so it writes delayCs
+  const stepFps = 100 / delayCs;                       // actual playback fps after rounding
 
   el('gif-progress-wrap').style.display = 'block';
   el('gif-export-btn').disabled = true;
