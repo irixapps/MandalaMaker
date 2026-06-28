@@ -2512,7 +2512,11 @@ async function doExportGIF() {
   const expH   = Math.round(expW * S.canvasH / S.canvasW);
   const colors = parseInt(el('gif-colors').value) || 256;
   const repeat = parseInt(el('gif-loop').value);
-  const delayMs = Math.round(1000 / fps); // milliseconds per frame (gifenc divides by 10 internally to get centiseconds)
+  // gifenc.writeFrame delay is in ms; it does Math.round(delay/10) internally to get centiseconds.
+  // Compute via centiseconds so the time-stepping matches actual GIF playback rate exactly.
+  const delayCs  = Math.max(1, Math.round(100 / fps)); // what gets written to the GIF file
+  const delayMs  = delayCs * 10;                        // pass to gifenc so it writes delayCs
+  const stepFps  = 100 / delayCs;                       // actual playback fps after rounding
 
   el('gif-progress-wrap').style.display = 'block';
   el('gif-export-btn').disabled = true;
@@ -2536,7 +2540,7 @@ async function doExportGIF() {
 
   try {
     for (let i = 0; i < frames; i++) {
-      const tSec = i / fps;
+      const tSec = i / stepFps;
       S.animClock = tSec;
 
       // Seek animated palette items to this time.
