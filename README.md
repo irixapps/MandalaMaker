@@ -4,6 +4,8 @@ A browser-based mandala drawing and compositing tool. Draw symmetrical art, stam
 
 ![Mandala Maker demo](assets/Arcade.webp)
 
+![Mandala Maker screenshot](assets/screenshot.png)
+
 ---
 
 ## Getting Started
