@@ -2539,15 +2539,21 @@ async function doExportGIF() {
       const tSec = i / fps;
       S.animClock = tSec;
 
-      // Seek animated palette items to this time
+      // Seek animated palette items to this time.
+      // Also reset gifFrameTime to now so advanceGifAnimation() (which uses
+      // performance.now()) won't re-advance the frame we just set.
+      const nowTs = performance.now();
       for (const item of S.palette) {
         if ((item.isGif || item.isWebP) && item.gifFrames?.length) {
           const newIdx = gifFrameAtTime(item, tSec);
           if (newIdx !== item.gifFrameIdx) {
-            item.gifFrameIdx = newIdx;
+            item.gifFrameIdx  = newIdx;
+            item._animCanvas  = null;
+            item._animFrameIdx = -1;
             item.processedCache = null;
-            item._animCanvas = null;
           }
+          // Always freeze gifFrameTime so the real-time ticker can't steal frames
+          item.gifFrameTime = nowTs;
         }
       }
 
