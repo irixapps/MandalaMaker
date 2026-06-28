@@ -2501,10 +2501,6 @@ function showGifModal() {
   el('gif-progress-wrap').style.display = 'none';
   el('gif-progress-bar').style.width = '0%';
   el('gif-export-btn').disabled = false;
-  const capHint = el('gif-fps-cap-hint');
-  capHint.textContent = rec.fps > 25
-    ? `GIF frames encode at ${Math.round(100/rec.fps)}cs — browsers cap playback around 15–20 fps regardless of encoded rate.`
-    : '';
   el('gif-modal').style.display = 'flex';
 }
 
@@ -2516,7 +2512,7 @@ async function doExportGIF() {
   const expH   = Math.round(expW * S.canvasH / S.canvasW);
   const colors = parseInt(el('gif-colors').value) || 256;
   const repeat = parseInt(el('gif-loop').value);
-  const delayCs = Math.max(2, Math.round(100 / fps)); // centiseconds per frame
+  const delayMs = Math.round(1000 / fps); // milliseconds per frame (gifenc divides by 10 internally to get centiseconds)
 
   el('gif-progress-wrap').style.display = 'block';
   el('gif-export-btn').disabled = true;
@@ -2575,7 +2571,7 @@ async function doExportGIF() {
       const imgData = offCtx.getImageData(0, 0, expW, expH);
       const palette = quantize(imgData.data, colors);
       const index   = applyPalette(imgData.data, palette);
-      enc.writeFrame(index, expW, expH, { palette, delay: delayCs, repeat: i === 0 ? repeat : undefined });
+      enc.writeFrame(index, expW, expH, { palette, delay: delayMs, repeat: i === 0 ? repeat : undefined });
 
       // Progress
       const pct = Math.round((i + 1) / frames * 100);
@@ -2675,14 +2671,6 @@ function wireEvents() {
     document.getElementById('gif-fps-val').textContent = fps;
     const frames = parseInt(document.getElementById('gif-frames').value) || 1;
     document.getElementById('gif-dur-label').textContent = (frames / fps).toFixed(1);
-    const capHint = document.getElementById('gif-fps-cap-hint');
-    if (fps > 25) {
-      const cs = Math.round(100 / fps);
-      const actual = Math.round(100 / cs);
-      capHint.textContent = `GIF frames encode at ${cs}cs — browsers cap playback around 15–20 fps regardless of encoded rate.`;
-    } else {
-      capHint.textContent = '';
-    }
   });
   document.getElementById('gif-frames').addEventListener('input', e => {
     const frames = parseInt(e.target.value) || 1;
