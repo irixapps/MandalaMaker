@@ -59,7 +59,7 @@ const S = {
 
   // grid + axes snapping
   snapGrid: { enabled: false, x: 20, y: 20, linked: true },
-  snapAxes: { enabled: false, step: 1 },
+  snapAxes: { enabled: false, step: 1, radial: 40 },
 
   // shape tool state
   shapeTool: 'circle',
@@ -1988,13 +1988,18 @@ function applySnap(cx, cy, m) {
     const dist = Math.hypot(lx, ly);
     if (dist > 8) {
       const step = S.snapAxes.step || 1;
+      const radial = S.snapAxes.radial || 40;
       const angleStep = Math.PI / (m.axes * step);
       const rotRad = (m.axisRotation || 0) * Math.PI / 180;
       const angle = Math.atan2(ly, lx);
-      const nearest = Math.round((angle - rotRad) / angleStep) * angleStep + rotRad;
-      const sx = m.cx + Math.cos(nearest) * dist;
-      const sy = m.cy + Math.sin(nearest) * dist;
-      if (Math.hypot(x - sx, y - sy) < 15) { x = sx; y = sy; }
+      // Snap to nearest ray angle
+      const nearestAngle = Math.round((angle - rotRad) / angleStep) * angleStep + rotRad;
+      // Snap to nearest radial ring
+      const nearestDist = Math.round(dist / radial) * radial;
+      const snapDist = nearestDist > 0 ? nearestDist : dist;
+      const sx = m.cx + Math.cos(nearestAngle) * snapDist;
+      const sy = m.cy + Math.sin(nearestAngle) * snapDist;
+      if (Math.hypot(x - sx, y - sy) < 20) { x = sx; y = sy; }
     }
   }
   return { x, y };
@@ -2019,7 +2024,7 @@ function renderSnapAxisDots(m, isActive) {
   const rotRad = (m.axisRotation || 0) * Math.PI / 180;
   const col = MANDALA_COLORS[m.colorIdx];
   const DOT_R = isActive ? 2 : 1.5;
-  const SPACING = 40;
+  const SPACING = S.snapAxes.radial || 40;
   const maxR = Math.hypot(canvas.width, canvas.height) * 0.75;
 
   ctx.save();
@@ -2620,6 +2625,7 @@ function wireSnapUI() {
     }
   });
   document.getElementById('snap-axes-step').addEventListener('input', e => { S.snapAxes.step = parseInt(e.target.value) || 1; });
+  document.getElementById('snap-axes-radial').addEventListener('input', e => { S.snapAxes.radial = parseInt(e.target.value) || 40; });
 }
 
 // ── Tools ────────────────────────────────────────────────
@@ -3984,6 +3990,15 @@ function addMandala() {
 }
 
 // ── Event wiring ─────────────────────────────────────────
+function toggleHelp() {
+  const el = document.getElementById('help-overlay');
+  if (el) el.classList.toggle('visible');
+}
+function closeHelp() {
+  const el = document.getElementById('help-overlay');
+  if (el) el.classList.remove('visible');
+}
+
 function wireEvents() {
   // Tool events go on overlay (covers full container incl. off-canvas area)
   overlayCanvas.addEventListener('mousedown', e => { if (!S.spaceDown && e.button !== 1) onMouseDown(e); });
@@ -4001,6 +4016,9 @@ function wireEvents() {
   // Toolbar
   document.getElementById('btn-new').addEventListener('click', newProject);
   document.getElementById('btn-save').addEventListener('click', saveProject);
+  document.getElementById('btn-help').addEventListener('click', toggleHelp);
+  document.getElementById('btn-help-close').addEventListener('click', closeHelp);
+  document.getElementById('help-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelp(); });
   document.getElementById('btn-export').addEventListener('click', exportPNG);
   document.getElementById('btn-export-gif').addEventListener('click', () => showGifModal('gif'));
   document.getElementById('btn-export-webp').addEventListener('click', () => showGifModal('webp'));
@@ -4365,6 +4383,8 @@ function wireEvents() {
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === '?') { toggleHelp(); return; }
+    if (e.key === 'Escape') { closeHelp(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveProject(); return; }
