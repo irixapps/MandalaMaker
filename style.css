@@ -14,7 +14,7 @@
   --danger-hover: #9a2020;
 }
 
-html { height: 100%; }
+html { height: 100%; height: 100svh; }
 
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -24,6 +24,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 12px;
   height: 100%;
+  height: 100svh;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -33,26 +34,23 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  height: 100svh;
   min-height: 0;
 }
 
 /* ── Toolbar ── */
 #toolbar {
-  height: 44px;
-  min-height: 44px;
+  min-height: 36px;
   background: var(--toolbar);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
-  gap: 4px;
-  padding: 0 8px;
+  flex-wrap: wrap;
+  gap: 3px;
+  row-gap: 3px;
+  padding: 3px 8px;
   flex-shrink: 0;
-  overflow-x: auto;
-  white-space: nowrap;
 }
-#toolbar::-webkit-scrollbar { height: 3px; }
-#toolbar::-webkit-scrollbar-thumb { background: var(--border); }
 
 /* ── Main layout ── */
 #main { flex: 1 1 0; min-height: 0; display: flex; overflow: hidden; }
@@ -549,4 +547,31 @@ canvas[id^="anim-tl-"] {
   border: 1px solid var(--border);
   border-radius: 3px;
   cursor: crosshair;
+}
+
+/* ── Responsive ── */
+
+/* Narrow: collapse right panel, slim left panel */
+@media (max-width: 700px) {
+  #right-panel {
+    width: 160px;
+  }
+  .palette-name { display: none; }
+  .palette-info { display: none; }
+  .palette-thumb { width: 28px; height: 28px; }
+  .palette-item { padding: 3px; }
+}
+
+@media (max-width: 520px) {
+  #right-panel { display: none; }
+  #left-panel { width: 40px; }
+  #left-panel .panel-label { display: none; }
+  .tool-btn { width: 36px; height: 32px; font-size: 14px; }
+  .mandala-item { width: 36px; height: 28px; }
+  #status-bar { gap: 4px; padding: 0 4px; font-size: 11px; }
+}
+
+/* Status bar wraps on narrow */
+@media (max-width: 420px) {
+  #status-bar { flex-wrap: wrap; height: auto; min-height: 34px; padding: 3px 4px; }
 }
