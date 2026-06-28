@@ -7,6 +7,20 @@ const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff
 const HANDLE_RADIUS = 7;
 const MAX_HISTORY = 50;
 
+// ── Gradient presets ───────────────────────────────────
+const GRADIENT_PRESETS = {
+  'Rainbow':      [{pos:0,color:'#ff0000'},{pos:0.17,color:'#ff8800'},{pos:0.33,color:'#ffff00'},{pos:0.5,color:'#00ff44'},{pos:0.67,color:'#0088ff'},{pos:0.83,color:'#aa00ff'},{pos:1,color:'#ff0000'}],
+  'Fire':         [{pos:0,color:'#ff0000'},{pos:0.4,color:'#ff6600'},{pos:0.7,color:'#ffcc00'},{pos:1,color:'#ff0000'}],
+  'Ocean':        [{pos:0,color:'#001a4d'},{pos:0.35,color:'#0066cc'},{pos:0.65,color:'#00ccff'},{pos:1,color:'#001a4d'}],
+  'Amiga Copper': [{pos:0,color:'#ff0066'},{pos:0.25,color:'#ff8800'},{pos:0.5,color:'#0000ff'},{pos:0.75,color:'#00ffff'},{pos:1,color:'#ff0066'}],
+  'Neon':         [{pos:0,color:'#ff00ff'},{pos:0.33,color:'#00ffff'},{pos:0.66,color:'#ff00aa'},{pos:1,color:'#ff00ff'}],
+  'Sunset':       [{pos:0,color:'#ff6600'},{pos:0.4,color:'#ff0066'},{pos:0.7,color:'#6600cc'},{pos:1,color:'#ff6600'}],
+  'Ice':          [{pos:0,color:'#ffffff'},{pos:0.4,color:'#88ccff'},{pos:0.7,color:'#0044aa'},{pos:1,color:'#ffffff'}],
+  'Lava':         [{pos:0,color:'#1a0000'},{pos:0.3,color:'#cc2200'},{pos:0.6,color:'#ff8800'},{pos:0.85,color:'#ffff00'},{pos:1,color:'#1a0000'}],
+  'Gold':         [{pos:0,color:'#2a1a00'},{pos:0.3,color:'#cc8800'},{pos:0.5,color:'#ffd700'},{pos:0.7,color:'#cc8800'},{pos:1,color:'#2a1a00'}],
+  'Acid':         [{pos:0,color:'#003300'},{pos:0.4,color:'#00ff00'},{pos:0.7,color:'#aaff00'},{pos:1,color:'#003300'}],
+};
+
 // ── State ───────────────────────────────────────────────
 const S = {
   // scene
@@ -20,6 +34,14 @@ const S = {
   thickness: 4,
   opacity: 1,
   smooth: 0,
+
+  // gradient stroke
+  gradientMode: false,
+  gradient: {
+    stops: JSON.parse(JSON.stringify(GRADIENT_PRESETS['Rainbow'])),
+    scale: 400,   // pixels per full gradient cycle
+    speed: 0.3,   // cycles per second
+  },
   mirror: true,
   showGuides: true,
   snapAngle: false,
@@ -96,6 +118,79 @@ function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
+// ── Gradient colour utilities ───────────────────────────
+function lerpHex(c1, c2, t) {
+  const p = s => parseInt(s, 16);
+  const r = Math.round(p(c1.slice(1,3)) + (p(c2.slice(1,3)) - p(c1.slice(1,3))) * t);
+  const g = Math.round(p(c1.slice(3,5)) + (p(c2.slice(3,5)) - p(c1.slice(3,5))) * t);
+  const b = Math.round(p(c1.slice(5,7)) + (p(c2.slice(5,7)) - p(c1.slice(5,7))) * t);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+// Sample a cyclic gradient at position t (0–1, wraps seamlessly)
+function sampleGradient(stops, t) {
+  if (!stops?.length) return '#ffffff';
+  if (stops.length === 1) return stops[0].color;
+  t = ((t % 1) + 1) % 1; // normalise to [0,1)
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i].pos && t < stops[i+1].pos) {
+      const span = stops[i+1].pos - stops[i].pos;
+      return lerpHex(stops[i].color, stops[i+1].color, (t - stops[i].pos) / span);
+    }
+  }
+  // Wrap zone: from last stop back to first (across the 0/1 boundary)
+  const last = stops[stops.length - 1];
+  const first = stops[0];
+  const span = 1 - last.pos;
+  return span > 0 ? lerpHex(last.color, first.color, (t - last.pos) / span) : last.color;
+}
+
+// Render a stroke using a cycling gradient along its length.
+// Called inside a ctx.save() block that has already set translate+rotate for one symmetry cell.
+function renderGradientSegments(pts, grad, lineWidth) {
+  if (pts.length < 2) return;
+  const { stops, scale, speed } = grad;
+  const timeOffset = (S.animClock * speed) % 1;
+
+  // Cumulative arc-lengths
+  const lens = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i-1].x, dy = pts[i].y - pts[i-1].y;
+    lens.push(lens[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+
+  ctx.lineWidth  = lineWidth;
+  ctx.lineCap    = 'round';
+  ctx.lineJoin   = 'round';
+
+  // Batch consecutive segments that share the same sampled colour (within 1px of arc-length)
+  const step = Math.max(1, lineWidth * 0.5); // sample every ~half-linewidth px
+  let prevColor = null;
+  ctx.beginPath();
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const dx = pts[i+1].x - pts[i].x, dy = pts[i+1].y - pts[i].y;
+    const segLen = Math.sqrt(dx*dx + dy*dy);
+    const steps = Math.max(1, Math.ceil(segLen / step));
+    for (let s = 0; s < steps; s++) {
+      const ta = s / steps, tb = (s + 1) / steps;
+      const xa = pts[i].x + dx*ta, ya = pts[i].y + dy*ta;
+      const xb = pts[i].x + dx*tb, yb = pts[i].y + dy*tb;
+      const dist = lens[i] + segLen * ta;
+      const color = sampleGradient(stops, dist / scale + timeOffset);
+      if (color !== prevColor) {
+        if (prevColor !== null) ctx.stroke();
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        prevColor = color;
+      }
+      ctx.moveTo(xa, ya);
+      ctx.lineTo(xb, yb);
+    }
+  }
+  if (prevColor !== null) ctx.stroke();
+}
+
 // ── Animation engine ────────────────────────────────────
 const EASING_NAMES = ['linear', 'ease', 'ease-in', 'ease-out', 'bounce', 'elastic'];
 const EASINGS = {
@@ -142,9 +237,11 @@ function getAnimValue(spr, prop, clock) {
 }
 
 function hasAnyAnimation() {
-  return S.mandalas.some(m => m.sprites.some(s =>
+  if (S.mandalas.some(m => m.sprites.some(s =>
     s.anim && Object.values(s.anim).some(ap => ap.enabled)
-  ));
+  ))) return true;
+  // Gradient strokes with speed > 0 need the clock to keep running
+  return S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0));
 }
 
 function applyPreset(preset) {
@@ -886,13 +983,15 @@ function render(timestamp) {
   // Current stroke preview
   if (S.drawing && S.pts.length > 1) {
     const m = getActiveMandala();
-    if (m) renderStrokeSymmetric(ctx, m, S.pts, S.color, S.thickness, S.opacity, S.tool === 'erase', m.mirror !== false, m.axes, m.axisRotation);
+    const liveGrad = (S.gradientMode && S.tool !== 'erase') ? S.gradient : null;
+    if (m) renderStrokeSymmetric(ctx, m, S.pts, S.color, S.thickness, S.opacity, S.tool === 'erase', m.mirror !== false, m.axes, m.axisRotation, liveGrad);
   }
   if (S.drawing && S.tool === 'line' && S.lineStart && S.pts.length > 0) {
     const m = getActiveMandala();
     if (m) {
       const last = S.pts[S.pts.length - 1];
-      renderLineSymmetric(ctx, m, S.lineStart, last, S.color, S.thickness, S.opacity, m.mirror !== false, m.axes, m.axisRotation);
+      const liveGrad = S.gradientMode ? S.gradient : null;
+      renderLineSymmetric(ctx, m, S.lineStart, last, S.color, S.thickness, S.opacity, m.mirror !== false, m.axes, m.axisRotation, liveGrad);
     }
   }
 
@@ -1141,7 +1240,7 @@ function renderMandala(m, forExport) {
     if (stroke.pts.length < 2) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
-    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot);
+    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
   // Draw sprites — each uses its own snapshotted axes count
   for (const spr of m.sprites) {
@@ -1149,21 +1248,15 @@ function renderMandala(m, forExport) {
   }
 }
 
-function renderStrokeSymmetric(ctx, m, pts, color, thickness, opacity, erase, mirror, axes, axisRotation) {
+function renderStrokeSymmetric(ctx, m, pts, color, thickness, opacity, erase, mirror, axes, axisRotation, gradient) {
   const n = (axes != null ? axes : m.axes);
   const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
-  // axes=0: single copy. Otherwise: 2n copies — either n rotations×flip (mirror) or 2n pure rotations.
   const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
   const effectiveMirror = n === 0 ? false : mirror;
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = opacity;
-  // Eraser paints with the background colour so it correctly covers previous strokes
-  ctx.strokeStyle = erase ? S.bgColor : color;
-  ctx.lineWidth = thickness;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
 
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
@@ -1171,21 +1264,30 @@ function renderStrokeSymmetric(ctx, m, pts, color, thickness, opacity, erase, mi
       ctx.translate(m.cx, m.cy);
       ctx.rotate(rotRad + segAngle * i);
       if (flip === 1) ctx.scale(1, -1);
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let j = 1; j < pts.length; j++) {
-        const mp = pts[j - 1], cp = pts[j];
-        ctx.quadraticCurveTo(mp.x, mp.y, (mp.x + cp.x) / 2, (mp.y + cp.y) / 2);
+
+      if (gradient && !erase) {
+        renderGradientSegments(pts, gradient, thickness);
+      } else {
+        ctx.strokeStyle = erase ? S.bgColor : color;
+        ctx.lineWidth = thickness;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let j = 1; j < pts.length; j++) {
+          const mp = pts[j - 1], cp = pts[j];
+          ctx.quadraticCurveTo(mp.x, mp.y, (mp.x + cp.x) / 2, (mp.y + cp.y) / 2);
+        }
+        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+        ctx.stroke();
       }
-      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-      ctx.stroke();
       ctx.restore();
     }
   }
   ctx.restore();
 }
 
-function renderLineSymmetric(ctx, m, start, end, color, thickness, opacity, mirror, axes, axisRotation) {
+function renderLineSymmetric(ctx, m, start, end, color, thickness, opacity, mirror, axes, axisRotation, gradient) {
   const n = axes != null ? axes : m.axes;
   const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
@@ -1193,9 +1295,6 @@ function renderLineSymmetric(ctx, m, start, end, color, thickness, opacity, mirr
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
   ctx.save();
   ctx.globalAlpha = opacity;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = thickness;
-  ctx.lineCap = 'round';
 
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
@@ -1203,10 +1302,17 @@ function renderLineSymmetric(ctx, m, start, end, color, thickness, opacity, mirr
       ctx.translate(m.cx, m.cy);
       ctx.rotate(rotRad + segAngle * i);
       if (flip === 1) ctx.scale(1, -1);
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
+      if (gradient) {
+        renderGradientSegments([start, end], gradient, thickness);
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = thickness;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -1689,6 +1795,7 @@ function onMouseUp(e) {
     axes: m.axes,
     axisRotation: m.axisRotation,
     mirror: m.mirror,
+    gradient: (S.gradientMode && S.tool !== 'erase') ? JSON.parse(JSON.stringify(S.gradient)) : null,
   });
 
   S.pts = [];
@@ -3194,6 +3301,165 @@ function wireEvents() {
       document.getElementById('brush-size-val').textContent = S.thickness;
     }
   });
+
+  // ── Gradient panel ──────────────────────────────────────
+  initGradientUI();
+}
+
+// ── Gradient UI ──────────────────────────────────────────
+let _selectedStopIdx = 0;
+
+function initGradientUI() {
+  // Populate preset dropdown
+  const sel = document.getElementById('grad-preset');
+  for (const name of Object.keys(GRADIENT_PRESETS)) {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  }
+
+  sel.addEventListener('change', () => {
+    S.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[sel.value]));
+    _selectedStopIdx = 0;
+    renderGradientUI();
+  });
+
+  document.getElementById('grad-scale').addEventListener('input', e => {
+    S.gradient.scale = parseInt(e.target.value);
+    document.getElementById('grad-scale-val').textContent = S.gradient.scale + 'px';
+  });
+
+  document.getElementById('grad-speed').addEventListener('input', e => {
+    S.gradient.speed = parseInt(e.target.value) / 100;
+    document.getElementById('grad-speed-val').textContent = S.gradient.speed.toFixed(1) + '×';
+    if (S.gradient.speed > 0 && !S.rafId) S.rafId = requestAnimationFrame(render);
+  });
+
+  document.getElementById('btn-gradient-mode').addEventListener('click', () => {
+    S.gradientMode = !S.gradientMode;
+    document.getElementById('btn-gradient-mode').classList.toggle('active', S.gradientMode);
+    document.getElementById('gradient-panel').classList.toggle('visible', S.gradientMode);
+  });
+
+  // Click on gradient preview bar: add stop / select stop
+  document.getElementById('grad-preview').addEventListener('click', e => {
+    const rect = e.target.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    // If no stop within 5% of click → add a new one
+    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < 0.05);
+    if (near >= 0) { _selectedStopIdx = near; }
+    else {
+      const color = sampleGradient(S.gradient.stops, t);
+      S.gradient.stops.push({ pos: t, color });
+      S.gradient.stops.sort((a, b) => a.pos - b.pos);
+      _selectedStopIdx = S.gradient.stops.findIndex(s => s.pos === t);
+    }
+    renderGradientUI();
+  });
+
+  // Double-click on preview: remove selected stop (min 2 stops)
+  document.getElementById('grad-preview').addEventListener('dblclick', e => {
+    if (S.gradient.stops.length <= 2) return;
+    const rect = e.target.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < 0.06);
+    if (near >= 0) {
+      S.gradient.stops.splice(near, 1);
+      _selectedStopIdx = Math.min(_selectedStopIdx, S.gradient.stops.length - 1);
+      renderGradientUI();
+    }
+  });
+
+  renderGradientUI();
+}
+
+function renderGradientUI() {
+  const { stops, scale, speed } = S.gradient;
+
+  // Draw gradient preview bar
+  const preview = document.getElementById('grad-preview');
+  const w = preview.width, h = preview.height;
+  const pc = preview.getContext('2d');
+  const grad = pc.createLinearGradient(0, 0, w, 0);
+  for (const s of stops) grad.addColorStop(s.pos, s.color);
+  // Wrap: add first stop at pos=1 so the gradient visually loops
+  grad.addColorStop(1, stops[0].color);
+  pc.fillStyle = grad;
+  pc.fillRect(0, 0, w, h);
+
+  // Render draggable stop handles
+  const row = document.getElementById('grad-stops-row');
+  row.innerHTML = '';
+  const rowRect = row.getBoundingClientRect();
+  const rowW = rowRect.width || 300;
+
+  stops.forEach((stop, idx) => {
+    const handle = document.createElement('div');
+    handle.className = 'grad-stop-handle' + (idx === _selectedStopIdx ? ' selected' : '');
+    handle.style.left = (stop.pos * 100) + '%';
+    handle.style.setProperty('--stop-color', stop.color);
+    // Colour both knobs
+    handle.style.setProperty('background', 'transparent');
+    handle.title = `Stop ${idx+1}: ${stop.color} — drag to move, dblclick to delete`;
+
+    // Inner dots coloured to stop colour
+    const top = document.createElement('span');
+    top.style.cssText = `display:block;width:10px;height:10px;border-radius:50%;background:${stop.color};border:2px solid ${idx===_selectedStopIdx?'#ffe66d':'#fff'};box-shadow:0 0 3px rgba(0,0,0,.6);margin-top:1px`;
+    const bot = document.createElement('span');
+    bot.style.cssText = top.style.cssText + ';margin-top:4px;margin-bottom:1px';
+    handle.appendChild(top); handle.appendChild(bot);
+    handle.style.display = 'flex'; handle.style.flexDirection = 'column'; handle.style.alignItems = 'center';
+
+    // Click to select
+    handle.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      _selectedStopIdx = idx;
+      renderGradientUI();
+
+      // Open colour picker for this stop
+      const picker = document.createElement('input');
+      picker.type = 'color'; picker.value = stop.color;
+      picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+      document.body.appendChild(picker);
+      picker.addEventListener('input', ev => {
+        S.gradient.stops[idx].color = ev.target.value;
+        renderGradientUI();
+      });
+      picker.addEventListener('change', () => picker.remove());
+      picker.click();
+
+      // Drag logic
+      const startX = e.clientX, startPos = stop.pos;
+      const onMove = ev => {
+        const dx = ev.clientX - startX;
+        const newPos = Math.max(0, Math.min(1, startPos + dx / (rowW || 300)));
+        S.gradient.stops[idx].pos = newPos;
+        S.gradient.stops.sort((a, b) => a.pos - b.pos);
+        _selectedStopIdx = S.gradient.stops.findIndex(s => s === stop);
+        renderGradientUI();
+      };
+      const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+
+    // Dblclick on handle to delete
+    handle.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      if (stops.length <= 2) return;
+      S.gradient.stops.splice(idx, 1);
+      _selectedStopIdx = Math.min(_selectedStopIdx, S.gradient.stops.length - 1);
+      renderGradientUI();
+    });
+
+    row.appendChild(handle);
+  });
+
+  // Sync slider displays
+  document.getElementById('grad-scale-val').textContent = scale + 'px';
+  document.getElementById('grad-speed-val').textContent = speed.toFixed(1) + '×';
+  document.getElementById('grad-scale').value = scale;
+  document.getElementById('grad-speed').value = Math.round(speed * 100);
 }
 
 // ── Init ─────────────────────────────────────────────────

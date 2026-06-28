@@ -112,6 +112,68 @@ body {
 #right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* ── Status bar ── */
+#gradient-panel {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#gradient-panel.visible { display: flex; }
+.grad-row { display: flex; align-items: center; gap: 6px; }
+
+#btn-gradient-mode {
+  background: var(--btn);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 7px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+#btn-gradient-mode:hover { background: var(--btn-hover); }
+#btn-gradient-mode.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Colour-stop handle dots rendered over the gradient preview */
+.grad-stop-handle {
+  position: absolute;
+  top: 0;
+  width: 14px;
+  height: 28px;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+.grad-stop-handle::before,
+.grad-stop-handle::after {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 3px rgba(0,0,0,.6);
+  flex-shrink: 0;
+}
+.grad-stop-handle::before { margin-top: 1px; }
+.grad-stop-handle::after  { margin-bottom: 1px; }
+.grad-stop-handle.selected::before,
+.grad-stop-handle.selected::after {
+  border-color: #ffe66d;
+  box-shadow: 0 0 4px rgba(255,230,109,.7);
+}
+
 #status-bar {
   height: 38px;
   min-height: 38px;
@@ -124,7 +186,6 @@ body {
   overflow-x: auto;
   gap: 6px;
   padding: 0 8px;
-  flex-shrink: 0;
 }
 
 /* ── Buttons ── */
