@@ -2501,6 +2501,10 @@ function showGifModal() {
   el('gif-progress-wrap').style.display = 'none';
   el('gif-progress-bar').style.width = '0%';
   el('gif-export-btn').disabled = false;
+  const capHint = el('gif-fps-cap-hint');
+  capHint.textContent = rec.fps > 25
+    ? `GIF frames encode at ${Math.round(100/rec.fps)}cs — browsers cap playback around 15–20 fps regardless of encoded rate.`
+    : '';
   el('gif-modal').style.display = 'flex';
 }
 
@@ -2671,6 +2675,14 @@ function wireEvents() {
     document.getElementById('gif-fps-val').textContent = fps;
     const frames = parseInt(document.getElementById('gif-frames').value) || 1;
     document.getElementById('gif-dur-label').textContent = (frames / fps).toFixed(1);
+    const capHint = document.getElementById('gif-fps-cap-hint');
+    if (fps > 25) {
+      const cs = Math.round(100 / fps);
+      const actual = Math.round(100 / cs);
+      capHint.textContent = `GIF frames encode at ${cs}cs — browsers cap playback around 15–20 fps regardless of encoded rate.`;
+    } else {
+      capHint.textContent = '';
+    }
   });
   document.getElementById('gif-frames').addEventListener('input', e => {
     const frames = parseInt(e.target.value) || 1;
