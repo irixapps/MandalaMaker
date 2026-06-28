@@ -3162,8 +3162,13 @@ function updateLayersList() {
 // Draw a highlight ring around the hovered layer item on the canvas.
 function renderLayerHoverHighlight() {
   if (!_layersHoverItem) return;
+  markRenderDirty(); // keep repainting while hovering so the blink animates
+
   const m = getActiveMandala();
   if (!m) return;
+
+  // Blink: fast sine wave on opacity (3 Hz)
+  const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(performance.now() * 0.006));
 
   if (_layersHoverItem.type === 'shape') {
     const shape = (m.shapes || []).find(s => s.id === _layersHoverItem.id);
@@ -3175,9 +3180,11 @@ function renderLayerHoverHighlight() {
     const orbitRad = ((getAnimValue(shape, 'orbit', clk) ?? shape.orbit ?? 0) * Math.PI / 180);
     const rotRad   = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
     ctx.save();
-    ctx.setLineDash([4, 3]);
-    ctx.strokeStyle = 'rgba(124,106,240,0.75)';
-    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 3]);
+    ctx.strokeStyle = `rgba(255,255,255,${pulse.toFixed(2)})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'white';
+    ctx.shadowBlur = 6;
     ctx.translate(m.cx, m.cy);
     ctx.rotate(rotRad + orbitRad);
     ctx.translate(ox, oy);
@@ -3196,9 +3203,11 @@ function renderLayerHoverHighlight() {
     const hw = iw * spr.scale / 2 + 6;
     const hh = ih * spr.scale / 2 + 6;
     ctx.save();
-    ctx.setLineDash([4, 3]);
-    ctx.strokeStyle = 'rgba(124,106,240,0.75)';
-    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 3]);
+    ctx.strokeStyle = `rgba(255,255,255,${pulse.toFixed(2)})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'white';
+    ctx.shadowBlur = 6;
     ctx.translate(cx, cy);
     ctx.rotate((spr.rotation || 0) * Math.PI / 180);
     ctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
