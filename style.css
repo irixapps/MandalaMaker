@@ -459,7 +459,8 @@ select { cursor: pointer; }
   min-width: 32px;
   text-align: right;
 }
-#sprite-props input[type="range"] { flex: 1; min-width: 0; }
+#sprite-props input[type="range"],
+#shape-props input[type="range"] { flex: 1; min-width: 0; }
 
 /* ── Mandala list ── */
 #mandala-list {

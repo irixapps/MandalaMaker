@@ -179,7 +179,9 @@ function sampleGradient(stops, t) {
 
 // Render a stroke using a cycling gradient along its length.
 // Called inside a ctx.save() block that has already set translate+rotate for one symmetry cell.
-function renderGradientSegments(pts, grad, lineWidth) {
+// dashArr: pre-scaled array (px values), e.g. [15, 10]. null = solid.
+// capType: 'round' | 'butt' | 'square'. 'round' is required for smooth gradient blending on solid strokes.
+function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
   if (pts.length < 2) return;
   const { stops, scale, speed } = grad;
   const timeOffset = (S.animClock * speed) % 1;
@@ -191,24 +193,43 @@ function renderGradientSegments(pts, grad, lineWidth) {
     lens.push(lens[i-1] + Math.sqrt(dx*dx + dy*dy));
   }
 
-  ctx.lineWidth  = lineWidth;
-  ctx.lineCap    = 'round';
-  ctx.lineJoin   = 'round';
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap   = capType || 'round';
+  ctx.lineJoin  = 'round';
 
-  // Batch consecutive segments that share the same sampled colour (within 1px of arc-length)
-  const step = Math.max(1, lineWidth * 0.5); // sample every ~half-linewidth px
+  // Dash handling: pre-compute dash cycle total; null/empty = solid
+  const hasDash = dashArr && dashArr.length >= 2 && dashArr.reduce((a, b) => a + b, 0) > 0;
+  const dashCycle = hasDash ? dashArr.reduce((a, b) => a + b, 0) : 0;
+
+  const step = Math.max(0.5, lineWidth * 0.4); // sample resolution
   let prevColor = null;
   ctx.beginPath();
 
   for (let i = 0; i < pts.length - 1; i++) {
     const dx = pts[i+1].x - pts[i].x, dy = pts[i+1].y - pts[i].y;
     const segLen = Math.sqrt(dx*dx + dy*dy);
+    if (segLen === 0) continue;
     const steps = Math.max(1, Math.ceil(segLen / step));
     for (let s = 0; s < steps; s++) {
       const ta = s / steps, tb = (s + 1) / steps;
+      const dist = lens[i] + segLen * ta; // arc-length at start of sub-segment
+
+      if (hasDash) {
+        // Determine if arc-position is inside a dash or a gap
+        const cyclePos = dist % dashCycle;
+        let cum = 0, drawing = true;
+        for (let d = 0; d < dashArr.length; d++) {
+          cum += dashArr[d];
+          if (cyclePos < cum) { drawing = (d % 2 === 0); break; }
+        }
+        if (!drawing) {
+          if (prevColor !== null) { ctx.stroke(); ctx.beginPath(); prevColor = null; }
+          continue;
+        }
+      }
+
       const xa = pts[i].x + dx*ta, ya = pts[i].y + dy*ta;
       const xb = pts[i].x + dx*tb, yb = pts[i].y + dy*tb;
-      const dist = lens[i] + segLen * ta;
       const color = sampleGradient(stops, dist / scale + timeOffset);
       if (color !== prevColor) {
         if (prevColor !== null) ctx.stroke();
@@ -269,11 +290,10 @@ function getAnimValue(spr, prop, clock) {
 }
 
 function hasAnyAnimation() {
-  if (S.mandalas.some(m => m.sprites.some(s =>
-    s.anim && Object.values(s.anim).some(ap => ap.enabled)
-  ))) return true;
-  // Gradient strokes with speed > 0 need the clock to keep running
-  return S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0));
+  if (S.mandalas.some(m => m.sprites.some(s => s.anim && Object.values(s.anim).some(ap => ap.enabled)))) return true;
+  if (S.mandalas.some(m => (m.shapes || []).some(s => s.anim && Object.values(s.anim).some(ap => ap.enabled)))) return true;
+  if (S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0))) return true;
+  return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
 }
 
 function applyPreset(preset) {
@@ -345,6 +365,61 @@ const ANIM_PRESETS = {
   ],
 };
 
+// ── Shape animation props / presets ─────────────────────
+const SHAPE_ANIM_PROPS = [
+  { key: 'radius',    label: 'Radius',    min: 2,    max: 600, format: v => Math.round(v)+'px' },
+  { key: 'thickness', label: 'Thickness', min: 1,    max: 60,  format: v => Math.round(v) },
+  { key: 'opacity',   label: 'Opacity',   min: 0,    max: 1,   format: v => Math.round(v*100)+'%' },
+  { key: 'rotation',  label: 'Rotation',  min: -360, max: 360, format: v => Math.round(v)+'°' },
+  { key: 'orbit',     label: 'Orbit',     min: -180, max: 180, format: v => Math.round(v)+'°' },
+  { key: 'offsetX',   label: 'Offset X',  min: -500, max: 500, format: v => Math.round(v) },
+  { key: 'offsetY',   label: 'Offset Y',  min: -500, max: 500, format: v => Math.round(v) },
+];
+
+const SHAPE_ANIM_PRESETS = {
+  radius:    [
+    { label: 'Pulse',   kfs: [{t:0,v:50,e:'ease'},{t:0.5,v:100,e:'ease'},{t:1,v:50,e:'ease'}], dur: 2 },
+    { label: 'Breathe', kfs: [{t:0,v:60,e:'ease-in'},{t:0.5,v:90,e:'ease-out'},{t:1,v:60,e:'ease-in'}], dur: 4 },
+    { label: 'Shrink',  kfs: [{t:0,v:150,e:'ease'},{t:1,v:20,e:'ease'}], dur: 3 },
+  ],
+  thickness: [
+    { label: 'Pulse',   kfs: [{t:0,v:2,e:'ease'},{t:0.5,v:12,e:'ease'},{t:1,v:2,e:'ease'}], dur: 2 },
+    { label: 'Breathe', kfs: [{t:0,v:3,e:'ease-in'},{t:0.5,v:8,e:'ease-out'},{t:1,v:3,e:'ease-in'}], dur: 3 },
+  ],
+  opacity:   [
+    { label: 'Fade In/Out', kfs: [{t:0,v:1,e:'ease'},{t:0.5,v:0.1,e:'ease'},{t:1,v:1,e:'ease'}], dur: 2 },
+    { label: 'Flicker',     kfs: [{t:0,v:1,e:'linear'},{t:0.45,v:1,e:'linear'},{t:0.5,v:0,e:'linear'},{t:0.55,v:1,e:'linear'},{t:1,v:1,e:'linear'}], dur: 1.5 },
+    { label: 'Appear',      kfs: [{t:0,v:0,e:'ease-out'},{t:0.4,v:1,e:'linear'},{t:1,v:1,e:'linear'}], dur: 2 },
+  ],
+  rotation:  [
+    { label: 'Spin CW',  kfs: [{t:0,v:-180,e:'linear'},{t:1,v:180,e:'linear'}], dur: 3 },
+    { label: 'Spin CCW', kfs: [{t:0,v:180,e:'linear'},{t:1,v:-180,e:'linear'}], dur: 3 },
+    { label: 'Rock',     kfs: [{t:0,v:-30,e:'ease'},{t:0.5,v:30,e:'ease'},{t:1,v:-30,e:'ease'}], dur: 2 },
+    { label: 'Wobble',   kfs: [{t:0,v:-10,e:'ease'},{t:0.25,v:10,e:'ease'},{t:0.5,v:-10,e:'ease'},{t:0.75,v:10,e:'ease'},{t:1,v:-10,e:'ease'}], dur: 1 },
+  ],
+  orbit:     [
+    { label: 'Orbit CW',  kfs: [{t:0,v:-180,e:'linear'},{t:1,v:180,e:'linear'}], dur: 4 },
+    { label: 'Orbit CCW', kfs: [{t:0,v:180,e:'linear'},{t:1,v:-180,e:'linear'}], dur: 4 },
+    { label: 'Swing',     kfs: [{t:0,v:-45,e:'ease'},{t:0.5,v:45,e:'ease'},{t:1,v:-45,e:'ease'}], dur: 3 },
+  ],
+  // Offset X = tangential (side-to-side, perpendicular to axis)
+  offsetX:   [
+    { label: 'Arc Swing',  kfs: [{t:0,v:-60,e:'ease'},{t:0.5,v:60,e:'ease'},{t:1,v:-60,e:'ease'}], dur: 2 },
+    { label: 'Drift',      kfs: [{t:0,v:-80,e:'ease'},{t:1,v:80,e:'ease'}], dur: 3 },
+    { label: 'Shimmer',    kfs: [{t:0,v:-20,e:'ease'},{t:0.25,v:20,e:'ease'},{t:0.5,v:-20,e:'ease'},{t:0.75,v:20,e:'ease'},{t:1,v:-20,e:'ease'}], dur: 1.5 },
+  ],
+  // Offset Y = radial (in/out along the axis — negative = further from center)
+  offsetY:   [
+    { label: 'Oscillate',     kfs: [{t:0,v:-60,e:'ease'},{t:0.5,v:-200,e:'ease'},{t:1,v:-60,e:'ease'}], dur: 3 },
+    { label: 'Pulse Out',     kfs: [{t:0,v:-100,e:'ease'},{t:0.5,v:-280,e:'ease'},{t:1,v:-100,e:'ease'}], dur: 2 },
+    { label: 'Breathe',       kfs: [{t:0,v:-80,e:'ease-in'},{t:0.5,v:-160,e:'ease-out'},{t:1,v:-80,e:'ease-in'}], dur: 4 },
+    { label: 'Approach',      kfs: [{t:0,v:-250,e:'ease'},{t:0.5,v:-40,e:'ease'},{t:1,v:-250,e:'ease'}], dur: 3 },
+  ],
+};
+
+const STL = { dragging: null, selectedKf: null };  // shape timeline interaction state
+
+// ── Timeline canvas ──────────────────────────────────────
 function tlCanvasEl(prop) { return document.getElementById('anim-tl-' + prop); }
 
 function tlCoords(canvasEl, animProp) {
@@ -362,45 +437,37 @@ function tlCoords(canvasEl, animProp) {
   };
 }
 
-function drawTimeline(prop, spr) {
-  const el = tlCanvasEl(prop);
-  if (!el) return;
-  const ap = spr?.anim?.[prop];
-  if (!ap) return;
-  const c = el.getContext('2d');
-  const { tx, vy, PAD, W, H, iH } = tlCoords(el, prop);
+// Shared drawing core for both sprite and shape timelines
+function drawTimelineOn(canvasEl, propCfg, ap, selectedKfForProp) {
+  if (!canvasEl || !propCfg || !ap) return;
+  const c = canvasEl.getContext('2d');
+  const W = canvasEl.width, H = canvasEl.height;
+  const PAD = { l: 6, r: 6, t: 8, b: 8 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+  const vMin = propCfg.min, vMax = propCfg.max;
+  const tx = t => PAD.l + t * iW;
+  const vy = v => PAD.t + (1 - (v - vMin) / (vMax - vMin)) * iH;
   const kfs = ap.keyframes;
 
-  // Background
   c.clearRect(0, 0, W, H);
-  c.fillStyle = '#08081a';
-  c.fillRect(0, 0, W, H);
+  c.fillStyle = '#08081a'; c.fillRect(0, 0, W, H);
 
-  // Grid verticals
   c.strokeStyle = '#1c1c38'; c.lineWidth = 1;
-  [0.25, 0.5, 0.75].forEach(t => {
-    c.beginPath(); c.moveTo(tx(t), PAD.t); c.lineTo(tx(t), H - PAD.b); c.stroke();
-  });
-  // Mid-value horizontal
-  const cfg = ANIM_PROPS.find(p => p.key === prop);
-  const mid = (cfg.min + cfg.max) / 2;
+  [0.25, 0.5, 0.75].forEach(t => { c.beginPath(); c.moveTo(tx(t), PAD.t); c.lineTo(tx(t), H - PAD.b); c.stroke(); });
+  const mid = (vMin + vMax) / 2;
   c.beginPath(); c.moveTo(PAD.l, vy(mid)); c.lineTo(W - PAD.r, vy(mid)); c.stroke();
 
-  // Curve
   if (kfs.length >= 2) {
-    c.strokeStyle = '#7c6af0'; c.lineWidth = 2;
-    c.beginPath();
+    c.strokeStyle = '#7c6af0'; c.lineWidth = 2; c.beginPath();
     const STEPS = 150;
     for (let i = 0; i <= STEPS; i++) {
       const t = kfs[0].t + (i / STEPS) * (kfs[kfs.length-1].t - kfs[0].t);
       const v = animValueAtT(ap, t);
-      const x = tx(t), y = vy(v);
-      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      i === 0 ? c.moveTo(tx(t), vy(v)) : c.lineTo(tx(t), vy(v));
     }
     c.stroke();
   }
 
-  // Easing labels between keyframes
   c.font = '8px sans-serif'; c.fillStyle = '#5060a0'; c.textAlign = 'center';
   for (let i = 0; i < kfs.length - 1; i++) {
     const mx = tx((kfs[i].t + kfs[i+1].t) / 2);
@@ -408,21 +475,141 @@ function drawTimeline(prop, spr) {
     c.fillText(kfs[i].easing, mx, Math.max(PAD.t + 8, Math.min(H - PAD.b - 2, my - 6)));
   }
 
-  // Keyframe dots
   kfs.forEach((kf, idx) => {
     const x = tx(kf.t), y = vy(kf.value);
-    const isSel = TL.selectedKf?.prop === prop && TL.selectedKf?.kfIdx === idx;
-    c.beginPath(); c.arc(x, y, isSel ? 7 : 5.5, 0, Math.PI*2);
+    const isSel = selectedKfForProp?.kfIdx === idx;
+    c.beginPath(); c.arc(x, y, isSel ? 7 : 5.5, 0, Math.PI * 2);
     c.fillStyle = isSel ? '#ff6b9d' : '#7c6af0'; c.fill();
     c.strokeStyle = '#ffffff'; c.lineWidth = isSel ? 2 : 1.5; c.stroke();
   });
 
-  // Playhead
   const playT = (S.animClock % ap.duration) / ap.duration;
-  c.strokeStyle = '#ff6b9d'; c.lineWidth = 1.5;
-  c.setLineDash([3, 2]);
+  c.strokeStyle = '#ff6b9d'; c.lineWidth = 1.5; c.setLineDash([3, 2]);
   c.beginPath(); c.moveTo(tx(playT), PAD.t); c.lineTo(tx(playT), H - PAD.b); c.stroke();
   c.setLineDash([]);
+}
+
+function drawTimeline(prop, spr) {
+  const el = tlCanvasEl(prop); if (!el || !spr?.anim?.[prop]) return;
+  const cfg = ANIM_PROPS.find(p => p.key === prop);
+  const selKf = TL.selectedKf?.prop === prop ? TL.selectedKf : null;
+  drawTimelineOn(el, cfg, spr.anim[prop], selKf);
+}
+
+// ── Shape timeline functions ─────────────────────────────
+function shaTlCanvasEl(prop) { return document.getElementById('sa-tl-' + prop); }
+function shaEntity() { const f = findSelectedShape(); return f ? f.shape : null; }
+
+function shaTlCoords(canvasEl, prop) {
+  const W = canvasEl.width, H = canvasEl.height;
+  const PAD = { l: 6, r: 6, t: 8, b: 8 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+  const cfg = SHAPE_ANIM_PROPS.find(p => p.key === prop);
+  const vMin = cfg.min, vMax = cfg.max;
+  return {
+    W, H, PAD, iW, iH,
+    tx: t  => PAD.l + t * iW,
+    vy: v  => PAD.t + (1 - (v - vMin) / (vMax - vMin)) * iH,
+    tv: px => Math.max(0, Math.min(1, (px - PAD.l) / iW)),
+    yv: py => vMin + (1 - (py - PAD.t) / iH) * (vMax - vMin),
+  };
+}
+
+function drawShapeTimeline(prop, shape) {
+  const el = shaTlCanvasEl(prop); if (!el || !shape?.anim?.[prop]) return;
+  const cfg = SHAPE_ANIM_PROPS.find(p => p.key === prop);
+  const selKf = STL.selectedKf?.prop === prop ? STL.selectedKf : null;
+  drawTimelineOn(el, cfg, shape.anim[prop], selKf);
+}
+
+function refreshAllShapeTimelines() {
+  const shape = shaEntity(); if (!shape) return;
+  SHAPE_ANIM_PROPS.forEach(({ key }) => drawShapeTimeline(key, shape));
+}
+
+function shaNearestKf(el, prop, px, py, radius = 14) {
+  const shape = shaEntity(); const ap = shape?.anim?.[prop]; if (!ap) return -1;
+  const { tx, vy } = shaTlCoords(el, prop);
+  let best = -1, bestD = radius;
+  ap.keyframes.forEach((kf, i) => {
+    const d = Math.hypot(tx(kf.t) - px, vy(kf.value) - py);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+function syncShapeEasingDropdown(prop, shape) {
+  const sel = document.getElementById('sa-ease-sel-' + prop);
+  const row = document.getElementById('sa-kf-row-' + prop);
+  if (!sel || !row) return;
+  const kfIdx = STL.selectedKf?.prop === prop ? STL.selectedKf.kfIdx : -1;
+  if (kfIdx < 0 || !shape?.anim?.[prop]) { row.style.display = 'none'; return; }
+  const kfs = shape.anim[prop].keyframes;
+  const hasNext = kfIdx < kfs.length - 1;
+  row.style.display = hasNext ? 'flex' : 'none';
+  if (hasNext) sel.value = kfs[kfIdx].easing;
+  const delBtn = document.getElementById('sa-kf-del-' + prop);
+  if (delBtn) {
+    const canDel = kfIdx > 0 && kfIdx < kfs.length - 1 && kfs.length > 2;
+    delBtn.style.display = canDel ? '' : 'none';
+  }
+}
+
+function initShapeTimelineCanvas(prop) {
+  const el = shaTlCanvasEl(prop); if (!el) return;
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleX;
+    const shape = shaEntity(); if (!shape?.anim?.[prop]) return;
+    if (e.button === 2) {
+      const idx = shaNearestKf(el, prop, px, py);
+      if (idx >= 0 && shape.anim[prop].keyframes.length > 2) { shape.anim[prop].keyframes.splice(idx, 1); historySnapshot(); }
+      return;
+    }
+    const kfIdx = shaNearestKf(el, prop, px, py);
+    if (kfIdx >= 0) {
+      STL.dragging = { prop, kfIdx }; STL.selectedKf = { prop, kfIdx };
+      syncShapeEasingDropdown(prop, shape); return;
+    }
+    STL.selectedKf = null; syncShapeEasingDropdown(prop, shape);
+    const { tv, yv } = shaTlCoords(el, prop);
+    const cfg = SHAPE_ANIM_PROPS.find(p => p.key === prop);
+    const t = tv(px), v = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
+    const kfs = shape.anim[prop].keyframes;
+    const prevKf = kfs.filter(k => k.t < t).pop();
+    kfs.push({ t, value: v, easing: prevKf?.easing ?? 'linear' });
+    kfs.sort((a, b) => a.t - b.t);
+    historySnapshot();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!STL.dragging || STL.dragging.prop !== prop) return;
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width, scaleY = el.height / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    const shape = shaEntity(); if (!shape?.anim?.[prop]) return;
+    const { tv, yv } = shaTlCoords(el, prop);
+    const cfg = SHAPE_ANIM_PROPS.find(p => p.key === prop);
+    const kfs = shape.anim[prop].keyframes;
+    const kf = kfs[STL.dragging.kfIdx];
+    kf.t = Math.max(0, Math.min(1, tv(px)));
+    kf.value = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
+    kfs.sort((a, b) => a.t - b.t);
+    STL.dragging.kfIdx = kfs.indexOf(kf);
+  });
+  window.addEventListener('mouseup', () => {
+    if (STL.dragging?.prop === prop) {
+      const shape = shaEntity();
+      if (STL.selectedKf?.prop === prop && shape?.anim?.[prop])
+        STL.selectedKf.kfIdx = Math.min(STL.selectedKf.kfIdx, shape.anim[prop].keyframes.length - 1);
+      syncShapeEasingDropdown(prop, shape);
+      STL.dragging = null; historySnapshot();
+    }
+  });
+  el.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 function tlNearestKf(el, prop, px, py, radius = 14) {
@@ -1034,6 +1221,7 @@ function render(timestamp) {
   if (hasAnyAnimation()) {
     S.animClock += dt;
     refreshAllTimelines();
+    refreshAllShapeTimelines();
   }
 
   // Composite cached solid strokes (rebuilds if dirty)
@@ -1096,11 +1284,16 @@ function render(timestamp) {
     }
   }
 
-  // Guides
+  // Guides + snap overlays
   if (S.showGuides) {
     for (const m of S.mandalas) {
       if (!m.visible) continue;
       renderGuides(m, m === getActiveMandala());
+    }
+  }
+  if (S.snapAxes.enabled) {
+    for (const m of S.mandalas) {
+      if (m.visible) renderSnapAxisDots(m, m === getActiveMandala());
     }
   }
 
@@ -1816,7 +2009,79 @@ function renderGridOverlay() {
   ctx.restore();
 }
 
+function renderSnapAxisDots(m, isActive) {
+  if (m.axes === 0) return;
+  const step = S.snapAxes.step || 1;
+  const totalHalfRays = m.axes * 2 * step;
+  const angleStep = Math.PI / (m.axes * step);
+  const rotRad = (m.axisRotation || 0) * Math.PI / 180;
+  const col = MANDALA_COLORS[m.colorIdx];
+  const DOT_R = isActive ? 2 : 1.5;
+  const SPACING = 40;
+  const maxR = Math.hypot(canvas.width, canvas.height) * 0.75;
+
+  ctx.save();
+  ctx.translate(m.cx, m.cy);
+  ctx.fillStyle = col;
+
+  for (let i = 0; i < totalHalfRays; i++) {
+    // Sub-division rays (not coinciding with main guide lines): draw faint line
+    if (step > 1 && i % step !== 0) {
+      const a = rotRad + Math.PI / 2 + angleStep * i;
+      ctx.save();
+      ctx.rotate(a);
+      ctx.globalAlpha = isActive ? 0.18 : 0.08;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 0.7;
+      ctx.setLineDash([3, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, -maxR); ctx.lineTo(0, maxR);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    // Dots along each snap ray
+    const a = rotRad + Math.PI / 2 + angleStep * i;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    for (let r = SPACING; r <= maxR; r += SPACING) {
+      ctx.globalAlpha = isActive ? 0.45 : 0.18;
+      ctx.beginPath();
+      ctx.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 // ── Shape system ─────────────────────────────────────────
+// Convert shape outline to point array (for gradient rendering via arc-length)
+function getShapePoints(shape) {
+  const r = Math.max(1, shape.r);
+  const pts = [];
+  if (shape.type === 'circle') {
+    const N = Math.max(48, Math.round(r * 0.8));
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+    }
+  } else if (shape.type === 'star') {
+    const numPts = (shape.params && shape.params.points) || 5;
+    const inner = r * ((shape.params && shape.params.innerRatio) || 0.45);
+    for (let i = 0; i <= numPts * 2; i++) {
+      const ri = (i % 2 === 0) ? r : inner;
+      const a = i * Math.PI / numPts - Math.PI / 2;
+      pts.push({ x: Math.cos(a) * ri, y: Math.sin(a) * ri });
+    }
+  } else if (shape.type === 'polygon') {
+    const sides = (shape.params && shape.params.sides) || 6;
+    for (let i = 0; i <= sides; i++) {
+      const a = (i % sides) * Math.PI * 2 / sides - Math.PI / 2;
+      pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+    }
+  }
+  return pts;
+}
+
 function getShapePath2D(shape) {
   const p = new Path2D();
   const r = Math.max(1, shape.r);
@@ -1850,32 +2115,68 @@ function renderShapeInContext(tCtx, shape) {
   tCtx.globalAlpha = shape.opacity || 1;
   tCtx.lineCap = shape.lineCap || 'round';
   tCtx.lineJoin = shape.lineJoin || 'round';
-  tCtx.setLineDash(shape.dash || []);
+  // Scale dash pattern relative to line thickness so it stays proportional
+  const t = shape.thickness || 1;
+  tCtx.setLineDash((shape.dash || []).map(v => v * t));
+
+  // Fill (always use Path2D)
   if (shape.fill) { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
-  tCtx.strokeStyle = shape.color;
-  tCtx.lineWidth = shape.thickness;
-  tCtx.stroke(path);
+
+  // Stroke: use gradient segments if gradient is set and we're on the main ctx
+  if (shape.gradient && tCtx === ctx) {
+    const pts = getShapePoints(shape);
+    const scaledDash = (shape.dash && shape.dash.length) ? shape.dash.map(v => v * t) : null;
+    if (pts.length > 1) renderGradientSegments(pts, shape.gradient, shape.thickness, scaledDash, shape.lineCap || 'round');
+  } else {
+    tCtx.strokeStyle = shape.color;
+    tCtx.lineWidth = shape.thickness;
+    tCtx.stroke(path);
+  }
   tCtx.restore();
 }
 
 function renderShapeSymmetric(tCtx, m, shape) {
+  // Resolve animated property values
+  const clk = S.animClock;
+  const animR       = getAnimValue(shape, 'radius',    clk);
+  const animThick   = getAnimValue(shape, 'thickness', clk);
+  const animOp      = getAnimValue(shape, 'opacity',   clk);
+  const animRot     = getAnimValue(shape, 'rotation',  clk);
+  const animOrbit   = getAnimValue(shape, 'orbit',     clk);
+  const animOffX    = getAnimValue(shape, 'offsetX',   clk);
+  const animOffY    = getAnimValue(shape, 'offsetY',   clk);
+
+  // Build a shallow proxy of the shape with animated overrides for renderShapeInContext
+  const effShape = {
+    ...shape,
+    r:         animR     ?? shape.r,
+    thickness: animThick ?? shape.thickness,
+    opacity:   animOp    ?? (shape.opacity ?? 1),
+  };
+
+  const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
+  const effOrbitRad = (animOrbit ?? (shape.orbit      || 0)) * Math.PI / 180;
+  const effX        = animOffX   ?? shape.x;
+  const effY        = animOffY   ?? shape.y;
+
   const n = shape.axes != null ? shape.axes : m.axes;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const doMirror = shape.mirror !== false;
   const effectiveN = n === 0 ? 1 : (doMirror ? n : n * 2);
   const effectiveMirror = n === 0 ? false : doMirror;
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+
   tCtx.save();
   tCtx.globalCompositeOperation = 'source-over';
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
       tCtx.save();
       tCtx.translate(m.cx, m.cy);
-      tCtx.rotate(rotRad + segAngle * i);
+      tCtx.rotate(rotRad + segAngle * i + effOrbitRad);
       if (flip === 1) tCtx.scale(1, -1);
-      tCtx.translate(shape.x, shape.y);
-      if (shape.rotation) tCtx.rotate(shape.rotation);
-      renderShapeInContext(tCtx, shape);
+      tCtx.translate(effX, effY);
+      if (effRotRad) tCtx.rotate(effRotRad);
+      renderShapeInContext(tCtx, effShape);
       tCtx.restore();
     }
   }
@@ -2011,9 +2312,27 @@ function updateShapeProps() {
   document.getElementById('sp-fill-on').checked = hasFill;
   document.getElementById('sp-fill').value = shape.fill || shape.color;
   document.getElementById('sp-fill').disabled = !hasFill;
+  document.getElementById('sp-rotation').value = shape.rotation || 0;
+  document.getElementById('sp-rotation-val').textContent = (shape.rotation || 0) + '°';
+  document.getElementById('sp-orbit').value = shape.orbit || 0;
+  document.getElementById('sp-orbit-val').textContent = (shape.orbit || 0) + '°';
+  document.getElementById('sp-offsetX').value = Math.round(shape.x);
+  document.getElementById('sp-offsetX-val').textContent = Math.round(shape.x);
+  document.getElementById('sp-offsetY').value = Math.round(shape.y);
+  document.getElementById('sp-offsetY-val').textContent = Math.round(shape.y);
   document.getElementById('sp-cap').value = shape.lineCap || 'round';
   document.getElementById('sp-join').value = shape.lineJoin || 'round';
   document.getElementById('sp-dash').value = (shape.dash || []).join(',');
+  // Update anim button states
+  if (shape.anim) {
+    SHAPE_ANIM_PROPS.forEach(({ key }) => {
+      const btn = document.getElementById('sa-btn-' + key);
+      if (btn) btn.classList.toggle('active', !!(shape.anim[key]?.enabled));
+      const panel = document.getElementById('sa-panel-' + key);
+      if (panel) panel.style.display = shape.anim[key]?.enabled ? '' : 'none';
+      drawShapeTimeline(key, shape);
+    });
+  }
   const starRow = document.getElementById('sp-star-row');
   const polyRow = document.getElementById('sp-poly-row');
   if (starRow) starRow.style.display = shape.type === 'star' ? '' : 'none';
@@ -2047,8 +2366,26 @@ function wireShapeProps() {
     });
   });
   document.getElementById('sp-fill').addEventListener('input', e => forShape(s => { if (s.fill) s.fill = e.target.value; }));
-  document.getElementById('sp-cap').addEventListener('change', e => forShape(s => s.lineCap = e.target.value));
-  document.getElementById('sp-join').addEventListener('change', e => forShape(s => s.lineJoin = e.target.value));
+  document.getElementById('sp-rotation').addEventListener('input', e => {
+    forShape(s => { s.rotation = parseInt(e.target.value) || 0; document.getElementById('sp-rotation-val').textContent = s.rotation + '°'; });
+  });
+  document.getElementById('sp-orbit').addEventListener('input', e => {
+    forShape(s => { s.orbit = parseInt(e.target.value) || 0; document.getElementById('sp-orbit-val').textContent = s.orbit + '°'; });
+  });
+  document.getElementById('sp-offsetX').addEventListener('input', e => {
+    forShape(s => { s.x = parseInt(e.target.value) || 0; document.getElementById('sp-offsetX-val').textContent = s.x; });
+  });
+  document.getElementById('sp-offsetY').addEventListener('input', e => {
+    forShape(s => { s.y = parseInt(e.target.value) || 0; document.getElementById('sp-offsetY-val').textContent = s.y; });
+  });
+  document.getElementById('sp-cap').addEventListener('change', e => {
+    S.shapeLineCap = e.target.value; // persist so next drawn shape inherits
+    forShape(s => s.lineCap = e.target.value);
+  });
+  document.getElementById('sp-join').addEventListener('change', e => {
+    S.shapeLineJoin = e.target.value; // persist so next drawn shape inherits
+    forShape(s => s.lineJoin = e.target.value);
+  });
   document.getElementById('sp-dash').addEventListener('change', e => {
     forShape(s => { s.dash = e.target.value ? e.target.value.split(',').map(Number) : []; });
   });
@@ -2077,6 +2414,103 @@ function wireShapeProps() {
   });
 }
 
+function wireShapeAnimProps() {
+  SHAPE_ANIM_PROPS.forEach(({ key, min, max }) => {
+    const btn = document.getElementById('sa-btn-' + key);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const found = findSelectedShape(); if (!found) return;
+      const shape = found.shape;
+      if (!shape.anim) shape.anim = {};
+      historySnapshot();
+      if (shape.anim[key]?.enabled) {
+        shape.anim[key].enabled = false;
+        btn.classList.remove('active');
+        const p = document.getElementById('sa-panel-' + key);
+        if (p) p.style.display = 'none';
+      } else {
+        // Default initial animation based on current static value
+        const staticVal = (() => {
+          switch (key) {
+            case 'radius':    return shape.r || 50;
+            case 'thickness': return shape.thickness || 4;
+            case 'opacity':   return shape.opacity ?? 1;
+            case 'rotation':  return shape.rotation || 0;
+            case 'orbit':     return shape.orbit || 0;
+            case 'offsetX':   return shape.x || 0;
+            case 'offsetY':   return shape.y || 0;
+            default:          return 0;
+          }
+        })();
+        const presets = SHAPE_ANIM_PRESETS[key];
+        if (!shape.anim[key]) {
+          const defaultPreset = presets?.[0];
+          shape.anim[key] = defaultPreset ? applyPreset(defaultPreset) : defaultAnimProp(staticVal);
+        } else {
+          shape.anim[key].enabled = true;
+        }
+        btn.classList.add('active');
+        const p = document.getElementById('sa-panel-' + key);
+        if (p) p.style.display = '';
+        const durEl = document.getElementById('sa-dur-' + key);
+        if (durEl) durEl.value = shape.anim[key].duration;
+        drawShapeTimeline(key, shape);
+      }
+    });
+
+    const durEl = document.getElementById('sa-dur-' + key);
+    if (durEl) durEl.addEventListener('change', e => {
+      const found = findSelectedShape(); if (!found?.shape?.anim?.[key]) return;
+      found.shape.anim[key].duration = Math.max(0.1, parseFloat(e.target.value) || 1);
+      drawShapeTimeline(key, found.shape);
+    });
+
+    const presetSel = document.getElementById('sa-preset-' + key);
+    if (presetSel) presetSel.addEventListener('change', e => {
+      const found = findSelectedShape(); if (!found) return;
+      const shape = found.shape;
+      const preset = SHAPE_ANIM_PRESETS[key]?.find(p => p.label === e.target.value);
+      if (!preset) { e.target.value = ''; return; }
+      if (!shape.anim) shape.anim = {};
+      shape.anim[key] = applyPreset(preset);
+      const durEl2 = document.getElementById('sa-dur-' + key);
+      if (durEl2) durEl2.value = shape.anim[key].duration;
+      document.getElementById('sa-btn-' + key)?.classList.add('active');
+      const p = document.getElementById('sa-panel-' + key); if (p) p.style.display = '';
+      drawShapeTimeline(key, shape);
+      e.target.value = '';
+      historySnapshot();
+    });
+
+    const easeSel = document.getElementById('sa-ease-sel-' + key);
+    if (easeSel) easeSel.addEventListener('change', e => {
+      const found = findSelectedShape(); if (!found?.shape?.anim?.[key]) return;
+      const shape = found.shape;
+      const kfIdx = STL.selectedKf?.prop === key ? STL.selectedKf.kfIdx : -1;
+      if (kfIdx >= 0 && kfIdx < shape.anim[key].keyframes.length - 1)
+        shape.anim[key].keyframes[kfIdx].easing = e.target.value;
+      drawShapeTimeline(key, shape);
+    });
+
+    const delBtn = document.getElementById('sa-kf-del-' + key);
+    if (delBtn) delBtn.addEventListener('click', () => {
+      const found = findSelectedShape(); if (!found?.shape?.anim?.[key]) return;
+      const shape = found.shape;
+      const kfIdx = STL.selectedKf?.prop === key ? STL.selectedKf.kfIdx : -1;
+      const kfs = shape.anim[key].keyframes;
+      if (kfIdx > 0 && kfIdx < kfs.length - 1 && kfs.length > 2) {
+        kfs.splice(kfIdx, 1);
+        STL.selectedKf = null;
+        syncShapeEasingDropdown(key, shape);
+        drawShapeTimeline(key, shape);
+        historySnapshot();
+      }
+    });
+
+    initShapeTimelineCanvas(key);
+  });
+}
+
 // ── Shape panel (contextual bar above status bar) ─────────
 function updateShapePanel() {
   const panel = document.getElementById('shape-panel');
@@ -2095,6 +2529,7 @@ function updateShapePanel() {
   document.getElementById('shapep-inner-val').textContent = innerPct + '%';
   document.getElementById('shapep-sides').value = S.shapeParams.sides || 6;
   document.getElementById('btn-stamp-mode').classList.toggle('active', S.shapeStampMode);
+  document.getElementById('btn-shape-gradient').classList.toggle('active', S.gradientMode);
 }
 
 function wireShapePanel() {
@@ -2103,17 +2538,19 @@ function wireShapePanel() {
     document.getElementById('shapep-fill').disabled = !e.target.checked;
   });
   document.getElementById('shapep-fill').addEventListener('input', e => { if (S.shapeFill) S.shapeFill = e.target.value; });
-  document.getElementById('shapep-dash').addEventListener('change', e => {
-    S.shapeDash = e.target.value ? e.target.value.split(',').map(Number) : [];
-  });
-  document.getElementById('shapep-cap').addEventListener('change', e => { S.shapeLineCap = e.target.value; });
-  document.getElementById('shapep-join').addEventListener('change', e => { S.shapeLineJoin = e.target.value; });
   document.getElementById('shapep-points').addEventListener('input', e => { S.shapeParams.points = parseInt(e.target.value) || 5; });
   document.getElementById('shapep-inner').addEventListener('input', e => {
     S.shapeParams.innerRatio = parseInt(e.target.value) / 100;
     document.getElementById('shapep-inner-val').textContent = e.target.value + '%';
   });
   document.getElementById('shapep-sides').addEventListener('input', e => { S.shapeParams.sides = parseInt(e.target.value) || 6; });
+  document.getElementById('btn-shape-gradient').addEventListener('click', () => {
+    S.gradientMode = !S.gradientMode;
+    document.getElementById('btn-shape-gradient').classList.toggle('active', S.gradientMode);
+    // Keep main gradient toggle in sync
+    const mainBtn = document.getElementById('btn-gradient-mode');
+    if (mainBtn) mainBtn.classList.toggle('active', S.gradientMode);
+  });
   document.getElementById('btn-stamp-mode').addEventListener('click', () => {
     S.shapeStampMode = !S.shapeStampMode;
     document.getElementById('btn-stamp-mode').classList.toggle('active', S.shapeStampMode);
@@ -2242,6 +2679,9 @@ function onMouseDown(e) {
       lineCap: S.shapeLineCap,
       lineJoin: S.shapeLineJoin,
       dash: [...S.shapeDash],
+      gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+      rotation: 0, orbit: 0,
+      anim: {},
       params: { ...S.shapeParams },
       axes: m.axes,
       axisRotation: m.axisRotation,
@@ -3565,8 +4005,11 @@ function wireEvents() {
       historySnapshot();
       m.strokes = []; invalidateStrokeCache();
       m.sprites = [];
+      m.shapes = [];
       S.selectedSpriteId = null;
+      S.selectedShapeId = null;
       updateSpriteProps();
+      updateShapeProps();
     }
   });
 
@@ -3903,6 +4346,7 @@ function wireEvents() {
   // ── Shape panel + snap ───────────────────────────────────
   wireShapePanel();
   wireShapeProps();
+  wireShapeAnimProps();
   wireSnapUI();
 }
 

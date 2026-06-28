@@ -338,39 +338,184 @@
       <!-- Shape properties (shown when shape selected) -->
       <div id="shape-props" style="display:none">
         <div class="panel-label">Shape — <span id="sp-type-label">Circle</span></div>
+
+        <!-- Radius -->
         <div class="prop-row">
           <label class="prop-label">Radius</label>
           <input type="range" id="sp-radius" min="2" max="600" value="50">
           <span class="prop-val" id="sp-radius-val">50px</span>
+          <button class="anim-btn" id="sa-btn-radius" title="Animate Radius">∿</button>
         </div>
+        <div class="anim-panel" id="sa-panel-radius" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-radius" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-radius" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Breathe</option><option>Shrink</option></select>
+          </div>
+          <canvas id="sa-tl-radius" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-radius" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-radius" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-radius" title="Delete keyframe" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Color -->
         <div class="prop-row">
           <label class="prop-label">Color</label>
           <input type="color" id="sp-color" value="#ff6b9d" style="width:32px;height:22px;padding:1px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer">
         </div>
+
+        <!-- Fill -->
         <div class="prop-row">
           <label class="prop-label">Fill</label>
           <input type="checkbox" id="sp-fill-on" style="accent-color:var(--accent)">
           <input type="color" id="sp-fill" value="#7c6af0" style="width:32px;height:22px;padding:1px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer;margin-left:4px">
         </div>
+
+        <!-- Thickness -->
         <div class="prop-row">
           <label class="prop-label">Thickness</label>
-          <input type="range" id="sp-thickness" min="1" max="40" value="4">
+          <input type="range" id="sp-thickness" min="1" max="60" value="4">
           <span class="prop-val" id="sp-thickness-val">4</span>
+          <button class="anim-btn" id="sa-btn-thickness" title="Animate Thickness">∿</button>
         </div>
+        <div class="anim-panel" id="sa-panel-thickness" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-thickness" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-thickness" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Breathe</option></select>
+          </div>
+          <canvas id="sa-tl-thickness" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-thickness" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-thickness" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-thickness" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Opacity -->
         <div class="prop-row">
           <label class="prop-label">Opacity</label>
           <input type="range" id="sp-opacity" min="0.05" max="1" step="0.05" value="1">
           <span class="prop-val" id="sp-opacity-val">100%</span>
+          <button class="anim-btn" id="sa-btn-opacity" title="Animate Opacity">∿</button>
         </div>
+        <div class="anim-panel" id="sa-panel-opacity" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-opacity" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-opacity" class="anim-preset-sel"><option value="">Presets…</option><option>Fade In/Out</option><option>Flicker</option><option>Appear</option></select>
+          </div>
+          <canvas id="sa-tl-opacity" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-opacity" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-opacity" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-opacity" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Rotation -->
+        <div class="prop-row">
+          <label class="prop-label">Rotation</label>
+          <input type="range" id="sp-rotation" min="-360" max="360" value="0">
+          <span class="prop-val" id="sp-rotation-val">0°</span>
+          <button class="anim-btn" id="sa-btn-rotation" title="Animate Rotation">∿</button>
+        </div>
+        <div class="anim-panel" id="sa-panel-rotation" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-rotation" value="3" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-rotation" class="anim-preset-sel"><option value="">Presets…</option><option>Spin CW</option><option>Spin CCW</option><option>Rock</option><option>Wobble</option></select>
+          </div>
+          <canvas id="sa-tl-rotation" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-rotation" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-rotation" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-rotation" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Orbit -->
+        <div class="prop-row">
+          <label class="prop-label">Orbit</label>
+          <input type="range" id="sp-orbit" min="-180" max="180" value="0">
+          <span class="prop-val" id="sp-orbit-val">0°</span>
+          <button class="anim-btn" id="sa-btn-orbit" title="Animate Orbit">∿</button>
+        </div>
+        <div class="anim-panel" id="sa-panel-orbit" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-orbit" value="4" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-orbit" class="anim-preset-sel"><option value="">Presets…</option><option>Orbit CW</option><option>Orbit CCW</option><option>Swing</option></select>
+          </div>
+          <canvas id="sa-tl-orbit" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-orbit" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-orbit" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-orbit" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Offset X = tangential (perpendicular to axis, side-to-side) -->
+        <div class="prop-row">
+          <label class="prop-label" title="Tangential offset — side to side perpendicular to the axis">Tang.</label>
+          <input type="range" id="sp-offsetX" min="-500" max="500" value="0">
+          <span class="prop-val" id="sp-offsetX-val">0</span>
+          <button class="anim-btn" id="sa-btn-offsetX" title="Animate tangential (side-to-side) position">∿</button>
+        </div>
+        <div class="anim-panel" id="sa-panel-offsetX" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-offsetX" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-offsetX" class="anim-preset-sel"><option value="">Presets…</option><option>Arc Swing</option><option>Drift</option><option>Shimmer</option></select>
+          </div>
+          <canvas id="sa-tl-offsetX" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-offsetX" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-offsetX" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-offsetX" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Offset Y = radial (along axis, in/out from center; negative = further out) -->
+        <div class="prop-row">
+          <label class="prop-label" title="Radial offset — in/out from center along the axis (negative = further out)">Radial</label>
+          <input type="range" id="sp-offsetY" min="-500" max="500" value="0">
+          <span class="prop-val" id="sp-offsetY-val">0</span>
+          <button class="anim-btn" id="sa-btn-offsetY" title="Animate radial (in/out) position along the axis">∿</button>
+        </div>
+        <div class="anim-panel" id="sa-panel-offsetY" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="sa-dur-offsetY" value="3" min="0.1" max="60" step="0.1" style="width:36px">
+            <span class="anim-label">s</span>
+            <select id="sa-preset-offsetY" class="anim-preset-sel"><option value="">Presets…</option><option>Oscillate</option><option>Pulse Out</option><option>Breathe</option><option>Approach</option></select>
+          </div>
+          <canvas id="sa-tl-offsetY" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="sa-kf-row-offsetY" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="sa-ease-sel-offsetY" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="sa-kf-del-offsetY" style="display:none">🗑</button>
+          </div>
+        </div>
+
+        <!-- Stroke style -->
         <div class="prop-row">
           <label class="prop-label">Dash</label>
           <select id="sp-dash" style="flex:1;font-size:11px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px">
             <option value="">Solid</option>
-            <option value="12,6">Dashed</option>
-            <option value="2,6">Dotted</option>
-            <option value="12,4,2,4">Dash·Dot</option>
-            <option value="24,8">Long</option>
-            <option value="6,3">Short</option>
+            <option value="3,2">Dashed</option>
+            <option value="0.001,2">Dotted</option>
+            <option value="3,2,0.001,2">Dash·Dot</option>
+            <option value="6,2">Long</option>
+            <option value="1.5,1.5">Short</option>
           </select>
         </div>
         <div class="prop-row">
@@ -380,14 +525,17 @@
             <option value="butt">Flat</option>
             <option value="square">Square</option>
           </select>
-          <label class="prop-label" style="margin-left:6px">Join</label>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Join</label>
           <select id="sp-join" style="flex:1;font-size:11px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px">
             <option value="round">Round</option>
             <option value="miter">Miter</option>
             <option value="bevel">Bevel</option>
           </select>
         </div>
-        <!-- Star params -->
+
+        <!-- Shape-type params -->
         <div id="sp-star-row" style="display:none">
           <div class="prop-row">
             <label class="prop-label">Points</label>
@@ -400,7 +548,6 @@
             <span class="prop-val" id="sp-inner-val">45%</span>
           </div>
         </div>
-        <!-- Polygon params -->
         <div id="sp-poly-row" style="display:none">
           <div class="prop-row">
             <label class="prop-label">Sides</label>
@@ -408,6 +555,7 @@
             <span class="prop-val" id="sp-sides-val">6</span>
           </div>
         </div>
+
         <button class="btn btn-danger" id="sp-delete" style="margin-top:6px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Shape</button>
       </div>
 
@@ -461,48 +609,28 @@
 
   <!-- Shape panel (shown when circle/star/polygon tool active) -->
   <div id="shape-panel">
-    <span class="grad-label" style="font-weight:600;opacity:.9">Shape:</span>
     <!-- Star params -->
     <span id="shapep-star-row" style="display:none;align-items:center;gap:5px">
       <span class="grad-label">Points</span>
       <input type="number" id="shapep-points" min="3" max="20" value="5" class="shape-num">
       <span class="grad-label">Inner</span>
-      <input type="range" id="shapep-inner" min="5" max="95" value="45" class="grad-slider" style="width:60px">
-      <span id="shapep-inner-val" class="grad-val">45%</span>
+      <input type="range" id="shapep-inner" min="5" max="95" value="45" style="width:56px">
+      <span id="shapep-inner-val" class="grad-val" style="min-width:28px">45%</span>
     </span>
     <!-- Polygon params -->
     <span id="shapep-poly-row" style="display:none;align-items:center;gap:5px">
       <span class="grad-label">Sides</span>
       <input type="number" id="shapep-sides" min="3" max="20" value="6" class="shape-num">
     </span>
-    <div class="toolbar-sep" style="height:24px;margin:0 2px"></div>
+    <div class="toolbar-sep" style="height:24px;margin:0 4px"></div>
     <span class="grad-label">Fill</span>
     <input type="checkbox" id="shapep-fill-on" title="Enable fill" style="accent-color:var(--accent)">
-    <input type="color" id="shapep-fill" value="#7c6af0" disabled style="width:28px;height:24px;padding:0;border:none;background:none;cursor:pointer">
-    <div class="toolbar-sep" style="height:24px;margin:0 2px"></div>
-    <span class="grad-label">Dash</span>
-    <select id="shapep-dash" class="shape-sel">
-      <option value="">Solid</option>
-      <option value="12,6">Dashed</option>
-      <option value="2,6">Dotted</option>
-      <option value="12,4,2,4">Dash·Dot</option>
-      <option value="24,8">Long</option>
-      <option value="6,3">Short</option>
-    </select>
-    <span class="grad-label">Ends</span>
-    <select id="shapep-cap" class="shape-sel">
-      <option value="round">Round</option>
-      <option value="butt">Flat</option>
-      <option value="square">Square</option>
-    </select>
-    <span class="grad-label">Join</span>
-    <select id="shapep-join" class="shape-sel">
-      <option value="round">Round</option>
-      <option value="miter">Miter</option>
-      <option value="bevel">Bevel</option>
-    </select>
+    <input type="color" id="shapep-fill" value="#7c6af0" disabled style="width:26px;height:22px;padding:0;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer">
+    <div class="toolbar-sep" style="height:24px;margin:0 4px"></div>
+    <button id="btn-shape-gradient" title="Draw shape with animated gradient stroke (uses gradient panel settings)" style="font-size:10px;padding:2px 7px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;white-space:nowrap">Gradient</button>
     <div class="toolbar-sep" style="height:24px;margin:0 4px"></div>
     <button id="btn-stamp-mode" class="btn" style="font-size:10px;padding:2px 7px">Stamp</button>
+    <span style="font-size:10px;opacity:.45;margin-left:4px">Dash/Cap/Join in ↑ Properties panel</span>
   </div>
 
   <footer id="status-bar">
