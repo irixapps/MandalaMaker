@@ -4511,7 +4511,7 @@ function wireEvents() {
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-    if (e.key === '?') { toggleHelp(); return; }
+    if (e.key === '?' || e.key === '/') { toggleHelp(); return; }
     if (e.key === 'Escape') { if (isShowcase()) { exitShowcase(); return; } closeHelp(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
