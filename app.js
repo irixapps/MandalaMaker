@@ -2457,7 +2457,7 @@ function gifRecommendations() {
   cyclCs = Math.min(cyclCs, 3000); // cap at 30s
   const cyclSec = cyclCs / 100;
 
-  const fps = cyclSec <= 4 ? 15 : 12;
+  const fps = cyclSec <= 2 ? 30 : cyclSec <= 4 ? 20 : 15;
   const frames = Math.max(1, Math.round(cyclSec * fps));
   return { fps, frames, cyclSec, hasAnim };
 }
