@@ -2,6 +2,9 @@
 //  MANDALA MAKER — app.js
 // ═══════════════════════════════════════════════════════
 
+// ── Version ────────────────────────────────────────────
+const VERSION = '1.0';
+
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
 const HANDLE_RADIUS = 7;
@@ -5079,6 +5082,10 @@ function renderGradientUI() {
 
 // ── Init ─────────────────────────────────────────────────
 function init() {
+  document.title = `Mandala Maker v${VERSION}`;
+  const vl = document.getElementById('version-label');
+  if (vl) vl.textContent = `v${VERSION}`;
+
   resizeCanvas(S.canvasW, S.canvasH);
   addMandala();
   wireEvents();
