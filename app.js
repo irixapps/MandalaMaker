@@ -512,6 +512,20 @@ function drawTimelineOn(canvasEl, propCfg, ap, selectedKfForProp) {
   c.beginPath(); c.moveTo(PAD.l, vy(mid)); c.lineTo(W - PAD.r, vy(mid)); c.stroke();
 
   if (kfs.length >= 2) {
+    // Faint loop-match line when first and last keyframe values are the same
+    const first = kfs[0], last = kfs[kfs.length - 1];
+    const vRange = vMax - vMin;
+    if (Math.abs(first.value - last.value) / (vRange || 1) < 0.01) {
+      const ly = vy(first.value);
+      c.save();
+      c.strokeStyle = 'rgba(255,255,255,0.18)';
+      c.lineWidth = 1;
+      c.setLineDash([4, 4]);
+      c.beginPath(); c.moveTo(tx(first.t), ly); c.lineTo(tx(last.t), ly); c.stroke();
+      c.setLineDash([]);
+      c.restore();
+    }
+
     c.strokeStyle = '#7c6af0'; c.lineWidth = 2; c.beginPath();
     const STEPS = 150;
     for (let i = 0; i <= STEPS; i++) {
