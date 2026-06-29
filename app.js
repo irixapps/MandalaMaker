@@ -2143,66 +2143,78 @@ function renderGridOverlay() {
   ctx.restore();
 }
 
-// Path2D cache for snap axis dots — keyed per mandala.
-// Path2D stores geometry only (no pixels), so rebuilding on slider change is
-// near-instant. Rasterisation is deferred to the GPU each frame via fill/stroke.
-const _snapDotCache = new WeakMap(); // m → { dotsPath, linesPath, key, DOT_R }
+// Offscreen canvas cache for snap axis dots.
+// One offscreen canvas is created per mandala and REUSED across invalidations
+// (clear + redraw), avoiding repeated bitmap allocation on every slider tick.
+// Per-frame cost is a single ctx.drawImage() — a GPU texture blit.
+const _snapDotCache = new WeakMap(); // m → { off, oc, key }
 
 function renderSnapAxisDots(m, isActive) {
   if (m.axes === 0) return;
   const step    = S.snapAxes.step || 1;
   const SPACING = S.snapAxes.radial || 40;
-  const maxR    = Math.hypot(canvas.width, canvas.height) * 0.75;
-  const DOT_R   = isActive ? 2 : 1.5;
-  // cx/cy excluded — path is in mandala-local space, translated at draw time
-  const cacheKey = `${m.axes},${m.axisRotation},${step},${SPACING},${maxR.toFixed(0)}`;
+  const W = canvas.width, H = canvas.height;
+  const maxR = Math.hypot(W, H) * 0.75;
+  const cacheKey = `${m.axes},${m.axisRotation},${m.colorIdx},${step},${SPACING},${W},${H},${isActive ? 1 : 0},${m.cx},${m.cy}`;
 
   let entry = _snapDotCache.get(m);
-  if (!entry || entry.key !== cacheKey) {
-    const totalHalfRays = m.axes * 2 * step;
-    const angleStep = Math.PI / (m.axes * step);
-    const rotRad = (m.axisRotation || 0) * Math.PI / 180;
 
-    const dotsPath  = new Path2D();
-    const linesPath = new Path2D();
-
-    for (let i = 0; i < totalHalfRays; i++) {
-      const a = rotRad + Math.PI / 2 + angleStep * i;
-      const cos = Math.cos(a), sin = Math.sin(a);
-
-      if (step > 1 && i % step !== 0) {
-        linesPath.moveTo(cos * -maxR, sin * -maxR);
-        linesPath.lineTo(cos *  maxR, sin *  maxR);
-      }
-
-      for (let r = SPACING; r <= maxR; r += SPACING) {
-        dotsPath.moveTo(cos * r + DOT_R, sin * r);
-        dotsPath.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
-      }
-    }
-
-    entry = { dotsPath, linesPath, key: cacheKey, DOT_R };
+  // Create offscreen canvas once; resize only if canvas dimensions changed
+  if (!entry || entry.off.width !== W || entry.off.height !== H) {
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    entry = { off, oc: off.getContext('2d'), key: '' };
     _snapDotCache.set(m, entry);
   }
 
-  const col = MANDALA_COLORS[m.colorIdx];
-  ctx.save();
-  ctx.translate(m.cx, m.cy);
+  if (entry.key !== cacheKey) {
+    const { oc } = entry;
+    oc.clearRect(0, 0, W, H);
 
-  if (step > 1) {
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 0.7;
-    ctx.setLineDash([3, 8]);
-    ctx.globalAlpha = isActive ? 0.18 : 0.08;
-    ctx.stroke(entry.linesPath);
-    ctx.setLineDash([]);
+    const totalHalfRays = m.axes * 2 * step;
+    const angleStep = Math.PI / (m.axes * step);
+    const rotRad = (m.axisRotation || 0) * Math.PI / 180;
+    const col = MANDALA_COLORS[m.colorIdx];
+    const DOT_R = isActive ? 2 : 1.5;
+
+    oc.save();
+    oc.translate(m.cx, m.cy);
+
+    if (step > 1) {
+      oc.strokeStyle = col;
+      oc.lineWidth = 0.7;
+      oc.setLineDash([3, 8]);
+      oc.globalAlpha = isActive ? 0.18 : 0.08;
+      oc.beginPath();
+      for (let i = 0; i < totalHalfRays; i++) {
+        if (i % step === 0) continue;
+        const a = rotRad + Math.PI / 2 + angleStep * i;
+        const cos = Math.cos(a), sin = Math.sin(a);
+        oc.moveTo(cos * -maxR, sin * -maxR);
+        oc.lineTo(cos *  maxR, sin *  maxR);
+      }
+      oc.stroke();
+      oc.setLineDash([]);
+    }
+
+    oc.fillStyle = col;
+    oc.globalAlpha = isActive ? 0.45 : 0.18;
+    oc.beginPath();
+    for (let i = 0; i < totalHalfRays; i++) {
+      const a = rotRad + Math.PI / 2 + angleStep * i;
+      const cos = Math.cos(a), sin = Math.sin(a);
+      for (let r = SPACING; r <= maxR; r += SPACING) {
+        oc.moveTo(cos * r + DOT_R, sin * r);
+        oc.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
+      }
+    }
+    oc.fill();
+    oc.restore();
+
+    entry.key = cacheKey;
   }
 
-  ctx.fillStyle = col;
-  ctx.globalAlpha = isActive ? 0.45 : 0.18;
-  ctx.fill(entry.dotsPath);
-
-  ctx.restore();
+  ctx.drawImage(entry.off, 0, 0);
 }
 
 // ── Shape system ─────────────────────────────────────────
