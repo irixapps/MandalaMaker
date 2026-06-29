@@ -2143,48 +2143,71 @@ function renderGridOverlay() {
   ctx.restore();
 }
 
+// Offscreen cache for snap axis dots — keyed per mandala, invalidated when any
+// relevant parameter changes. drawImage is ~10-50× cheaper than re-stroking arcs.
+const _snapDotCache = new WeakMap(); // m → { offscreen, key }
+
 function renderSnapAxisDots(m, isActive) {
   if (m.axes === 0) return;
-  const step = S.snapAxes.step || 1;
-  const totalHalfRays = m.axes * 2 * step;
-  const angleStep = Math.PI / (m.axes * step);
-  const rotRad = (m.axisRotation || 0) * Math.PI / 180;
-  const col = MANDALA_COLORS[m.colorIdx];
-  const DOT_R = isActive ? 2 : 1.5;
+  const step    = S.snapAxes.step || 1;
   const SPACING = S.snapAxes.radial || 40;
-  const maxR = Math.hypot(canvas.width, canvas.height) * 0.75;
+  const W = canvas.width, H = canvas.height;
+  const maxR = Math.hypot(W, H) * 0.75;
+  const cacheKey = `${m.axes},${m.axisRotation},${m.colorIdx},${step},${SPACING},${W},${H},${isActive ? 1 : 0},${m.cx},${m.cy}`;
 
-  ctx.save();
-  ctx.translate(m.cx, m.cy);
-  ctx.fillStyle = col;
+  let entry = _snapDotCache.get(m);
+  if (!entry || entry.key !== cacheKey) {
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const oc = off.getContext('2d');
 
-  for (let i = 0; i < totalHalfRays; i++) {
-    // Sub-division rays (not coinciding with main guide lines): draw faint line
-    if (step > 1 && i % step !== 0) {
+    const totalHalfRays = m.axes * 2 * step;
+    const angleStep = Math.PI / (m.axes * step);
+    const rotRad = (m.axisRotation || 0) * Math.PI / 180;
+    const col = MANDALA_COLORS[m.colorIdx];
+    const DOT_R = isActive ? 2 : 1.5;
+
+    oc.save();
+    oc.translate(m.cx, m.cy);
+
+    // Sub-division lines (when step > 1) — batch per alpha group
+    if (step > 1) {
+      oc.strokeStyle = col;
+      oc.lineWidth = 0.7;
+      oc.setLineDash([3, 8]);
+      oc.globalAlpha = isActive ? 0.18 : 0.08;
+      oc.beginPath();
+      for (let i = 0; i < totalHalfRays; i++) {
+        if (i % step === 0) continue;
+        const a = rotRad + Math.PI / 2 + angleStep * i;
+        const cos = Math.cos(a), sin = Math.sin(a);
+        oc.moveTo(cos * -maxR, sin * -maxR);
+        oc.lineTo(cos * maxR, sin * maxR);
+      }
+      oc.stroke();
+      oc.setLineDash([]);
+    }
+
+    // All dots in a single batched path
+    oc.fillStyle = col;
+    oc.globalAlpha = isActive ? 0.45 : 0.18;
+    oc.beginPath();
+    for (let i = 0; i < totalHalfRays; i++) {
       const a = rotRad + Math.PI / 2 + angleStep * i;
-      ctx.save();
-      ctx.rotate(a);
-      ctx.globalAlpha = isActive ? 0.18 : 0.08;
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 0.7;
-      ctx.setLineDash([3, 8]);
-      ctx.beginPath();
-      ctx.moveTo(0, -maxR); ctx.lineTo(0, maxR);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
+      const cos = Math.cos(a), sin = Math.sin(a);
+      for (let r = SPACING; r <= maxR; r += SPACING) {
+        oc.moveTo(cos * r + DOT_R, sin * r);
+        oc.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
+      }
     }
-    // Dots along each snap ray
-    const a = rotRad + Math.PI / 2 + angleStep * i;
-    const cos = Math.cos(a), sin = Math.sin(a);
-    for (let r = SPACING; r <= maxR; r += SPACING) {
-      ctx.globalAlpha = isActive ? 0.45 : 0.18;
-      ctx.beginPath();
-      ctx.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    oc.fill();
+    oc.restore();
+
+    entry = { offscreen: off, key: cacheKey };
+    _snapDotCache.set(m, entry);
   }
-  ctx.restore();
+
+  ctx.drawImage(entry.offscreen, 0, 0);
 }
 
 // ── Shape system ─────────────────────────────────────────
