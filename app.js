@@ -208,8 +208,24 @@ function sampleGradient(stops, t) {
 // Called inside a ctx.save() block that has already set translate+rotate for one symmetry cell.
 // dashArr: pre-scaled array (px values), e.g. [15, 10]. null = solid.
 // capType: 'round' | 'butt' | 'square'. 'round' is required for smooth gradient blending on solid strokes.
-function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
+// Reusable offscreen canvases for gradient-shape compositing
+let _gradColorCanvas = null, _gradColorCtx = null;
+let _gradMaskCanvas  = null, _gradMaskCtx  = null;
+function _ensureGradOffscreen(W, H) {
+  if (!_gradColorCanvas || _gradColorCanvas.width !== W || _gradColorCanvas.height !== H) {
+    _gradColorCanvas = document.createElement('canvas');
+    _gradColorCanvas.width = W; _gradColorCanvas.height = H;
+    _gradColorCtx = _gradColorCanvas.getContext('2d');
+    _gradMaskCanvas = document.createElement('canvas');
+    _gradMaskCanvas.width = W; _gradMaskCanvas.height = H;
+    _gradMaskCtx = _gradMaskCanvas.getContext('2d');
+  }
+}
+
+// targetCtx: optional — if provided, render into that context instead of the global ctx
+function renderGradientSegments(pts, grad, lineWidth, dashArr, capType, targetCtx) {
   if (pts.length < 2) return;
+  const tgt = targetCtx || ctx;
   const { stops, scale, speed } = grad;
   const timeOffset = (S.animClock * speed) % 1;
 
@@ -219,27 +235,54 @@ function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
     const dx = pts[i].x - pts[i-1].x, dy = pts[i].y - pts[i-1].y;
     lens.push(lens[i-1] + Math.sqrt(dx*dx + dy*dy));
   }
+  const totalLen = lens[lens.length - 1];
 
   const cap = capType || 'round';
-  ctx.lineWidth = lineWidth;
-  ctx.lineCap   = cap;
-  ctx.lineJoin  = 'round';
+  tgt.lineWidth = lineWidth;
+  tgt.lineCap   = cap;
+  tgt.lineJoin  = 'round';
 
-  // Dash handling
   const hasDash = dashArr && dashArr.length >= 2 && dashArr.reduce((a, b) => a + b, 0) > 0;
   const dashCycle = hasDash ? dashArr.reduce((a, b) => a + b, 0) : 0;
+  const dotRadius = lineWidth / 2;
 
-  // Round caps overlap so a larger step is invisible; butt/square need tight sampling.
   const step = cap === 'round'
     ? Math.max(1.5, lineWidth * 0.65)
     : Math.max(0.5, lineWidth * 0.25);
 
-  // Allow neighbouring samples to share a path segment unless colour drifts.
-  // This dramatically reduces ctx.stroke() calls for smooth gradients.
-  const COLOR_TOL = cap === 'round' ? 4 : 2;
+  function ptAtDist(d) {
+    d = Math.max(0, Math.min(totalLen, d));
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (d <= lens[i + 1] + 1e-6) {
+        const segLen = lens[i + 1] - lens[i];
+        const t = segLen > 0 ? (d - lens[i]) / segLen : 0;
+        return { x: pts[i].x + (pts[i+1].x - pts[i].x) * t,
+                 y: pts[i].y + (pts[i+1].y - pts[i].y) * t };
+      }
+    }
+    return pts[pts.length - 1];
+  }
 
+  const onPeriod = hasDash ? dashArr[0] : 0;
+  const isDotted = hasDash && onPeriod <= step;
+
+  if (isDotted) {
+    let d = 0;
+    while (d <= totalLen) {
+      const { r, g, b } = sampleGradientRGB(stops, d / scale + timeOffset);
+      const { x, y } = ptAtDist(d);
+      tgt.beginPath();
+      tgt.arc(x, y, dotRadius, 0, Math.PI * 2);
+      tgt.fillStyle = `rgb(${r},${g},${b})`;
+      tgt.fill();
+      d += dashCycle;
+    }
+    return;
+  }
+
+  const COLOR_TOL = cap === 'round' ? 4 : 2;
   let prevR = -999, prevG = -999, prevB = -999, hasPath = false;
-  ctx.beginPath();
+  tgt.beginPath();
 
   for (let i = 0; i < pts.length - 1; i++) {
     const dx = pts[i+1].x - pts[i].x, dy = pts[i+1].y - pts[i].y;
@@ -259,7 +302,7 @@ function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
           if (cyclePos < cum) { drawing = (d % 2 === 0); break; }
         }
         if (!drawing) {
-          if (hasPath) { ctx.stroke(); ctx.beginPath(); hasPath = false; prevR = -999; }
+          if (hasPath) { tgt.stroke(); tgt.beginPath(); hasPath = false; prevR = -999; }
           continue;
         }
       }
@@ -267,21 +310,21 @@ function renderGradientSegments(pts, grad, lineWidth, dashArr, capType) {
       const { r, g, b } = sampleGradientRGB(stops, dist / scale + timeOffset);
       const drift = Math.abs(r - prevR) + Math.abs(g - prevG) + Math.abs(b - prevB);
       if (drift > COLOR_TOL) {
-        if (hasPath) ctx.stroke();
-        ctx.beginPath();
-        ctx.strokeStyle = `rgb(${r},${g},${b})`;
+        if (hasPath) tgt.stroke();
+        tgt.beginPath();
+        tgt.strokeStyle = `rgb(${r},${g},${b})`;
         prevR = r; prevG = g; prevB = b;
         hasPath = false;
       }
 
       const xa = pts[i].x + dx*ta, ya = pts[i].y + dy*ta;
       const xb = pts[i].x + dx*tb, yb = pts[i].y + dy*tb;
-      ctx.moveTo(xa, ya);
-      ctx.lineTo(xb, yb);
+      tgt.moveTo(xa, ya);
+      tgt.lineTo(xb, yb);
       hasPath = true;
     }
   }
-  if (hasPath) ctx.stroke();
+  if (hasPath) tgt.stroke();
 }
 
 // ── Animation engine ────────────────────────────────────
@@ -2383,11 +2426,55 @@ function renderShapeInContext(tCtx, shape) {
   // Fill (always use Path2D)
   if (shape.fill) { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
 
-  // Stroke: use gradient segments if gradient is set and we're on the main ctx
+  // Stroke
   if (shape.gradient && tCtx === ctx) {
-    const pts = getShapePoints(shape);
+    const pts        = getShapePoints(shape);
     const scaledDash = (shape.dash && shape.dash.length) ? shape.dash.map(v => v * t) : null;
-    if (pts.length > 1) renderGradientSegments(pts, shape.gradient, shape.thickness, scaledDash, shape.lineCap || 'round');
+    const lineCap    = shape.lineCap  || 'round';
+    const lineJoin   = shape.lineJoin || 'round';
+    const needsComposite = lineJoin !== 'round' || (lineCap !== 'round' && scaledDash);
+
+    if (pts.length > 1) {
+      if (needsComposite) {
+        // Composite approach: render gradient colours to a temp canvas, then
+        // mask with a native stroke (correct lineCap/lineJoin/dash) via destination-in.
+        const W = canvas.width, H = canvas.height;
+        _ensureGradOffscreen(W, H);
+        const xf = ctx.getTransform();
+
+        // 1. Draw gradient arc-walk into colour canvas
+        _gradColorCtx.clearRect(0, 0, W, H);
+        _gradColorCtx.setTransform(xf);
+        renderGradientSegments(pts, shape.gradient, shape.thickness, null, 'round', _gradColorCtx);
+        _gradColorCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+        // 2. Draw native stroke (correct cap/join/dash) as white mask
+        _gradMaskCtx.clearRect(0, 0, W, H);
+        _gradMaskCtx.setTransform(xf);
+        _gradMaskCtx.lineWidth  = shape.thickness;
+        _gradMaskCtx.lineCap    = lineCap;
+        _gradMaskCtx.lineJoin   = lineJoin;
+        _gradMaskCtx.setLineDash(scaledDash || []);
+        _gradMaskCtx.strokeStyle = '#fff';
+        _gradMaskCtx.stroke(path);
+        _gradMaskCtx.setLineDash([]);
+        _gradMaskCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+        // 3. Clip gradient colours to the stroke mask
+        _gradColorCtx.globalCompositeOperation = 'destination-in';
+        _gradColorCtx.drawImage(_gradMaskCanvas, 0, 0);
+        _gradColorCtx.globalCompositeOperation = 'source-over';
+
+        // 4. Blit to main canvas (bypass current transform — already baked in)
+        ctx.save();
+        ctx.resetTransform();
+        ctx.globalAlpha = shape.opacity || 1;
+        ctx.drawImage(_gradColorCanvas, 0, 0);
+        ctx.restore();
+      } else {
+        renderGradientSegments(pts, shape.gradient, shape.thickness, scaledDash, lineCap);
+      }
+    }
   } else {
     tCtx.strokeStyle = shape.color;
     tCtx.lineWidth = shape.thickness;
