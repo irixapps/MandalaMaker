@@ -47,7 +47,7 @@ const S = {
   smooth: 0,
 
   // gradient stroke
-  gradientMode: false,
+  gradientMode: true,
   gradient: {
     stops: JSON.parse(JSON.stringify(GRADIENT_PRESETS['Rainbow'])),
     scale: 400,   // pixels per full gradient cycle
@@ -4919,6 +4919,10 @@ let _selectedStopIdx = 0;
 const HANDLE_H = 5; // triangle height at top + bottom of bar
 
 function initGradientUI() {
+  // Reflect the default gradientMode=true on startup
+  document.getElementById('btn-gradient-mode').classList.toggle('active', S.gradientMode);
+  document.getElementById('gradient-panel').classList.toggle('visible', S.gradientMode);
+
   const sel = document.getElementById('grad-preset');
   for (const name of Object.keys(GRADIENT_PRESETS)) {
     const opt = document.createElement('option');
