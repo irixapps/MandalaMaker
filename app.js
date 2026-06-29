@@ -1678,25 +1678,25 @@ function renderOverlay() {
 // Full render — used by GIF/WebP export (no cache)
 function renderMandala(m, forExport) {
   for (const stroke of m.strokes) {
-    if (stroke.pts.length < 2) continue;
+    if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
-  for (const shape of (m.shapes || [])) renderShapeSymmetric(ctx, m, shape);
-  for (const spr of m.sprites) renderSprite(ctx, m, spr);
+  for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
+  for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
 }
 
 // Live render — gradient strokes + shapes + sprites (solid strokes come from cache)
 function renderMandalaLive(m) {
   for (const stroke of m.strokes) {
-    if (stroke.pts.length < 2 || !stroke.gradient) continue;
+    if (stroke.pts.length < 2 || !stroke.gradient || stroke.visible === false) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, false, stroke.mirror !== false, axes, rot, stroke.gradient);
   }
-  for (const shape of (m.shapes || [])) renderShapeSymmetric(ctx, m, shape);
-  for (const spr of m.sprites) renderSprite(ctx, m, spr);
+  for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
+  for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
 }
 
 // Renders a stroke into an arbitrary 2D context (used by stroke cache builder)
@@ -3344,6 +3344,8 @@ function ensureLayerName(item, type) {
     } else {
       base = 'sprite';
     }
+  } else if (type === 'stroke') {
+    base = item.gradient ? 'grad-stroke' : 'stroke';
   } else {
     // shape
     base = item.type || 'shape';
@@ -3354,6 +3356,7 @@ function ensureLayerName(item, type) {
 
 const _SHAPE_ICON = { circle: '○', star: '★', polygon: '⬡' };
 const _SPRITE_ICON = '⊞';
+const _STROKE_ICON = '✏';
 
 // Which canvas item is being hovered in the layers panel (for highlight ring).
 let _layersHoverItem = null;
@@ -3366,11 +3369,11 @@ function updateLayersList() {
   const m = getActiveMandala();
   if (!m) return;
 
-  // Build flat list: shapes first (drawn under sprites), then sprites.
-  // Each entry: { type, item }
+  // Build flat list: strokes drawn first (bottom), then shapes, then sprites (top).
   const entries = [];
-  for (const shape of (m.shapes || [])) entries.push({ type: 'shape', item: shape });
-  for (const spr of m.sprites)          entries.push({ type: 'sprite', item: spr });
+  for (const stroke of (m.strokes || [])) entries.push({ type: 'stroke', item: stroke });
+  for (const shape  of (m.shapes  || [])) entries.push({ type: 'shape',  item: shape  });
+  for (const spr    of m.sprites)         entries.push({ type: 'sprite', item: spr    });
 
   if (entries.length === 0) {
     list.innerHTML = '<div style="padding:6px 10px;font-size:10px;opacity:.35">No layers yet</div>';
@@ -3381,21 +3384,30 @@ function updateLayersList() {
   for (let i = entries.length - 1; i >= 0; i--) {
     const { type, item } = entries[i];
     const name = ensureLayerName(item, type);
-    const icon = type === 'sprite' ? _SPRITE_ICON : (_SHAPE_ICON[item.type] || '◇');
+    const icon = type === 'sprite' ? _SPRITE_ICON
+               : type === 'stroke' ? _STROKE_ICON
+               : (_SHAPE_ICON[item.type] || '◇');
 
     const isActive = type === 'sprite'
       ? item.id === S.selectedSpriteId
-      : item.id === S.selectedShapeId;
+      : type === 'shape' ? item.id === S.selectedShapeId
+      : false;
+
+    const isVisible = item.visible !== false;
 
     const row = document.createElement('div');
-    row.className = 'layer-item' + (isActive ? ' active' : '');
+    row.className = 'layer-item' + (isActive ? ' active' : '') + (isVisible ? '' : ' layer-hidden');
     row.dataset.id = item.id;
     row.dataset.type = type;
     row.title = name;
+
+    const tagLabel = type === 'shape' ? item.type : type === 'stroke' ? 'stroke' : 'gif/img';
+
     row.innerHTML =
       `<span class="layer-icon">${icon}</span>` +
       `<span class="layer-name">${name}</span>` +
-      `<span class="layer-type-tag">${type === 'shape' ? item.type : 'gif/img'}</span>`;
+      `<span class="layer-type-tag">${tagLabel}</span>` +
+      `<button class="layer-eye" title="Toggle visibility">${isVisible ? '👁' : '🚫'}</button>`;
 
     row.addEventListener('mouseenter', () => {
       _layersHoverItem = { type, id: item.id };
@@ -3404,17 +3416,30 @@ function updateLayersList() {
     row.addEventListener('mouseleave', () => {
       if (_layersHoverItem?.id === item.id) { _layersHoverItem = null; markRenderDirty(); }
     });
+
+    // Eye button — toggle visible, do NOT propagate to the row click
+    row.querySelector('.layer-eye').addEventListener('click', e => {
+      e.stopPropagation();
+      item.visible = item.visible === false ? true : false;
+      if (type !== 'stroke') invalidateStrokeCache(); // shapes/sprites are cached
+      markRenderDirty();
+      updateLayersList();
+    });
+
     row.addEventListener('click', () => {
       if (type === 'sprite') {
         S.selectedSpriteId = item.id;
         S.selectedShapeId  = null;
-      } else {
+      } else if (type === 'shape') {
         S.selectedShapeId  = item.id;
         S.selectedSpriteId = null;
       }
-      setTool('select');
-      updateSpriteProps();
-      updateShapeProps();
+      // strokes are not selectable yet — just leave selection unchanged
+      if (type !== 'stroke') {
+        setTool('select');
+        updateSpriteProps();
+        updateShapeProps();
+      }
       updateLayersList();
       markRenderDirty();
     });
@@ -3433,6 +3458,20 @@ function renderLayerHoverHighlight() {
 
   // Blink: fast sine wave on opacity (3 Hz)
   const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(performance.now() * 0.006));
+
+  if (_layersHoverItem.type === 'stroke') {
+    const stroke = (m.strokes || []).find(s => s.id === _layersHoverItem.id);
+    if (!stroke || stroke.pts.length < 2) return;
+    const axes = stroke.axes != null ? stroke.axes : m.axes;
+    const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.globalCompositeOperation = 'source-over';
+    renderStrokeSymmetric(ctx, m, stroke.pts, `rgba(255,255,255,1)`, stroke.thickness + 2, 1, false, stroke.mirror !== false, axes, rot, null);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return;
+  }
 
   if (_layersHoverItem.type === 'shape') {
     const shape = (m.shapes || []).find(s => s.id === _layersHoverItem.id);

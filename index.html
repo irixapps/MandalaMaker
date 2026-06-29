@@ -54,6 +54,10 @@ body.showcase #showcase-hint {
 .layer-icon{font-size:10px;flex-shrink:0;opacity:.7;width:14px;text-align:center}
 .layer-name{overflow:hidden;text-overflow:ellipsis;flex:1}
 .layer-type-tag{font-size:9px;opacity:.45;flex-shrink:0}
+.layer-eye{margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;font-size:11px;opacity:.45;padding:0 2px;line-height:1;color:inherit}
+.layer-eye:hover{opacity:1}
+.layer-hidden .layer-name,.layer-hidden .layer-icon,.layer-hidden .layer-type-tag{opacity:.3}
+.layer-hidden .layer-eye{opacity:.6}
 
 #help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 #help-overlay.visible{display:flex}
