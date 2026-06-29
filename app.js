@@ -59,7 +59,7 @@ const S = {
 
   // grid + axes snapping
   snapGrid: { enabled: false, x: 15, y: 15, linked: true },
-  snapAxes: { enabled: false, step: 1, radial: 40 },
+  snapAxes: { enabled: false, step: 3, radial: 20 },
 
   // shape tool state
   shapeTool: 'circle',
@@ -2143,78 +2143,159 @@ function renderGridOverlay() {
   ctx.restore();
 }
 
-// Offscreen canvas cache for snap axis dots.
-// One offscreen canvas is created per mandala and REUSED across invalidations
-// (clear + redraw), avoiding repeated bitmap allocation on every slider tick.
-// Per-frame cost is a single ctx.drawImage() — a GPU texture blit.
-const _snapDotCache = new WeakMap(); // m → { off, oc, key }
+// ── Snap-dot Worker ──────────────────────────────────────
+// Renders the axes dot pattern on a background thread so the main thread
+// never blocks. Main thread always draws the latest available ImageBitmap
+// (stale bitmap shown while a new one is being computed).
+const _snapWorker = (() => {
+  const code = `
+self.onmessage = function(e) {
+  const { id, axes, axisRotation, colorIdx, step, spacing, W, H, cx, cy, isActive, colors } = e.data;
+  const col  = colors[colorIdx % colors.length];
+  const off  = new OffscreenCanvas(W, H);
+  const oc   = off.getContext('2d');
+  const maxR = Math.hypot(W, H) * 0.75;
+  const totalHalfRays = axes * 2 * step;
+  const angleStep     = Math.PI / (axes * step);
+  const rotRad        = axisRotation * Math.PI / 180;
+  const DOT_R         = isActive ? 2 : 1.5;
+
+  oc.translate(cx, cy);
+
+  if (step > 1) {
+    oc.strokeStyle = col;
+    oc.lineWidth   = 0.7;
+    oc.setLineDash([3, 8]);
+    oc.globalAlpha = isActive ? 0.18 : 0.08;
+    oc.beginPath();
+    for (let i = 0; i < totalHalfRays; i++) {
+      if (i % step === 0) continue;
+      const a = rotRad + Math.PI / 2 + angleStep * i;
+      const cos = Math.cos(a), sin = Math.sin(a);
+      oc.moveTo(cos * -maxR, sin * -maxR);
+      oc.lineTo(cos *  maxR, sin *  maxR);
+    }
+    oc.stroke();
+    oc.setLineDash([]);
+  }
+
+  oc.fillStyle   = col;
+  oc.globalAlpha = isActive ? 0.45 : 0.18;
+  oc.beginPath();
+  for (let i = 0; i < totalHalfRays; i++) {
+    const a = rotRad + Math.PI / 2 + angleStep * i;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    for (let r = spacing; r <= maxR; r += spacing) {
+      oc.moveTo(cos * r + DOT_R, sin * r);
+      oc.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
+    }
+  }
+  oc.fill();
+
+  const bitmap = off.transferToImageBitmap();
+  self.postMessage({ id, bitmap }, [bitmap]);
+};
+`;
+  try {
+    const blob = new Blob([code], { type: 'application/javascript' });
+    return new Worker(URL.createObjectURL(blob));
+  } catch(e) { return null; }
+})();
+
+// _snapDotCache: m → { bitmap: ImageBitmap|null, key: string, pending: string|null }
+const _snapDotCache = new WeakMap();
+let   _snapWorkerSeq = 0; // monotonic request id — only the latest response is used
+
+if (_snapWorker) {
+  _snapWorker.onmessage = ({ data: { id, bitmap } }) => {
+    // Find which mandala this response belongs to and apply only if still current
+    for (const m of S.mandalas) {
+      const entry = _snapDotCache.get(m);
+      if (entry && entry.pendingId === id) {
+        if (entry.bitmap) entry.bitmap.close(); // release previous GPU texture
+        entry.bitmap    = bitmap;
+        entry.key       = entry.pendingKey;
+        entry.pendingId = null;
+        markRenderDirty();
+        break;
+      }
+    }
+  };
+}
+
+function _snapDotRequestWorker(m, cacheKey, step, spacing, isActive) {
+  let entry = _snapDotCache.get(m);
+  if (!entry) { entry = { bitmap: null, key: '', pendingId: null, pendingKey: '' }; _snapDotCache.set(m, entry); }
+  if (entry.pendingKey === cacheKey) return; // already in-flight
+  entry.pendingKey = cacheKey;
+  entry.pendingId  = ++_snapWorkerSeq;
+  _snapWorker.postMessage({
+    id: entry.pendingId, axes: m.axes, axisRotation: m.axisRotation || 0,
+    colorIdx: m.colorIdx, step, spacing,
+    W: canvas.width, H: canvas.height, cx: m.cx, cy: m.cy,
+    isActive, colors: MANDALA_COLORS,
+  });
+}
+
+// Synchronous fallback (used when Worker unavailable)
+function _snapDotSync(m, cacheKey, step, spacing, isActive) {
+  let entry = _snapDotCache.get(m);
+  const W = canvas.width, H = canvas.height;
+  if (!entry || !entry.off || entry.off.width !== W || entry.off.height !== H) {
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    entry = { off, oc: off.getContext('2d'), key: '', bitmap: null };
+    _snapDotCache.set(m, entry);
+  }
+  if (entry.key === cacheKey) return;
+  const { oc } = entry;
+  oc.clearRect(0, 0, W, H);
+  const maxR = Math.hypot(W, H) * 0.75;
+  const totalHalfRays = m.axes * 2 * step;
+  const angleStep = Math.PI / (m.axes * step);
+  const rotRad = (m.axisRotation || 0) * Math.PI / 180;
+  const col = MANDALA_COLORS[m.colorIdx];
+  const DOT_R = isActive ? 2 : 1.5;
+  oc.save(); oc.translate(m.cx, m.cy);
+  if (step > 1) {
+    oc.strokeStyle = col; oc.lineWidth = 0.7; oc.setLineDash([3, 8]);
+    oc.globalAlpha = isActive ? 0.18 : 0.08; oc.beginPath();
+    for (let i = 0; i < totalHalfRays; i++) {
+      if (i % step === 0) continue;
+      const a = rotRad + Math.PI / 2 + angleStep * i;
+      const cos = Math.cos(a), sin = Math.sin(a);
+      oc.moveTo(cos * -maxR, sin * -maxR); oc.lineTo(cos * maxR, sin * maxR);
+    }
+    oc.stroke(); oc.setLineDash([]);
+  }
+  oc.fillStyle = col; oc.globalAlpha = isActive ? 0.45 : 0.18; oc.beginPath();
+  for (let i = 0; i < totalHalfRays; i++) {
+    const a = rotRad + Math.PI / 2 + angleStep * i;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    for (let r = spacing; r <= maxR; r += spacing) {
+      oc.moveTo(cos * r + DOT_R, sin * r); oc.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
+    }
+  }
+  oc.fill(); oc.restore();
+  entry.key = cacheKey;
+}
 
 function renderSnapAxisDots(m, isActive) {
   if (m.axes === 0) return;
   const step    = S.snapAxes.step || 1;
-  const SPACING = S.snapAxes.radial || 40;
-  const W = canvas.width, H = canvas.height;
-  const maxR = Math.hypot(W, H) * 0.75;
-  const cacheKey = `${m.axes},${m.axisRotation},${m.colorIdx},${step},${SPACING},${W},${H},${isActive ? 1 : 0},${m.cx},${m.cy}`;
+  const spacing = S.snapAxes.radial || 20;
+  const cacheKey = `${m.axes},${m.axisRotation},${m.colorIdx},${step},${spacing},${canvas.width},${canvas.height},${isActive ? 1 : 0},${m.cx},${m.cy}`;
 
-  let entry = _snapDotCache.get(m);
-
-  // Create offscreen canvas once; resize only if canvas dimensions changed
-  if (!entry || entry.off.width !== W || entry.off.height !== H) {
-    const off = document.createElement('canvas');
-    off.width = W; off.height = H;
-    entry = { off, oc: off.getContext('2d'), key: '' };
-    _snapDotCache.set(m, entry);
+  if (_snapWorker) {
+    const entry = _snapDotCache.get(m);
+    if (!entry || entry.key !== cacheKey) _snapDotRequestWorker(m, cacheKey, step, spacing, isActive);
+    const bmp = _snapDotCache.get(m)?.bitmap;
+    if (bmp) ctx.drawImage(bmp, 0, 0);
+  } else {
+    _snapDotSync(m, cacheKey, step, spacing, isActive);
+    const entry = _snapDotCache.get(m);
+    if (entry?.off) ctx.drawImage(entry.off, 0, 0);
   }
-
-  if (entry.key !== cacheKey) {
-    const { oc } = entry;
-    oc.clearRect(0, 0, W, H);
-
-    const totalHalfRays = m.axes * 2 * step;
-    const angleStep = Math.PI / (m.axes * step);
-    const rotRad = (m.axisRotation || 0) * Math.PI / 180;
-    const col = MANDALA_COLORS[m.colorIdx];
-    const DOT_R = isActive ? 2 : 1.5;
-
-    oc.save();
-    oc.translate(m.cx, m.cy);
-
-    if (step > 1) {
-      oc.strokeStyle = col;
-      oc.lineWidth = 0.7;
-      oc.setLineDash([3, 8]);
-      oc.globalAlpha = isActive ? 0.18 : 0.08;
-      oc.beginPath();
-      for (let i = 0; i < totalHalfRays; i++) {
-        if (i % step === 0) continue;
-        const a = rotRad + Math.PI / 2 + angleStep * i;
-        const cos = Math.cos(a), sin = Math.sin(a);
-        oc.moveTo(cos * -maxR, sin * -maxR);
-        oc.lineTo(cos *  maxR, sin *  maxR);
-      }
-      oc.stroke();
-      oc.setLineDash([]);
-    }
-
-    oc.fillStyle = col;
-    oc.globalAlpha = isActive ? 0.45 : 0.18;
-    oc.beginPath();
-    for (let i = 0; i < totalHalfRays; i++) {
-      const a = rotRad + Math.PI / 2 + angleStep * i;
-      const cos = Math.cos(a), sin = Math.sin(a);
-      for (let r = SPACING; r <= maxR; r += SPACING) {
-        oc.moveTo(cos * r + DOT_R, sin * r);
-        oc.arc(cos * r, sin * r, DOT_R, 0, Math.PI * 2);
-      }
-    }
-    oc.fill();
-    oc.restore();
-
-    entry.key = cacheKey;
-  }
-
-  ctx.drawImage(entry.off, 0, 0);
 }
 
 // ── Shape system ─────────────────────────────────────────
@@ -2790,8 +2871,13 @@ function wireSnapUI() {
       document.getElementById('snap-grid-x').value = S.snapGrid.y;
     }
   });
-  document.getElementById('snap-axes-step').addEventListener('input', e => { S.snapAxes.step = parseInt(e.target.value) || 1; });
-  document.getElementById('snap-axes-radial').addEventListener('input', e => { S.snapAxes.radial = parseInt(e.target.value) || 40; });
+  let _snapSliderTimer = null;
+  function onSnapSliderChange() {
+    clearTimeout(_snapSliderTimer);
+    _snapSliderTimer = setTimeout(markRenderDirty, 32);
+  }
+  document.getElementById('snap-axes-step').addEventListener('input', e => { S.snapAxes.step = parseInt(e.target.value) || 1; onSnapSliderChange(); });
+  document.getElementById('snap-axes-radial').addEventListener('input', e => { S.snapAxes.radial = parseInt(e.target.value) || 20; onSnapSliderChange(); });
 }
 
 // ── Tools ────────────────────────────────────────────────
