@@ -572,7 +572,7 @@ function drawTimelineOn(canvasEl, propCfg, ap, selectedKfForProp) {
       c.restore();
     }
 
-    c.strokeStyle = '#7c6af0'; c.lineWidth = 2; c.beginPath();
+    c.strokeStyle = kfs.length === 2 ? '#ffffff' : '#9a8cf5'; c.lineWidth = 2; c.beginPath();
     const STEPS = 150;
     for (let i = 0; i <= STEPS; i++) {
       const t = kfs[0].t + (i / STEPS) * (kfs[kfs.length-1].t - kfs[0].t);
