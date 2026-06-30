@@ -558,10 +558,11 @@ function drawTimelineOn(canvasEl, propCfg, ap, selectedKfForProp) {
   c.beginPath(); c.moveTo(PAD.l, vy(mid)); c.lineTo(W - PAD.r, vy(mid)); c.stroke();
 
   if (kfs.length >= 2) {
-    // Faint loop-match line when first and last keyframe values are the same
+    // Loop-match: first and last keyframe share the same value (seamless loop)
     const first = kfs[0], last = kfs[kfs.length - 1];
     const vRange = vMax - vMin;
-    if (Math.abs(first.value - last.value) / (vRange || 1) < 0.01) {
+    const isLoopMatch = Math.abs(first.value - last.value) / (vRange || 1) < 0.01;
+    if (isLoopMatch) {
       const ly = vy(first.value);
       c.save();
       c.strokeStyle = 'rgba(255,255,255,0.18)';
@@ -572,7 +573,7 @@ function drawTimelineOn(canvasEl, propCfg, ap, selectedKfForProp) {
       c.restore();
     }
 
-    c.strokeStyle = kfs.length === 2 ? '#ffffff' : '#9a8cf5'; c.lineWidth = 2; c.beginPath();
+    c.strokeStyle = isLoopMatch ? '#ffffff' : '#7c6af0'; c.lineWidth = 2; c.beginPath();
     const STEPS = 150;
     for (let i = 0; i <= STEPS; i++) {
       const t = kfs[0].t + (i / STEPS) * (kfs[kfs.length-1].t - kfs[0].t);
