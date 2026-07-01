@@ -3662,7 +3662,7 @@ function renderLayerHoverHighlight() {
 
   if (_layersHoverItem.type === 'stroke') {
     const stroke = (m.strokes || []).find(s => s.id === _layersHoverItem.id);
-    if (!stroke || stroke.pts.length < 2) return;
+    if (!stroke || stroke.pts.length < 2 || stroke.visible === false) return;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     ctx.save();
@@ -3676,7 +3676,7 @@ function renderLayerHoverHighlight() {
 
   if (_layersHoverItem.type === 'shape') {
     const shape = (m.shapes || []).find(s => s.id === _layersHoverItem.id);
-    if (!shape) return;
+    if (!shape || shape.visible === false) return;
     const clk = S.animClock;
     const r = (getAnimValue(shape, 'radius', clk) ?? shape.r) + (shape.thickness || 2) / 2 + 5;
     const ox = getAnimValue(shape, 'offsetX', clk) ?? shape.x;
@@ -3698,7 +3698,7 @@ function renderLayerHoverHighlight() {
     ctx.restore();
   } else {
     const spr = m.sprites.find(s => s.id === _layersHoverItem.id);
-    if (!spr) return;
+    if (!spr || spr.visible === false) return;
     const { x: cx, y: cy } = spriteAnimatedCenter(spr, m);
     const item = getPaletteItem(spr.paletteId);
     const drawable = item ? getDrawableImage(item) : null;
