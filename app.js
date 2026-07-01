@@ -638,18 +638,22 @@ const SHAPE_ANIM_PRESETS = {
     { label: 'Orbit CCW', kfs: [{t:0,v:180,e:'linear'},{t:1,v:-180,e:'linear'}], dur: 4 },
     { label: 'Swing',     kfs: [{t:0,v:-45,e:'ease'},{t:0.5,v:45,e:'ease'},{t:1,v:-45,e:'ease'}], dur: 3 },
   ],
-  // Offset X = tangential (side-to-side, perpendicular to axis)
+  // Offset X drives motion ALONG the axis spoke (in/out from center) — this is the
+  // radial control. Positive = further out. Presets stay on one side of center
+  // (all-positive values) so the shape doesn't flip through to the opposite spoke.
   offsetX:   [
+    { label: 'Pulse Out', kfs: [{t:0,v:60,e:'ease'},{t:0.5,v:220,e:'ease'},{t:1,v:60,e:'ease'}], dur: 2 },
+    { label: 'Breathe',   kfs: [{t:0,v:100,e:'ease-in'},{t:0.5,v:180,e:'ease-out'},{t:1,v:100,e:'ease-in'}], dur: 4 },
+    { label: 'Approach',  kfs: [{t:0,v:250,e:'ease'},{t:0.5,v:40,e:'ease'},{t:1,v:250,e:'ease'}], dur: 3 },
+    { label: 'Expand',    kfs: [{t:0,v:40,e:'linear'},{t:1,v:300,e:'linear'}], dur: 3 },
+    { label: 'Heartbeat', kfs: [{t:0,v:80,e:'ease'},{t:0.15,v:180,e:'ease'},{t:0.3,v:80,e:'ease'},{t:0.45,v:200,e:'ease'},{t:1,v:80,e:'ease'}], dur: 1.5 },
+  ],
+  // Offset Y drives motion PERPENDICULAR to the axis spoke (side-to-side around
+  // the ring) — this is the tangential control.
+  offsetY:   [
     { label: 'Arc Swing',  kfs: [{t:0,v:-60,e:'ease'},{t:0.5,v:60,e:'ease'},{t:1,v:-60,e:'ease'}], dur: 2 },
     { label: 'Drift',      kfs: [{t:0,v:-80,e:'ease'},{t:1,v:80,e:'ease'}], dur: 3 },
     { label: 'Shimmer',    kfs: [{t:0,v:-20,e:'ease'},{t:0.25,v:20,e:'ease'},{t:0.5,v:-20,e:'ease'},{t:0.75,v:20,e:'ease'},{t:1,v:-20,e:'ease'}], dur: 1.5 },
-  ],
-  // Offset Y = radial (in/out along the axis — negative = further from center)
-  offsetY:   [
-    { label: 'Oscillate',     kfs: [{t:0,v:-60,e:'ease'},{t:0.5,v:-200,e:'ease'},{t:1,v:-60,e:'ease'}], dur: 3 },
-    { label: 'Pulse Out',     kfs: [{t:0,v:-100,e:'ease'},{t:0.5,v:-280,e:'ease'},{t:1,v:-100,e:'ease'}], dur: 2 },
-    { label: 'Breathe',       kfs: [{t:0,v:-80,e:'ease-in'},{t:0.5,v:-160,e:'ease-out'},{t:1,v:-80,e:'ease-in'}], dur: 4 },
-    { label: 'Approach',      kfs: [{t:0,v:-250,e:'ease'},{t:0.5,v:-40,e:'ease'},{t:1,v:-250,e:'ease'}], dur: 3 },
   ],
 };
 
