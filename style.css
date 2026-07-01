@@ -456,7 +456,8 @@ select { cursor: pointer; }
 .prop-label-icon {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  width: 62px;
 }
 .prop-dir-icon {
   flex-shrink: 0;
