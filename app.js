@@ -376,7 +376,34 @@ function hasAnyAnimation() {
   if (S.mandalas.some(m => m.sprites.some(s => s.anim && Object.values(s.anim).some(ap => ap.enabled)))) return true;
   if (S.mandalas.some(m => (m.shapes || []).some(s => s.anim && Object.values(s.anim).some(ap => ap.enabled)))) return true;
   if (S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0))) return true;
+  if (S.mandalas.some(m => m.strokes.some(s => s.trailAnim?.enabled))) return true;
   return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
+}
+
+// Returns the leading sub-path of `pts` covering the first `frac` (0..1) of its arc length.
+// Used for the "trail" stroke animation — progressively reveals the path then loops.
+function strokePointsUpTo(pts, frac) {
+  if (frac <= 0 || pts.length < 2) return [];
+  if (frac >= 1) return pts;
+  const lens = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i-1].x, dy = pts[i].y - pts[i-1].y;
+    lens.push(lens[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  const target = lens[lens.length - 1] * frac;
+  const result = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    if (lens[i] <= target) {
+      result.push(pts[i]);
+    } else {
+      const segLen = lens[i] - lens[i-1];
+      const t = segLen > 0 ? (target - lens[i-1]) / segLen : 0;
+      result.push({ x: pts[i-1].x + (pts[i].x - pts[i-1].x) * t,
+                     y: pts[i-1].y + (pts[i].y - pts[i-1].y) * t });
+      break;
+    }
+  }
+  return result;
 }
 
 // Cached version — avoids scanning all mandala data every frame.
@@ -1321,7 +1348,7 @@ function rebuildStrokeCache() {
   for (const m of S.mandalas) {
     if (!m.visible) continue;
     for (const stroke of m.strokes) {
-      if (stroke.pts.length < 2 || stroke.gradient) continue; // skip gradient — rendered live
+      if (stroke.pts.length < 2 || stroke.gradient || stroke.trailAnim?.enabled || stroke.visible === false) continue; // skip gradient/trail — rendered live
       const axes = stroke.axes != null ? stroke.axes : m.axes;
       const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
       // Use the offscreen ctx, not the main ctx
@@ -1682,19 +1709,33 @@ function renderMandala(m, forExport) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
-    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
+    let pts = stroke.pts;
+    if (stroke.trailAnim?.enabled) {
+      const frac = (S.animClock % stroke.trailAnim.duration) / stroke.trailAnim.duration;
+      pts = strokePointsUpTo(stroke.pts, frac);
+      if (pts.length < 2) continue;
+    }
+    renderStrokeSymmetric(ctx, m, pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
   for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
 }
 
-// Live render — gradient strokes + shapes + sprites (solid strokes come from cache)
+// Live render — gradient/trail strokes + shapes + sprites (static solid strokes come from cache)
 function renderMandalaLive(m) {
   for (const stroke of m.strokes) {
-    if (stroke.pts.length < 2 || !stroke.gradient || stroke.visible === false) continue;
+    if (stroke.pts.length < 2 || stroke.visible === false) continue;
+    const isTrail = !!stroke.trailAnim?.enabled;
+    if (!stroke.gradient && !isTrail) continue; // static — already in cache
+    let pts = stroke.pts;
+    if (isTrail) {
+      const frac = (S.animClock % stroke.trailAnim.duration) / stroke.trailAnim.duration;
+      pts = strokePointsUpTo(stroke.pts, frac);
+      if (pts.length < 2) continue;
+    }
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
-    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, false, stroke.mirror !== false, axes, rot, stroke.gradient);
+    renderStrokeSymmetric(ctx, m, pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
   for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
@@ -3217,6 +3258,7 @@ function onMouseUp(e) {
   };
   m.strokes.push(newStroke);
   if (!newStroke.gradient) invalidateStrokeCache(); // gradient strokes render live, no cache needed
+  updateLayersList();
 
   S.pts = [];
   S.lineStart = null;
@@ -3403,11 +3445,15 @@ function updateLayersList() {
     row.title = name;
 
     const tagLabel = type === 'shape' ? item.type : type === 'stroke' ? 'stroke' : 'gif/img';
+    const isTrailOn = type === 'stroke' && !!item.trailAnim?.enabled;
 
     row.innerHTML =
       `<span class="layer-icon">${icon}</span>` +
       `<span class="layer-name">${name}</span>` +
       `<span class="layer-type-tag">${tagLabel}</span>` +
+      (type === 'stroke'
+        ? `<button class="layer-trail${isTrailOn ? ' active' : ''}" title="Animate as trail">∿</button>`
+        : '') +
       `<button class="layer-eye" title="Toggle visibility">${isVisible ? '👁' : '🚫'}</button>`;
 
     row.addEventListener('mouseenter', () => {
@@ -3422,10 +3468,25 @@ function updateLayersList() {
     row.querySelector('.layer-eye').addEventListener('click', e => {
       e.stopPropagation();
       item.visible = item.visible === false ? true : false;
-      if (type !== 'stroke') invalidateStrokeCache(); // shapes/sprites are cached
+      invalidateStrokeCache(); // solid strokes/shapes/sprites are all composited into the cache
       markRenderDirty();
       updateLayersList();
     });
+
+    // Trail-animation toggle (strokes only) — opening the icon enables the trail
+    // and reveals its speed input; clicking again disables and hides it.
+    const trailBtn = row.querySelector('.layer-trail');
+    if (trailBtn) {
+      trailBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!item.trailAnim) item.trailAnim = { enabled: false, duration: 2 };
+        item.trailAnim.enabled = !item.trailAnim.enabled;
+        invalidateStrokeCache();
+        flushHasAnimCache();
+        markRenderDirty();
+        updateLayersList();
+      });
+    }
 
     row.addEventListener('click', () => {
       if (type === 'sprite') {
@@ -3446,6 +3507,22 @@ function updateLayersList() {
     });
 
     list.appendChild(row);
+
+    if (isTrailOn) {
+      const panel = document.createElement('div');
+      panel.className = 'layer-trail-panel';
+      panel.innerHTML =
+        `<label>Speed</label>` +
+        `<input type="number" class="layer-trail-speed" min="0.1" max="20" step="0.1" value="${item.trailAnim.duration}">` +
+        `<span class="layer-trail-unit">s / loop</span>`;
+      panel.querySelector('.layer-trail-speed').addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        item.trailAnim.duration = (v > 0) ? v : 0.1;
+        markRenderDirty();
+      });
+      panel.addEventListener('click', e => e.stopPropagation());
+      list.appendChild(panel);
+    }
   }
 }
 
