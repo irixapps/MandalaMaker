@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '1.8';
+const VERSION = '1.9';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3073,7 +3073,10 @@ function wireShapePanel() {
     S.shapeParams.innerRatio = parseInt(e.target.value) / 100;
     document.getElementById('shapep-inner-val').textContent = e.target.value + '%';
   });
-  document.getElementById('shapep-sides').addEventListener('input', e => { S.shapeParams.sides = parseInt(e.target.value) || 6; });
+  document.getElementById('shapep-sides').addEventListener('input', e => {
+    S.shapeParams.sides = parseInt(e.target.value) || 6;
+    try { localStorage.setItem('mandala-polygon-sides', String(S.shapeParams.sides)); } catch {}
+  });
   document.getElementById('btn-shape-gradient').addEventListener('click', () => {
     S.gradientMode = !S.gradientMode;
     document.getElementById('btn-shape-gradient').classList.toggle('active', S.gradientMode);
@@ -3581,7 +3584,8 @@ function updateLayersList() {
       `<span class="layer-name">${name}</span>` +
       `<span class="layer-type-tag">${tagLabel}</span>` +
       (type === 'stroke'
-        ? `<button class="layer-trail${isTrailOn ? ' active' : ''}" title="Animate as trail">∿</button>`
+        ? `<button class="layer-trail${isTrailOn ? ' active' : ''}" title="Animate as trail">∿</button>` +
+          `<button class="layer-delete" title="Delete this drawing">🗑</button>`
         : '') +
       `<button class="layer-eye" title="Toggle visibility">${isVisible ? '👁' : '🚫'}</button>`;
 
@@ -3601,6 +3605,23 @@ function updateLayersList() {
       markRenderDirty();
       updateLayersList();
     });
+
+    // Delete button (strokes only) — confirm before permanently removing the drawing.
+    const deleteBtn = row.querySelector('.layer-delete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        historySnapshot();
+        const idx = m.strokes.findIndex(s => s.id === item.id);
+        if (idx !== -1) m.strokes.splice(idx, 1);
+        if (_layersHoverItem?.id === item.id) _layersHoverItem = null;
+        invalidateStrokeCache();
+        flushHasAnimCache();
+        markRenderDirty();
+        updateLayersList();
+      });
+    }
 
     // Trail-animation toggle (strokes only) — opening the icon enables the trail
     // and reveals its speed input; clicking again disables and hides it.
@@ -5111,9 +5132,9 @@ function wireEvents() {
   document.getElementById('btn-clear').addEventListener('click', () => {
     const m = getActiveMandala();
     if (!m) return;
-    const total = m.strokes.length + m.sprites.length;
+    const total = m.strokes.length + m.sprites.length + (m.shapes || []).length;
     if (total === 0) return;
-    if (confirm(`Clear all ${total} stroke${total !== 1 ? 's' : ''} and sprite${total !== 1 ? 's' : ''} from this mandala? This cannot be undone.`)) {
+    if (confirm(`Clear all ${total} item${total !== 1 ? 's' : ''} (strokes, shapes and sprites) from this mandala? This cannot be undone.`)) {
       historySnapshot();
       m.strokes = []; invalidateStrokeCache();
       m.sprites = [];
@@ -5122,6 +5143,7 @@ function wireEvents() {
       S.selectedShapeId = null;
       updateSpriteProps();
       updateShapeProps();
+      updateLayersList();
     }
   });
 
@@ -5643,6 +5665,13 @@ function init() {
   // Version is shown via the #version-label status-bar element instead.
   const vl = document.getElementById('version-label');
   if (vl) vl.textContent = `v${VERSION}`;
+
+  // Restore the last-used polygon side count so it stays consistent across
+  // page reloads, not just within a single session.
+  try {
+    const savedSides = parseInt(localStorage.getItem('mandala-polygon-sides'));
+    if (savedSides >= 3 && savedSides <= 20) S.shapeParams.sides = savedSides;
+  } catch {}
 
   resizeCanvas(S.canvasW, S.canvasH);
   addMandala();
