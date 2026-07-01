@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '1.3';
+const VERSION = '1.4';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4973,25 +4973,25 @@ function addMandala() {
 }
 
 // ── Event wiring ─────────────────────────────────────────
-let _showcasePrevGuides = true;
+let _theaterPrevGuides = true;
 
-function enterShowcase() {
-  _showcasePrevGuides = S.showGuides;
+function enterTheaterMode() {
+  _theaterPrevGuides = S.showGuides;
   S.showGuides = false;
   S.selectedSpriteId = null;
   S.selectedShapeId = null;
-  document.body.classList.add('showcase');
+  document.body.classList.add('theater-mode');
   fitCanvas();
 }
 
-function exitShowcase() {
-  document.body.classList.remove('showcase');
-  S.showGuides = _showcasePrevGuides;
+function exitTheaterMode() {
+  document.body.classList.remove('theater-mode');
+  S.showGuides = _theaterPrevGuides;
   fitCanvas();
 }
 
-function isShowcase() {
-  return document.body.classList.contains('showcase');
+function isTheaterMode() {
+  return document.body.classList.contains('theater-mode');
 }
 
 function toggleHelp() {
@@ -5020,7 +5020,7 @@ function wireEvents() {
   // Toolbar
   document.getElementById('btn-new').addEventListener('click', newProject);
   document.getElementById('btn-save').addEventListener('click', saveProject);
-  document.getElementById('btn-showcase').addEventListener('click', enterShowcase);
+  document.getElementById('btn-theater').addEventListener('click', enterTheaterMode);
   document.getElementById('btn-help').addEventListener('click', toggleHelp);
   document.getElementById('btn-help-close').addEventListener('click', closeHelp);
   document.getElementById('help-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelp(); });
@@ -5426,7 +5426,7 @@ function wireEvents() {
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.key === '?' || e.key === '/') { toggleHelp(); return; }
-    if (e.key === 'Escape') { if (isShowcase()) { exitShowcase(); return; } closeHelp(); }
+    if (e.key === 'Escape') { if (isTheaterMode()) { exitTheaterMode(); return; } closeHelp(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveProject(); return; }
