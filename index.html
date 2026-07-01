@@ -58,6 +58,16 @@ body.showcase #showcase-hint {
 .layer-eye:hover{opacity:1}
 .layer-hidden .layer-name,.layer-hidden .layer-icon,.layer-hidden .layer-type-tag{opacity:.3}
 .layer-hidden .layer-eye{opacity:.6}
+.layer-trail{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;opacity:.4;padding:0 2px;line-height:1;color:inherit}
+.layer-trail:hover{opacity:.85}
+.layer-trail.active{opacity:1;color:var(--accent)}
+.layer-trail-panel{display:flex;flex-direction:column;gap:3px;padding:3px 10px 5px 30px;margin:0 4px 2px;font-size:10px;color:var(--text);opacity:.8}
+.layer-trail-row{display:flex;align-items:center;gap:6px}
+.layer-trail-row label{opacity:.6;width:34px;flex-shrink:0}
+.layer-trail-speed{width:48px;background:var(--btn);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:10px;padding:1px 4px}
+.layer-trail-length{flex:1;height:12px;accent-color:var(--accent)}
+.layer-trail-unit{opacity:.5;flex-shrink:0}
+.layer-trail-length-val{width:28px;text-align:right}
 
 #help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 #help-overlay.visible{display:flex}

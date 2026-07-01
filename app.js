@@ -380,30 +380,120 @@ function hasAnyAnimation() {
   return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
 }
 
-// Returns the leading sub-path of `pts` covering the first `frac` (0..1) of its arc length.
-// Used for the "trail" stroke animation — progressively reveals the path then loops.
-function strokePointsUpTo(pts, frac) {
-  if (frac <= 0 || pts.length < 2) return [];
-  if (frac >= 1) return pts;
+// Computes the visible trail window [tailFrac, headFrac] (both 0..1, arc-length fractions
+// of the stroke path) for a given point in the loop cycle.
+// Draw phase: head sweeps 0 -> 1 while tail trails `visibleFrac` behind it (clamped to 0).
+// Recede phase: head holds at 1 while tail sweeps up to close the window, then the loop repeats.
+// Phase durations are weighted by distance travelled so the leading/trailing edges move at a
+// constant, matched speed across both phases.
+function trailWindowFrac(trailAnim, clock) {
+  const duration = trailAnim.duration > 0 ? trailAnim.duration : 0.1;
+  const visibleFrac = Math.max(0.02, Math.min(1, (trailAnim.lengthPct ?? 40) / 100));
+  const totalTravel = 1 + visibleFrac;
+  const drawPhaseFrac = 1 / totalTravel;
+  const t = (clock % duration) / duration;
+  const recedeStart = Math.max(0, 1 - visibleFrac);
+  if (t < drawPhaseFrac) {
+    const headFrac = t / drawPhaseFrac;
+    return { tailFrac: Math.max(0, headFrac - visibleFrac), headFrac };
+  }
+  const recedeT = (t - drawPhaseFrac) / (1 - drawPhaseFrac);
+  return { tailFrac: recedeStart + recedeT * (1 - recedeStart), headFrac: 1 };
+}
+
+// Walks pts from arc-distance fromD to toD (via the shared ptAtDist lookup) as one stroked path.
+function _trailArcStroke(ctx, ptAtDist, fromD, toD, step) {
+  if (toD <= fromD) return;
+  ctx.beginPath();
+  let d = fromD;
+  let p = ptAtDist(d);
+  ctx.moveTo(p.x, p.y);
+  while (d < toD) {
+    d = Math.min(d + step, toD);
+    p = ptAtDist(d);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+}
+
+// Renders the visible [tailFrac, headFrac] window of `pts` across all symmetry copies, with the
+// trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
+function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, tailFrac, headFrac) {
+  if (pts.length < 2 || headFrac <= 0) return;
+  const n = axes != null ? axes : m.axes;
+  const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
+  const effectiveMirror = n === 0 ? false : mirror;
+  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+
   const lens = [0];
   for (let i = 1; i < pts.length; i++) {
     const dx = pts[i].x - pts[i-1].x, dy = pts[i].y - pts[i-1].y;
     lens.push(lens[i-1] + Math.sqrt(dx*dx + dy*dy));
   }
-  const target = lens[lens.length - 1] * frac;
-  const result = [pts[0]];
-  for (let i = 1; i < pts.length; i++) {
-    if (lens[i] <= target) {
-      result.push(pts[i]);
-    } else {
-      const segLen = lens[i] - lens[i-1];
-      const t = segLen > 0 ? (target - lens[i-1]) / segLen : 0;
-      result.push({ x: pts[i-1].x + (pts[i].x - pts[i-1].x) * t,
-                     y: pts[i-1].y + (pts[i].y - pts[i-1].y) * t });
-      break;
+  const totalLen = lens[lens.length - 1];
+  if (totalLen <= 0) return;
+
+  const tailDist = Math.max(0, Math.min(totalLen, tailFrac * totalLen));
+  const headDist = Math.max(0, Math.min(totalLen, headFrac * totalLen));
+  if (headDist <= tailDist) return;
+  const fadeLen = (headDist - tailDist) * 0.25;
+  const fadeEndDist = tailDist + fadeLen;
+
+  function ptAtDist(d) {
+    d = Math.max(0, Math.min(totalLen, d));
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (d <= lens[i + 1] + 1e-6) {
+        const segLen = lens[i + 1] - lens[i];
+        const t = segLen > 0 ? (d - lens[i]) / segLen : 0;
+        return { x: pts[i].x + (pts[i+1].x - pts[i].x) * t,
+                 y: pts[i].y + (pts[i+1].y - pts[i].y) * t };
+      }
+    }
+    return pts[pts.length - 1];
+  }
+
+  const { r, g, b } = hexToRgb(color);
+  const step = Math.max(1.5, thickness * 0.65); // round-cap smoothing, matches gradient arc-walk
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.lineWidth = thickness;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  for (let i = 0; i < effectiveN; i++) {
+    for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
+      ctx.save();
+      ctx.translate(m.cx, m.cy);
+      ctx.rotate(rotRad + segAngle * i);
+      if (flip === 1) ctx.scale(1, -1);
+
+      if (fadeLen <= 0.01) {
+        ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
+        _trailArcStroke(ctx, ptAtDist, tailDist, headDist, step);
+      } else {
+        // Fading tail: alpha ramps 0 -> opacity across [tailDist, fadeEndDist]
+        let d = tailDist;
+        while (d < fadeEndDist) {
+          const dNext = Math.min(d + step, fadeEndDist);
+          const midD = (d + dNext) / 2;
+          const alpha = Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity;
+          const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
+          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+          d = dNext;
+        }
+        // Solid head: full opacity across [fadeEndDist, headDist]
+        if (fadeEndDist < headDist) {
+          ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
+          _trailArcStroke(ctx, ptAtDist, fadeEndDist, headDist, step);
+        }
+      }
+      ctx.restore();
     }
   }
-  return result;
+  ctx.restore();
 }
 
 // Cached version — avoids scanning all mandala data every frame.
@@ -1709,13 +1799,12 @@ function renderMandala(m, forExport) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
-    let pts = stroke.pts;
     if (stroke.trailAnim?.enabled) {
-      const frac = (S.animClock % stroke.trailAnim.duration) / stroke.trailAnim.duration;
-      pts = strokePointsUpTo(stroke.pts, frac);
-      if (pts.length < 2) continue;
+      const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac);
+      continue;
     }
-    renderStrokeSymmetric(ctx, m, pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
+    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
   for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
@@ -1727,15 +1816,14 @@ function renderMandalaLive(m) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const isTrail = !!stroke.trailAnim?.enabled;
     if (!stroke.gradient && !isTrail) continue; // static — already in cache
-    let pts = stroke.pts;
-    if (isTrail) {
-      const frac = (S.animClock % stroke.trailAnim.duration) / stroke.trailAnim.duration;
-      pts = strokePointsUpTo(stroke.pts, frac);
-      if (pts.length < 2) continue;
-    }
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
-    renderStrokeSymmetric(ctx, m, pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
+    if (isTrail) {
+      const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac);
+      continue;
+    }
+    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
   for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
@@ -3479,7 +3567,7 @@ function updateLayersList() {
     if (trailBtn) {
       trailBtn.addEventListener('click', e => {
         e.stopPropagation();
-        if (!item.trailAnim) item.trailAnim = { enabled: false, duration: 2 };
+        if (!item.trailAnim) item.trailAnim = { enabled: false, duration: 2, lengthPct: 40 };
         item.trailAnim.enabled = !item.trailAnim.enabled;
         invalidateStrokeCache();
         flushHasAnimCache();
@@ -3509,15 +3597,31 @@ function updateLayersList() {
     list.appendChild(row);
 
     if (isTrailOn) {
+      if (item.trailAnim.lengthPct == null) item.trailAnim.lengthPct = 40;
       const panel = document.createElement('div');
       panel.className = 'layer-trail-panel';
       panel.innerHTML =
-        `<label>Speed</label>` +
-        `<input type="number" class="layer-trail-speed" min="0.1" max="20" step="0.1" value="${item.trailAnim.duration}">` +
-        `<span class="layer-trail-unit">s / loop</span>`;
+        `<div class="layer-trail-row">` +
+          `<label>Speed</label>` +
+          `<input type="number" class="layer-trail-speed" min="0.1" max="20" step="0.1" value="${item.trailAnim.duration}">` +
+          `<span class="layer-trail-unit">s / loop</span>` +
+        `</div>` +
+        `<div class="layer-trail-row">` +
+          `<label>Length</label>` +
+          `<input type="range" class="layer-trail-length" min="5" max="100" step="1" value="${item.trailAnim.lengthPct}">` +
+          `<span class="layer-trail-unit layer-trail-length-val">${item.trailAnim.lengthPct}%</span>` +
+        `</div>`;
       panel.querySelector('.layer-trail-speed').addEventListener('input', e => {
         const v = parseFloat(e.target.value);
         item.trailAnim.duration = (v > 0) ? v : 0.1;
+        markRenderDirty();
+      });
+      const lenInput = panel.querySelector('.layer-trail-length');
+      const lenVal   = panel.querySelector('.layer-trail-length-val');
+      lenInput.addEventListener('input', e => {
+        const v = parseInt(e.target.value) || 5;
+        item.trailAnim.lengthPct = v;
+        lenVal.textContent = v + '%';
         markRenderDirty();
       });
       panel.addEventListener('click', e => e.stopPropagation());
