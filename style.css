@@ -453,6 +453,16 @@ select { cursor: pointer; }
   width: 55px;
   flex-shrink: 0;
 }
+.prop-label-icon {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.prop-dir-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+  opacity: 0.85;
+}
 .prop-val {
   font-size: 10px;
   color: var(--text);

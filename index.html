@@ -552,7 +552,10 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 
         <!-- Offset X = tangential (perpendicular to axis, side-to-side) -->
         <div class="prop-row">
-          <label class="prop-label" title="Tangential offset — side to side perpendicular to the axis">Tang.</label>
+          <label class="prop-label prop-label-icon" title="Tangential offset — slides the shape sideways, perpendicular to its axis spoke (like moving around a ring)">
+            <svg class="prop-dir-icon" width="14" height="14" viewBox="0 0 14 14"><line x1="7" y1="0" x2="7" y2="14" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/><path d="M2 7 H12 M2 7 L4 5 M2 7 L4 9 M12 7 L10 5 M12 7 L10 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+            <span>Tang.</span>
+          </label>
           <input type="range" id="sp-offsetX" min="-500" max="500" value="0">
           <span class="prop-val" id="sp-offsetX-val">0</span>
           <button class="anim-btn" id="sa-btn-offsetX" title="Animate tangential (side-to-side) position">∿</button>
@@ -574,7 +577,10 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 
         <!-- Offset Y = radial (along axis, in/out from center; negative = further out) -->
         <div class="prop-row">
-          <label class="prop-label" title="Radial offset — in/out from center along the axis (negative = further out)">Radial</label>
+          <label class="prop-label prop-label-icon" title="Radial offset — moves the shape in/out along its axis spoke, toward or away from the mandala center (negative = further out)">
+            <svg class="prop-dir-icon" width="14" height="14" viewBox="0 0 14 14"><line x1="7" y1="0" x2="7" y2="14" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/><path d="M7 2 V12 M7 2 L5 4 M7 2 L9 4 M7 12 L5 10 M7 12 L9 10" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+            <span>Radial</span>
+          </label>
           <input type="range" id="sp-offsetY" min="-500" max="500" value="0">
           <span class="prop-val" id="sp-offsetY-val">0</span>
           <button class="anim-btn" id="sa-btn-offsetY" title="Animate radial (in/out) position along the axis">∿</button>
