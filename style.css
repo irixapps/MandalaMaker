@@ -99,13 +99,14 @@ body {
 
 /* ── Right panel ── */
 #right-panel {
-  width: 220px;
+  width: 260px;
   min-height: 0;
   background: var(--panel);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   flex-shrink: 0;
 }
 #right-panel::-webkit-scrollbar { width: 4px; }
