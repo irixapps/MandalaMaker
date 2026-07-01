@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '1.1';
+const VERSION = '1.2';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1625,13 +1625,34 @@ function spriteAnimatedCenter(spr, m) {
   };
 }
 
+// Resolves a shape's local (x, y) position for one frame, given its animated
+// offsetX (radial: distance from center) / offsetY (tangential: arc-offset around center).
+//
+// When neither is animated, this is just the shape's static (x, y) — unchanged.
+// When either is animated, position is computed in POLAR form around the shape's own
+// rest bearing (baseAngle) so the two controls stay fully decoupled: animating radial
+// alone always moves straight along the ray from center through the shape's rest
+// position (zero tangential drift), and animating tangential alone always holds the
+// radius fixed (zero radial drift) — regardless of how far off the guide spoke the
+// shape was originally placed. A naive Cartesian override (old behavior) only stays
+// pure-radial when the shape sits exactly on the spoke (y === 0).
+function shapeRadialTangentialOffset(shape, clk) {
+  const animOffX = getAnimValue(shape, 'offsetX', clk);
+  const animOffY = getAnimValue(shape, 'offsetY', clk);
+  if (animOffX == null && animOffY == null) return { x: shape.x, y: shape.y };
+  const baseRadius = Math.hypot(shape.x, shape.y);
+  const baseAngle  = baseRadius > 0.001 ? Math.atan2(shape.y, shape.x) : 0;
+  const radius = animOffX ?? baseRadius;
+  const angle  = baseAngle + (animOffY ?? 0) / Math.max(radius, 1);
+  return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+}
+
 // Animated version of shapeWorldCenter — accounts for orbit and animated offsetX/Y.
 function shapeAnimatedWorldCenter(m, shape) {
   const clk = S.animClock;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const orbit  = (getAnimValue(shape, 'orbit', clk) ?? (shape.orbit || 0)) * Math.PI / 180;
-  const ox = getAnimValue(shape, 'offsetX', clk) ?? shape.x;
-  const oy = getAnimValue(shape, 'offsetY', clk) ?? shape.y;
+  const { x: ox, y: oy } = shapeRadialTangentialOffset(shape, clk);
   const angle = rotRad + orbit;
   return {
     x: m.cx + Math.cos(angle) * ox - Math.sin(angle) * oy,
@@ -2644,8 +2665,6 @@ function renderShapeSymmetric(tCtx, m, shape) {
   const animOp      = getAnimValue(shape, 'opacity',   clk);
   const animRot     = getAnimValue(shape, 'rotation',  clk);
   const animOrbit   = getAnimValue(shape, 'orbit',     clk);
-  const animOffX    = getAnimValue(shape, 'offsetX',   clk);
-  const animOffY    = getAnimValue(shape, 'offsetY',   clk);
 
   // Mutate a reused proxy object instead of allocating a new one each frame.
   _shapeProxy.id        = shape.id;
@@ -2664,8 +2683,7 @@ function renderShapeSymmetric(tCtx, m, shape) {
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
   const effOrbitRad = (animOrbit ?? (shape.orbit      || 0)) * Math.PI / 180;
-  const effX        = animOffX   ?? shape.x;
-  const effY        = animOffY   ?? shape.y;
+  const { x: effX, y: effY } = shapeRadialTangentialOffset(shape, clk);
 
   const n = shape.axes != null ? shape.axes : m.axes;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
@@ -3683,8 +3701,7 @@ function renderLayerHoverHighlight() {
     if (!shape || shape.visible === false) return;
     const clk = S.animClock;
     const r = (getAnimValue(shape, 'radius', clk) ?? shape.r) + (shape.thickness || 2) / 2 + 5;
-    const ox = getAnimValue(shape, 'offsetX', clk) ?? shape.x;
-    const oy = getAnimValue(shape, 'offsetY', clk) ?? shape.y;
+    const { x: ox, y: oy } = shapeRadialTangentialOffset(shape, clk);
     const orbitRad = ((getAnimValue(shape, 'orbit', clk) ?? shape.orbit ?? 0) * Math.PI / 180);
     const rotRad   = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
     ctx.save();
