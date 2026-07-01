@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.mandalize.net/</loc>
+    <lastmod>2026-07-01</lastmod>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.mandalize.net/examples/</loc>
+    <lastmod>2026-07-01</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.mandalize.net/how-to-make-an-animated-mandala/</loc>
+    <lastmod>2026-07-01</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.mandalize.net/gif-kaleidoscope-maker/</loc>
+    <lastmod>2026-07-01</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.mandalize.net/help/</loc>
+    <lastmod>2026-07-01</lastmod>
+    <priority>0.7</priority>
+  </url>
+</urlset>

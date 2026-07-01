@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '1.4';
+const VERSION = '1.6';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5639,7 +5639,8 @@ function renderGradientUI() {
 
 // ── Init ─────────────────────────────────────────────────
 function init() {
-  document.title = `Mandala Maker v${VERSION}`;
+  // Note: <title> is set statically in index.html for SEO — don't overwrite it here.
+  // Version is shown via the #version-label status-bar element instead.
   const vl = document.getElementById('version-label');
   if (vl) vl.textContent = `v${VERSION}`;
 

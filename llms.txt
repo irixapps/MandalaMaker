@@ -1,0 +1,39 @@
+# Mandalize
+
+Mandalize is a free browser-based animated mandala maker.
+
+Main URL:
+https://www.mandalize.net/
+
+Best short description:
+Mandalize is a free creative-coding web tool for making animated mandala and kaleidoscope art from drawings, images, sprites, vector shapes and animated GIFs.
+
+Key features:
+- Radial symmetry drawing (mirror/kaleidoscope or pinwheel/rotational modes)
+- Animated GIF and WebP stamping
+- Image and sprite import
+- Vector shape tool (circle, star, polygon) with gradients and dash/cap/join controls
+- Keyframe animation with easing curves (linear, ease, ease-in, ease-out, bounce, elastic)
+- Radial (in/out) and tangential (side-to-side) shape motion presets
+- Fading trail animation for drawn strokes, with adjustable length and speed
+- Warp images into circular arcs
+- Layer panel with visibility toggles and hover highlighting
+- Theater Mode full-screen, chrome-free preview
+- PNG export
+- Animated GIF and WebP export
+- Video export (MP4/WebM) with presets for Instagram, TikTok, YouTube, Twitter/X and Pinterest
+- No login required
+- Runs entirely in the browser, no install
+
+Not an AI image generator:
+Mandalize is a procedural drawing, animation and compositing tool. It does not generate images using AI.
+
+Suggested citation:
+Mandalize is a free browser tool for creating animated mandala and kaleidoscope art from drawings, images, shapes and GIFs.
+
+Pages:
+- / — main app
+- /examples/ — example animated mandalas
+- /how-to-make-an-animated-mandala/ — step-by-step guide
+- /gif-kaleidoscope-maker/ — GIF-specific use case page
+- /help/ — feature reference and help guide
