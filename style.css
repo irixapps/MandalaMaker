@@ -355,6 +355,27 @@ input[type="range"] {
   cursor: pointer;
   height: 4px;
 }
+/* Safari renders the native range thumb noticeably oversized and misaligned
+   even with accent-color set — force a small consistent circular thumb on
+   all browsers (track fill keeps using native accent-color behavior). */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
 input[type="color"] {
   width: 26px;
   height: 22px;
