@@ -3,79 +3,283 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mandalize Help — Animated Mandala Maker Guide</title>
-  <meta name="description" content="Help guide for Mandalize, the free animated mandala maker for drawings, images, GIFs, vector shapes, keyframe animation, trail animation and radial symmetry art.">
+  <title>Mandalize Help — Full Feature Guide for the Animated Mandala Maker</title>
+  <meta name="description" content="Complete guide to Mandalize: symmetry drawing, vector shapes, image and GIF stamping, keyframe animation, trail animation, layers, snapping, canvas controls, and exporting to PNG, GIF, WebP and video.">
   <link rel="canonical" href="https://www.mandalize.net/help/">
   <link rel="stylesheet" href="../style.css?v=1.6">
+  <style>
+    .help-toc { columns: 2; column-gap: 32px; margin: 18px 0 8px; padding: 0; list-style: none; }
+    .help-toc li { margin-bottom: 6px; break-inside: avoid; }
+    .help-toc a { text-decoration: none; }
+    .help-toc a:hover { text-decoration: underline; }
+    .seo-page h2 { margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 24px; }
+    .seo-page h3 { margin-top: 20px; color: #e8e0ff; }
+    .feat-list { margin: 10px 0; padding-left: 20px; }
+    .feat-list li { margin-bottom: 8px; }
+    .feat-list b { color: #fff; }
+    .kbd-table { width: 100%; border-collapse: collapse; margin: 10px 0 20px; font-size: 14px; }
+    .kbd-table th, .kbd-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .kbd-table th { color: #fff; font-weight: 600; }
+    .kbd-table kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 12px; }
+    .note { background: rgba(124,106,240,0.12); border: 1px solid rgba(124,106,240,0.3); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+  </style>
 </head>
 <body style="background:#0d0d1a">
   <main class="seo-page">
     <h1>Mandalize Help</h1>
-
-    <h2>What is Mandalize?</h2>
     <p>
-      Mandalize is a free browser-based animated mandala maker. It helps you create kaleidoscope art from drawings,
-      images, sprites, vector shapes and animated GIFs.
+      A complete guide to every feature in Mandalize — the free, browser-based tool for drawing animated
+      mandala and kaleidoscope art from freehand strokes, vector shapes, stamped images and animated GIFs.
     </p>
 
-    <h2>Drawing with symmetry</h2>
+    <nav aria-label="Table of contents">
+      <ul class="help-toc">
+        <li><a href="#overview">1. What is Mandalize?</a></li>
+        <li><a href="#symmetry">2. Symmetry System</a></li>
+        <li><a href="#drawing">3. Drawing Tools</a></li>
+        <li><a href="#shapes">4. Vector Shapes</a></li>
+        <li><a href="#images">5. Images, Sprites &amp; GIFs</a></li>
+        <li><a href="#warp">6. Warp Mode</a></li>
+        <li><a href="#layers">7. Layers Panel</a></li>
+        <li><a href="#animation">8. Keyframe Animation</a></li>
+        <li><a href="#trail">9. Trail Animation</a></li>
+        <li><a href="#snapping">10. Snapping</a></li>
+        <li><a href="#canvas">11. Canvas &amp; Viewport</a></li>
+        <li><a href="#mandalas">12. Multiple Mandalas</a></li>
+        <li><a href="#theater">13. Theater Mode</a></li>
+        <li><a href="#export">14. Exporting</a></li>
+        <li><a href="#save">15. Saving &amp; Loading Projects</a></li>
+        <li><a href="#shortcuts">16. Keyboard Shortcuts</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="overview">1. What is Mandalize?</h2>
     <p>
-      Choose the number of axes, then draw with the brush or line tool. Your marks are repeated around the mandala
-      centre. Toggle Mirror for a kaleidoscope look, or turn it off for rotational pinwheel-style patterns.
+      Mandalize is a free, browser-based mandala maker for creating animated kaleidoscope art. It combines
+      freehand drawing, vector shapes, stamped images and animated GIFs, all repeated automatically around a
+      radially symmetric mandala — then lets you keyframe-animate any of it and export the result as an image,
+      animated GIF/WebP, or video.
+    </p>
+    <p>
+      It runs entirely in your browser: no login, no install, and no account required. Mandalize is a
+      procedural drawing, animation and compositing tool — it does not generate imagery with AI.
     </p>
 
-    <h2>Stamping images and GIFs</h2>
+    <h2 id="symmetry">2. Symmetry System</h2>
     <p>
-      Drag images or GIFs into the palette, select one, then stamp it onto the canvas. A semi-transparent preview
-      shows where the repeated copies will appear.
+      Mandalize uses <b>dihedral symmetry</b>: setting the axis count to <code>n</code> produces <code>2n</code>
+      repeated copies of everything you draw or place, evenly spaced around the mandala's centre.
+    </p>
+    <ul class="feat-list">
+      <li><b>Axes −/+</b> — set the number of symmetry axes. <code>0</code> switches to free draw with no
+        repetition, just a single centre-point guide.</li>
+      <li><b>Mirror</b> — when on, alternating copies are flipped for a classic kaleidoscope look. When off,
+        all copies are pure rotations of each other, giving a rotational pinwheel look instead.</li>
+      <li><b>Rotate ↺ / ↻</b> — steps the axis rotation by <code>45°/n</code> per click (a quarter of one
+        symmetry cell). You can also type an exact degree value into the rotation field.</li>
+      <li><b>Guides</b> — toggles the dashed symmetry guide lines. Guides always show <code>n</code> full
+        lines through the centre, visually creating <code>2n</code> cells, and never appear in exports.</li>
+    </ul>
+
+    <h2 id="drawing">3. Drawing Tools</h2>
+    <ul class="feat-list">
+      <li><b>Brush</b> — freehand drawing, smoothed and repeated with radial symmetry.</li>
+      <li><b>Line</b> — straight-line tool; hold the grid-snap modifier while dragging for 15° angle increments.</li>
+      <li><b>Eraser</b> — erases with the same radial symmetry as drawing, so you can clean up any copy and
+        every repeated copy updates together.</li>
+      <li><b>Size / Colour / Opacity / Smooth</b> — control brush thickness, stroke colour, transparency, and
+        how aggressively freehand points are smoothed into curves.</li>
+      <li><b>Gradient mode</b> — instead of a flat colour, strokes can use a scrolling multi-stop colour
+        gradient (adjustable spread and scroll speed) that animates continuously along the line.</li>
+      <li><b>Eyedropper</b> — picks a colour directly from the canvas.</li>
+    </ul>
+
+    <h2 id="shapes">4. Vector Shapes</h2>
+    <p>
+      Alongside freehand drawing, Mandalize has a dedicated vector shape tool for clean geometric forms:
+    </p>
+    <ul class="feat-list">
+      <li><b>Circle, Star, Polygon</b> — drag to draw. Stars have adjustable point count and inner radius
+        ratio; polygons have an adjustable side count that's remembered as your default for the next shape you draw
+        (both across the session and after closing the browser).</li>
+      <li><b>Fill</b> — optional solid fill colour, independent of the stroke colour.</li>
+      <li><b>Stroke controls</b> — thickness, dash pattern, line cap (round/butt/square) and line join
+        (round/miter/bevel), all rendered correctly together, including on dotted and gradient strokes.</li>
+      <li><b>Gradient strokes</b> — like brush strokes, shape outlines can use an animated colour gradient
+        instead of a flat colour.</li>
+    </ul>
+
+    <h2 id="images">5. Images, Sprites &amp; GIFs</h2>
+    <ul class="feat-list">
+      <li><b>Palette</b> — drag images or animated GIFs/WebPs into the palette panel, or use <b>+ Import</b>.
+        Animated files keep playing their native animation on the canvas.</li>
+      <li><b>Stamp tool</b> — select a palette item, then click the canvas to place it with full radial
+        symmetry. A semi-transparent preview shows exactly where every copy will land before you click.</li>
+      <li><b>Sprite properties</b> — once placed, each stamped copy (a "sprite") has Scale, Rotation, Orbit
+        (its angle around the mandala centre), Offset X/Y and Opacity controls, each independently
+        keyframe-animatable.</li>
+      <li><b>Select tool</b> — click a placed sprite to move, scale or rotate it directly on the canvas.</li>
+      <li><b>Sprite sheets</b> — a palette image can be treated as a grid of frames (configurable rows/columns)
+        and a specific cell selected for stamping.</li>
+      <li><b>Transparent colour</b> — pick a colour on a palette image to treat as transparent, with an
+        adjustable tolerance.</li>
+      <li><b>Crop</b> — set a crop rectangle on a palette image before stamping it.</li>
+    </ul>
+
+    <h2 id="warp">6. Warp Mode</h2>
+    <p>
+      Warp mode bends a stamped image into an arc around the mandala's origin instead of keeping it flat —
+      useful for circular platforms, rings, and patterns that should follow the curve of the mandala rather
+      than sit as a flat rectangle. The drag handle moves to the arc's centre for intuitive positioning, and
+      Scale, Orbit and Offset X/Y all animate correctly while warped.
     </p>
 
-    <h2>Drawing vector shapes</h2>
+    <h2 id="layers">7. Layers Panel</h2>
     <p>
-      Use the circle, star or polygon tool to add clean vector shapes with solid colours or animated gradients,
-      plus dash, cap and join controls.
+      The layers panel lists every stroke, shape and sprite in the active mandala, topmost layer first:
+    </p>
+    <ul class="feat-list">
+      <li><b>Visibility toggle</b> — an eye icon on every layer hides or shows it without deleting it.</li>
+      <li><b>Hover highlight</b> — hovering a layer row pulses a white outline around the matching item on
+        the canvas (or the item's exact drawn shape, for strokes), so you can always tell what you're looking at.
+        Hidden layers show no highlight while hidden, and reappear highlighted the moment you unhide them.</li>
+      <li><b>Delete</b> — a bin icon on drawing (stroke) layers deletes that stroke after a confirmation
+        prompt.</li>
+      <li><b>Trail controls</b> — a ∿ icon on drawing layers opens the trail-animation speed and length
+        controls (see below) directly inline.</li>
+      <li>Clicking a shape or sprite layer selects it, exactly like clicking it on the canvas.</li>
+    </ul>
+
+    <h2 id="animation">8. Keyframe Animation</h2>
+    <p>
+      Shapes and sprites share the same animation system. Every animatable property — Scale, Rotation, Orbit,
+      Opacity, plus position — has a ∿ button that opens a looping keyframe timeline for that property:
+    </p>
+    <ul class="feat-list">
+      <li><b>Duration</b> — how many seconds one loop of that property's animation takes.</li>
+      <li><b>Keyframes</b> — drag dots on the timeline to set a value at a specific point in the loop, or
+        choose from a set of ready-made presets per property.</li>
+      <li><b>Easing</b> — each segment between two keyframes has its own easing curve: linear, ease, ease-in,
+        ease-out, bounce, or elastic.</li>
+      <li><b>Loop-match indicator</b> — when a property's first and last keyframe values match, the timeline
+        draws a faint dashed reference line and highlights the curve, so you can see at a glance that the
+        animation will loop seamlessly.</li>
+      <li>
+        <b>Radial vs. Tangential position</b> — position animation is split into two independent controls
+        instead of raw X/Y: <b>Radial</b> moves a shape straight in and out along its own axis spoke from the
+        mandala centre, and <b>Tangential</b> slides it side to side around the ring at a constant distance from
+        centre. The two stay fully decoupled from each other regardless of where on the canvas the shape was
+        originally drawn — animating one never causes drift in the other.
+      </li>
+    </ul>
+    <div class="note">
+      All keyframe animations loop continuously and play live on the canvas — including in Theater Mode and
+      in GIF/WebP/video exports, which sample the exact same animation state frame-by-frame.
+    </div>
+
+    <h2 id="trail">9. Trail Animation</h2>
+    <p>
+      Any drawn stroke can become a fading trail instead of rendering as a static line: a bright, comet-like
+      segment sweeps continuously along the path and fades out behind itself, then loops. Two controls are
+      available per stroke, right in the layers panel:
+    </p>
+    <ul class="feat-list">
+      <li><b>Speed</b> — how many seconds one full sweep of the trail takes.</li>
+      <li><b>Length</b> — what percentage of the total stroke length is visible in the trail at once.</li>
+    </ul>
+    <p>Trail-animated strokes keep their full gradient colouring (if any) while animating.</p>
+
+    <h2 id="snapping">10. Snapping</h2>
+    <ul class="feat-list">
+      <li><b>Grid snap</b> — snaps drawing and placement to a configurable X/Y grid spacing, with an optional
+        lock to keep X and Y spacing tied together.</li>
+      <li><b>Axis snap</b> — snaps to the mandala's own symmetry guides: a configurable radial ring spacing
+        (distance between concentric snap rings along each axis) and a configurable number of tangential
+        subdivisions between each pair of guide lines.</li>
+    </ul>
+
+    <h2 id="canvas">11. Canvas &amp; Viewport</h2>
+    <ul class="feat-list">
+      <li><b>Background colour</b> — sets the canvas background, used both on-screen and in every export.</li>
+      <li>
+        <b>Canvas size presets</b> — square (512 up to 4096), landscape (1200×900 up to 4K), portrait
+        (900×1200 up to a 1242×2688 phone preset), or any custom width/height up to 8192×8192. Resizing
+        preserves the existing drawing.
+      </li>
+      <li><b>Pan &amp; zoom</b> — scroll to pan, Ctrl/⌘+scroll to zoom toward the cursor, drag with Space or
+        the middle mouse button held to pan, and use the zoom buttons or Fit to reset the view.</li>
+    </ul>
+
+    <h2 id="mandalas">12. Multiple Mandalas</h2>
+    <p>
+      A single project can contain more than one mandala layered on the same canvas, each with its own axis
+      count, rotation, mirror setting, strokes, shapes and sprites. Use the <b>+</b> button in the mandalas
+      panel to add another, and the trash icon to delete the active one (the last remaining mandala can't be
+      deleted).
     </p>
 
-    <h2>Animating sprites and shapes</h2>
+    <h2 id="theater">13. Theater Mode</h2>
     <p>
-      Each stamped sprite or drawn shape can animate scale, rotation, orbit, opacity, and position using looping
-      keyframes and easing curves. Position animation splits into a Radial control (moves straight in/out from the
-      mandala centre) and a Tangential control (slides side to side around the ring) — the two stay fully
-      independent no matter where you placed the shape.
+      Theater Mode hides every toolbar and panel and centres the canvas full-screen for distraction-free
+      viewing or presenting. A brief on-screen hint fades out after a few seconds; press <kbd>Esc</kbd> any
+      time to exit back to the normal editor.
     </p>
 
-    <h2>Trail animation</h2>
+    <h2 id="export">14. Exporting</h2>
+    <p>All export options live under the <b>Export</b> menu in the toolbar:</p>
+    <ul class="feat-list">
+      <li><b>PNG</b> — a single still image at the canvas's native resolution.</li>
+      <li><b>Animated GIF</b> — universally supported animated image. Mandalize recommends a frame rate and
+        frame count automatically, based on the lowest-common-multiple loop length of every animation in the
+        scene, so the export loops seamlessly.</li>
+      <li><b>Animated WebP</b> — same animated-loop behaviour as GIF, with a smaller file size.</li>
+      <li>
+        <b>Video (MP4/WebM)</b> — exports a real video file, automatically choosing MP4/H.264 where the
+        browser supports it and falling back to WebM otherwise. Includes ready-made size presets for Instagram
+        (post and Reels/Story), TikTok, YouTube Shorts, Twitter/X and Pinterest, plus configurable frame rate,
+        duration and quality. Content is automatically letterboxed to fit a differently-shaped export frame
+        without stretching.
+      </li>
+    </ul>
+    <p>Guides, selection handles and hover highlights are always hidden automatically during every export.</p>
+
+    <h2 id="save">15. Saving &amp; Loading Projects</h2>
     <p>
-      Any drawn stroke can be turned into a fading trail: a comet-like segment sweeps along the line on a loop,
-      with adjustable speed and trail length, instead of the whole line rendering statically.
+      <b>Save</b> writes the entire project — every mandala's strokes, shapes and sprites, all animation
+      keyframes, palette images (embedded directly in the file), canvas size and background colour — to a
+      single self-contained <code>.json</code> file with no external dependencies. <b>Load</b> reads one back
+      exactly as it was, including every animation and layer setting.
     </p>
 
-    <h2>Warp mode</h2>
-    <p>
-      Warp mode bends an image into an arc around the mandala origin, useful for circular platforms, rings and
-      curved patterns.
-    </p>
+    <h2 id="shortcuts">16. Keyboard Shortcuts</h2>
+    <table class="kbd-table">
+      <tr><th>Key</th><th>Action</th></tr>
+      <tr><td><kbd>B</kbd></td><td>Brush tool</td></tr>
+      <tr><td><kbd>L</kbd></td><td>Line tool</td></tr>
+      <tr><td><kbd>E</kbd></td><td>Eraser tool</td></tr>
+      <tr><td><kbd>S</kbd></td><td>Select tool</td></tr>
+      <tr><td><kbd>P</kbd></td><td>Stamp / Place tool</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Eyedropper</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Circle shape tool</td></tr>
+      <tr><td><kbd>*</kbd></td><td>Star shape tool</td></tr>
+      <tr><td><kbd>G</kbd></td><td>Polygon shape tool</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Exit stamp mode → Select tool, last placed sprite selected</td></tr>
+      <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Decrease / increase brush or stamp size</td></tr>
+      <tr><td><kbd>Delete</kbd></td><td>Delete the selected sprite or shape</td></tr>
+      <tr><td><kbd>Ctrl/⌘ Z</kbd></td><td>Undo</td></tr>
+      <tr><td><kbd>Ctrl/⌘ Y</kbd></td><td>Redo</td></tr>
+      <tr><td><kbd>Ctrl/⌘ S</kbd></td><td>Save project</td></tr>
+      <tr><td><kbd>Ctrl/⌘ +</kbd> / <kbd>−</kbd></td><td>Zoom in / out</td></tr>
+      <tr><td><kbd>Ctrl/⌘ 0</kbd></td><td>Fit canvas to screen</td></tr>
+      <tr><td><kbd>Space</kbd> + drag</td><td>Pan canvas</td></tr>
+      <tr><td>Scroll</td><td>Pan canvas</td></tr>
+      <tr><td><kbd>Ctrl/⌘</kbd> + scroll</td><td>Zoom toward cursor</td></tr>
+      <tr><td>Middle-mouse drag</td><td>Pan canvas</td></tr>
+      <tr><td>Double-click background</td><td>Fit canvas to screen</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Toggle in-app shortcut reference</td></tr>
+    </table>
 
-    <h2>Layers</h2>
-    <p>
-      The layers panel lists every stroke, shape and sprite, with an eye icon to toggle visibility and a hover
-      highlight that shows exactly what's selected on the canvas.
-    </p>
-
-    <h2>Theater Mode</h2>
-    <p>
-      Theater Mode hides all UI and centres the canvas full-screen for distraction-free viewing or presenting —
-      press Esc to exit.
-    </p>
-
-    <h2>Exporting</h2>
-    <p>
-      Export your artwork as a PNG image, an animated GIF or WebP, or an MP4/WebM video with ready-made presets
-      for Instagram, TikTok, YouTube, Twitter/X and Pinterest. Guides and selection handles are hidden during
-      export.
-    </p>
-
-    <p><a href="/">Back to Mandalize</a></p>
+    <p><a href="/">← Back to Mandalize</a></p>
   </main>
 </body>
 </html>
