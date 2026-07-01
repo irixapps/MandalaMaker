@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '1.9';
+const VERSION = '2.0';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2932,8 +2932,14 @@ function wireShapeProps() {
     });
   });
   document.getElementById('sp-sides').addEventListener('input', e => {
-    forShape(s => { if (!s.params) s.params = {}; s.params.sides = parseInt(e.target.value) || 6; });
+    const sides = parseInt(e.target.value) || 6;
+    forShape(s => { if (!s.params) s.params = {}; s.params.sides = sides; });
     document.getElementById('sp-sides-val').textContent = e.target.value;
+    // Also remember this as the default for the next new polygon drawn.
+    S.shapeParams.sides = sides;
+    const toolSidesInput = document.getElementById('shapep-sides');
+    if (toolSidesInput) toolSidesInput.value = sides;
+    try { localStorage.setItem('mandala-polygon-sides', String(sides)); } catch {}
   });
   document.getElementById('sp-delete').addEventListener('click', () => {
     const found = findSelectedShape();
