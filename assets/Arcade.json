@@ -13,7 +13,166 @@
       "mirror": true,
       "colorIdx": 0,
       "visible": true,
-      "strokes": [],
+      "strokes": [
+        {
+          "id": "id63_1782940234772",
+          "pts": [
+            {
+              "x": 20,
+              "y": 0
+            },
+            {
+              "x": 29.058433907576468,
+              "y": 3.6414942075334937
+            },
+            {
+              "x": 37.37869532597872,
+              "y": 9.517785339482753
+            },
+            {
+              "x": 44.54895797082977,
+              "y": 17.484177594677472
+            },
+            {
+              "x": 50.1840899068702,
+              "y": 27.328798778361037
+            },
+            {
+              "x": 53.93588180826761,
+              "y": 38.77725822702533
+            },
+            {
+              "x": 55.50249886711542,
+              "y": 51.49879300265532
+            },
+            {
+              "x": 54.63694682335585,
+              "y": 65.11377766511313
+            },
+            {
+              "x": 51.15436202162874,
+              "y": 79.202444182787
+            },
+            {
+              "x": 44.93795869431851,
+              "y": 93.31463274703628
+            },
+            {
+              "x": 35.94349338554724,
+              "y": 106.98037192457629
+            },
+            {
+              "x": 24.20213606221213,
+              "y": 119.72106815864356
+            },
+            {
+              "x": 9.821669442787204,
+              "y": 131.06107048666937
+            },
+            {
+              "x": -7.014028196540946,
+              "y": 140.5393667715198
+            },
+            {
+              "x": -26.047226650039544,
+              "y": 147.7211629518312
+            }
+          ],
+          "color": "#ffd23b",
+          "thickness": 2.5,
+          "opacity": 0.75,
+          "erase": false,
+          "axes": 2,
+          "axisRotation": 0,
+          "mirror": true,
+          "gradient": null,
+          "trailAnim": {
+            "enabled": true,
+            "duration": 2,
+            "lengthPct": 40
+          },
+          "_layerName": "stroke-011"
+        },
+        {
+          "id": "id64_1782940234772",
+          "pts": [
+            {
+              "x": 20,
+              "y": 0
+            },
+            {
+              "x": 29.058433907576468,
+              "y": -3.6414942075334937
+            },
+            {
+              "x": 37.37869532597872,
+              "y": -9.517785339482753
+            },
+            {
+              "x": 44.54895797082977,
+              "y": -17.484177594677472
+            },
+            {
+              "x": 50.1840899068702,
+              "y": -27.328798778361037
+            },
+            {
+              "x": 53.93588180826761,
+              "y": -38.77725822702533
+            },
+            {
+              "x": 55.50249886711542,
+              "y": -51.49879300265532
+            },
+            {
+              "x": 54.63694682335585,
+              "y": -65.11377766511313
+            },
+            {
+              "x": 51.15436202162874,
+              "y": -79.202444182787
+            },
+            {
+              "x": 44.93795869431851,
+              "y": -93.31463274703628
+            },
+            {
+              "x": 35.94349338554724,
+              "y": -106.98037192457629
+            },
+            {
+              "x": 24.20213606221213,
+              "y": -119.72106815864356
+            },
+            {
+              "x": 9.821669442787204,
+              "y": -131.06107048666937
+            },
+            {
+              "x": -7.014028196540946,
+              "y": -140.5393667715198
+            },
+            {
+              "x": -26.047226650039544,
+              "y": -147.7211629518312
+            }
+          ],
+          "color": "#ff3b3b",
+          "thickness": 2.5,
+          "opacity": 0.75,
+          "erase": false,
+          "axes": 2,
+          "axisRotation": 0,
+          "mirror": true,
+          "gradient": null,
+          "trailAnim": {
+            "enabled": true,
+            "duration": 2.6,
+            "lengthPct": 40
+          },
+          "_layerName": "stroke-010"
+        }
+      ],
       "sprites": [
         {
           "id": "id15_1782631024776",
@@ -48,7 +207,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "platform-006"
         },
         {
           "id": "id16_1782631117341",
@@ -83,7 +243,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "mario-002"
         },
         {
           "id": "id20_1782631193035",
@@ -123,7 +284,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "kong-002"
         },
         {
           "id": "id21_1782631284870",
@@ -158,7 +320,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "platform-005"
         },
         {
           "id": "id22_1782631290792",
@@ -193,7 +356,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "platform-004"
         },
         {
           "id": "id24_1782631330506",
@@ -210,7 +374,8 @@
           "orbitAngle": 0,
           "axes": 0,
           "axisRotation": 0,
-          "mirror": false
+          "mirror": false,
+          "_layerName": "source-002"
         },
         {
           "id": "id26_1782631354301",
@@ -245,7 +410,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "barrel-002"
         },
         {
           "id": "id27_1782631433677",
@@ -280,7 +446,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "pac-man-002"
         },
         {
           "id": "id28_1782631461661",
@@ -315,7 +482,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "download-002"
         },
         {
           "id": "id29_1782631543215",
@@ -350,7 +518,8 @@
                 }
               ]
             }
-          }
+          },
+          "_layerName": "200w-002"
         },
         {
           "id": "id30_1782631588801",
@@ -367,7 +536,1056 @@
           "orbitAngle": 0,
           "axes": 2,
           "axisRotation": 0,
-          "mirror": true
+          "mirror": true,
+          "_layerName": "original-23e8252-002"
+        }
+      ],
+      "shapes": [
+        {
+          "id": "id75_1782940355885",
+          "type": "polygon",
+          "x": 90,
+          "y": 0,
+          "r": 12,
+          "color": "#ffd23b",
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 75,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 110,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 75,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2.4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -15,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 15,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -15,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": -8,
+          "params": {
+            "sides": 3
+          },
+          "_layerName": "polygon-009"
+        },
+        {
+          "id": "id76_1782940355885",
+          "type": "polygon",
+          "x": 200,
+          "y": 0,
+          "r": 14,
+          "color": "#ff3b3b",
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 3.6,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 185,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 220,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 185,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2.9,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -15,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 15,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -15,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 4.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -51.428571428571445,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "params": {
+            "sides": 4
+          },
+          "_layerName": "polygon-008"
+        },
+        {
+          "id": "id77_1782940355885",
+          "type": "polygon",
+          "x": 300,
+          "y": 0,
+          "r": 16,
+          "color": "#3bffb0",
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 4.2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 285,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 320,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 285,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 3.4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -15,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 15,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -15,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 5.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 2.9,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "params": {
+            "sides": 5
+          },
+          "_layerName": "polygon-007"
+        },
+        {
+          "id": "id78_1782940466789",
+          "x": 55,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 2.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 41,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 73,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 41,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "polygon",
+          "r": 10,
+          "params": {
+            "sides": 3
+          },
+          "color": "#ffd23b",
+          "_layerName": "polygon-006"
+        },
+        {
+          "id": "id79_1782940466789",
+          "x": 75,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 3.1,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 61,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 93,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 61,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3.4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -360,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "polygon",
+          "r": 12,
+          "params": {
+            "sides": 4
+          },
+          "color": "#ff3b3b",
+          "_layerName": "polygon-005"
+        },
+        {
+          "id": "id80_1782940466789",
+          "x": 130,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 3.7,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 116,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 148,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 116,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3.8,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "circle",
+          "r": 13,
+          "params": {},
+          "color": "#3bffb0",
+          "_layerName": "circle-003"
+        },
+        {
+          "id": "id81_1782940466789",
+          "x": 175,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 4.3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 161,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 193,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 161,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 3.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 4.2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "polygon",
+          "r": 10,
+          "params": {
+            "sides": 3
+          },
+          "color": "#9ecfff",
+          "_layerName": "polygon-004"
+        },
+        {
+          "id": "id82_1782940466789",
+          "x": 225,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 4.9,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 211,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 243,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 211,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 4.6,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "polygon",
+          "r": 12,
+          "params": {
+            "sides": 4
+          },
+          "color": "#ff9ecf",
+          "_layerName": "polygon-003"
+        },
+        {
+          "id": "id83_1782940466789",
+          "x": 245,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 2.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 231,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 263,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 231,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "circle",
+          "r": 13,
+          "params": {},
+          "color": "#ffe08a",
+          "_layerName": "circle-002"
+        },
+        {
+          "id": "id84_1782940466789",
+          "x": 285,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 3.1,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 271,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 303,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 271,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "polygon",
+          "r": 10,
+          "params": {
+            "sides": 3
+          },
+          "color": "#c8ffb0",
+          "_layerName": "polygon-002"
+        },
+        {
+          "id": "id85_1782940466789",
+          "x": 320,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 3.7,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 306,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 338,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 306,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 3.5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3.4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "polygon",
+          "r": 12,
+          "params": {
+            "sides": 4
+          },
+          "color": "#e0c8ff",
+          "_layerName": "polygon-001"
+        },
+        {
+          "id": "id86_1782940466789",
+          "x": 350,
+          "y": 0,
+          "thickness": 2,
+          "opacity": 0.9,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 4.3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 336,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 368,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 336,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 14,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -14,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3.8,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "gradient": null,
+          "rotation": 0,
+          "orbit": 0,
+          "type": "circle",
+          "r": 13,
+          "params": {},
+          "color": "#ffb08a",
+          "_layerName": "circle-001"
         }
       ]
     }
