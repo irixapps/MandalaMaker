@@ -34,6 +34,5 @@ Mandalize is a free browser tool for creating animated mandala and kaleidoscope 
 Pages:
 - / — main app
 - /examples/ — example animated mandalas
-- /how-to-make-an-animated-mandala/ — step-by-step guide
 - /gif-kaleidoscope-maker/ — GIF-specific use case page
 - /help/ — feature reference and help guide
