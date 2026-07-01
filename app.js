@@ -418,7 +418,7 @@ function _trailArcStroke(ctx, ptAtDist, fromD, toD, step) {
 
 // Renders the visible [tailFrac, headFrac] window of `pts` across all symmetry copies, with the
 // trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
-function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, tailFrac, headFrac) {
+function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, tailFrac, headFrac, gradient) {
   if (pts.length < 2 || headFrac <= 0) return;
   const n = axes != null ? axes : m.axes;
   const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
@@ -453,7 +453,8 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
     return pts[pts.length - 1];
   }
 
-  const { r, g, b } = hexToRgb(color);
+  const solidRGB = gradient ? null : hexToRgb(color);
+  const timeOffset = gradient ? (S.animClock * gradient.speed) % 1 : 0;
   const step = Math.max(1.5, thickness * 0.65); // round-cap smoothing, matches gradient arc-walk
 
   ctx.save();
@@ -469,10 +470,28 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
       ctx.rotate(rotRad + segAngle * i);
       if (flip === 1) ctx.scale(1, -1);
 
-      if (fadeLen <= 0.01) {
+      if (gradient) {
+        // Colour shifts continuously along the path, so walk the whole window in small
+        // segments — alpha ramps through the fade zone, full opacity beyond it.
+        let d = tailDist;
+        while (d < headDist) {
+          const dNext = Math.min(d + step, headDist);
+          const midD = (d + dNext) / 2;
+          const alpha = (fadeLen > 0.01 && midD < fadeEndDist)
+            ? Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity
+            : opacity;
+          const { r, g, b } = sampleGradientRGB(gradient.stops, midD / gradient.scale + timeOffset);
+          const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
+          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+          d = dNext;
+        }
+      } else if (fadeLen <= 0.01) {
+        const { r, g, b } = solidRGB;
         ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
         _trailArcStroke(ctx, ptAtDist, tailDist, headDist, step);
       } else {
+        const { r, g, b } = solidRGB;
         // Fading tail: alpha ramps 0 -> opacity across [tailDist, fadeEndDist]
         let d = tailDist;
         while (d < fadeEndDist) {
@@ -1801,7 +1820,7 @@ function renderMandala(m, forExport) {
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     if (stroke.trailAnim?.enabled) {
       const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac, stroke.erase ? null : stroke.gradient);
       continue;
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
@@ -1820,7 +1839,7 @@ function renderMandalaLive(m) {
     const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
     if (isTrail) {
       const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac, stroke.erase ? null : stroke.gradient);
       continue;
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
