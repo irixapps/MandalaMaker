@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '1.2';
+const VERSION = '1.3';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4750,6 +4750,191 @@ async function doExportGIF() {
   }
 }
 
+// ── Video export ──────────────────────────────────────────
+
+const VIDEO_PRESETS = {
+  'custom':       { label: 'Custom',                       w: null, h: null, hint: 'Uses the current canvas size' },
+  'ig-post':      { label: 'Instagram Post (1:1)',          w: 1080, h: 1080, hint: 'Feed post — square crops best in-app' },
+  'reel':         { label: 'Reels / Story / Shorts / TikTok', w: 1080, h: 1920, hint: 'Vertical 9:16 — ideal length 15–30s' },
+  'yt-landscape': { label: 'YouTube / Facebook (16:9)',     w: 1920, h: 1080, hint: 'Landscape — widely compatible, up to 60fps' },
+  'twitter':      { label: 'Twitter / X (16:9)',            w: 1200, h: 675,  hint: 'Keep under ~2:20 for best delivery' },
+  'pin':          { label: 'Pinterest Pin (2:3)',           w: 1000, h: 1500, hint: 'Tall pin format' },
+};
+
+// Picks the best-supported container/codec MediaRecorder offers on this browser.
+// mp4/H.264 is preferred since it's the format every major platform wants natively;
+// falls back to WebM (VP9, then VP8) where mp4 recording isn't supported.
+function pickVideoMimeType() {
+  const candidates = [
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  for (const c of candidates) {
+    if (window.MediaRecorder?.isTypeSupported?.(c)) return c;
+  }
+  return null;
+}
+
+function showVideoModal() {
+  if (!window.MediaRecorder) {
+    alert('Video export needs the MediaRecorder API, which this browser doesn\'t support.');
+    return;
+  }
+  const el = id => document.getElementById(id);
+  const rec = gifRecommendations();
+
+  // Recommend a standard video frame rate near the animation's natural rate.
+  const fps = rec.fps >= 45 ? 60 : rec.fps >= 24 ? 30 : 24;
+  el('video-fps').value = String(fps);
+
+  const duration = rec.hasAnim ? Math.min(120, Math.max(1, Math.round(rec.cyclSec * 2) / 2)) : 4;
+  el('video-duration').value = duration;
+  el('video-duration-hint').textContent = rec.hasAnim
+    ? `Recommended: ${duration}s ≈ ${(duration / rec.cyclSec).toFixed(1)}× loop of this animation`
+    : 'No animation detected — exports a static-looking clip of this length';
+
+  el('video-preset').value = 'custom';
+  applyVideoPreset('custom');
+
+  const mime = pickVideoMimeType();
+  el('video-format-hint').textContent = mime
+    ? `Will export as ${mime.startsWith('video/mp4') ? 'MP4 (H.264)' : 'WebM'} — best format available in this browser`
+    : 'No supported video format found in this browser';
+  el('video-export-btn').disabled = !mime;
+
+  el('video-progress-wrap').style.display = 'none';
+  el('video-progress-bar').style.width = '0%';
+  el('video-cancel-btn').disabled = false;
+  el('video-modal').style.display = 'flex';
+}
+
+function applyVideoPreset(key) {
+  const el = id => document.getElementById(id);
+  const p = VIDEO_PRESETS[key] || VIDEO_PRESETS.custom;
+  const w = p.w ?? S.canvasW;
+  const h = p.h ?? S.canvasH;
+  el('video-width').value = w;
+  el('video-height-label').textContent = h;
+  el('video-width').dataset.aspect = (w / h).toFixed(6);
+  el('video-preset-hint').textContent = p.hint;
+}
+
+async function doExportVideo() {
+  const el = id => document.getElementById(id);
+  const mimeType = pickVideoMimeType();
+  if (!mimeType) { alert('No supported video format found in this browser.'); return; }
+
+  const expW      = Math.max(50, Math.min(4096, parseInt(el('video-width').value) || S.canvasW));
+  const aspect    = parseFloat(el('video-width').dataset.aspect) || (S.canvasW / S.canvasH);
+  const expH      = Math.max(50, Math.min(4096, Math.round(expW / aspect)));
+  const fps       = parseInt(el('video-fps').value) || 30;
+  const duration  = Math.max(0.5, Math.min(120, parseFloat(el('video-duration').value) || 4));
+  const bitsPerPx = parseFloat(el('video-quality').value) || 0.08;
+  const totalFrames = Math.max(1, Math.round(duration * fps));
+  const videoBitsPerSecond = Math.round(Math.min(25_000_000, Math.max(1_000_000, expW * expH * fps * bitsPerPx)));
+
+  el('video-progress-wrap').style.display = 'block';
+  el('video-export-btn').disabled = true;
+  el('video-cancel-btn').disabled = true;
+
+  cancelAnimationFrame(S.rafId); S.rafId = null;
+  const wasGuides = S.showGuides, wasSel = S.selectedSpriteId, wasClk = S.animClock;
+  S.showGuides = false; S.selectedSpriteId = null;
+  const gifSnap = S.palette.map(p => ({ idx: p.gifFrameIdx, cache: p.processedCache, animCanvas: p._animCanvas, animFrameIdx: p._animFrameIdx }));
+
+  const offC = document.createElement('canvas');
+  offC.width = expW; offC.height = expH;
+  const offCtx = offC.getContext('2d');
+
+  // Letterbox/pillarbox the native canvas into the export frame, preserving aspect
+  // ratio with no stretching — filled with the current background color.
+  const scale = Math.min(expW / S.canvasW, expH / S.canvasH);
+  const drawW = S.canvasW * scale, drawH = S.canvasH * scale;
+  const drawX = (expW - drawW) / 2, drawY = (expH - drawH) / 2;
+
+  const stream = offC.captureStream(0); // manual mode — frames only advance via requestFrame()
+  const track  = stream.getVideoTracks()[0];
+  const chunks = [];
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond });
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+
+  const stopped = new Promise(res => { recorder.onstop = res; });
+  recorder.start();
+
+  let cancelled = false;
+  const cancelHandler = () => { cancelled = true; };
+  el('video-cancel-btn').addEventListener('click', cancelHandler, { once: true });
+
+  try {
+    for (let i = 0; i < totalFrames && !cancelled; i++) {
+      const tSec = i / fps;
+      S.animClock = tSec;
+
+      const nowTs = performance.now();
+      for (const item of S.palette) {
+        if ((item.isGif || item.isWebP) && item.gifFrames?.length) {
+          const newIdx = gifFrameAtTime(item, tSec);
+          if (newIdx !== item.gifFrameIdx) {
+            item.gifFrameIdx = newIdx;
+            item._animCanvas = null;
+            item._animFrameIdx = -1;
+            item.processedCache = null;
+          }
+          item.gifFrameTime = nowTs;
+        }
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = S.bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+
+      offCtx.fillStyle = S.bgColor;
+      offCtx.fillRect(0, 0, expW, expH);
+      offCtx.drawImage(canvas, drawX, drawY, drawW, drawH);
+      track.requestFrame();
+
+      const pct = Math.round((i + 1) / totalFrames * 100);
+      el('video-progress-bar').style.width = pct + '%';
+      el('video-progress-label').textContent = cancelled ? 'Cancelling…' : `Recording frame ${i + 1} / ${totalFrames}…`;
+      // Pace requests near real time so MediaRecorder's wall-clock frame
+      // timestamps land close to the target fps.
+      await new Promise(r => setTimeout(r, 1000 / fps));
+    }
+
+    recorder.stop();
+    await stopped;
+
+    if (!cancelled) {
+      const blob = new Blob(chunks, { type: mimeType });
+      const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `mandala.${ext}`;
+      a.click();
+      el('video-modal').style.display = 'none';
+    }
+  } catch (err) {
+    alert('Video export failed: ' + err.message);
+  } finally {
+    el('video-cancel-btn').removeEventListener('click', cancelHandler);
+    S.showGuides = wasGuides; S.selectedSpriteId = wasSel; S.animClock = wasClk;
+    S.palette.forEach((p, i) => {
+      p.gifFrameIdx    = gifSnap[i].idx;
+      p.processedCache = gifSnap[i].cache;
+      p._animCanvas    = gifSnap[i].animCanvas;
+      p._animFrameIdx  = gifSnap[i].animFrameIdx;
+    });
+    el('video-export-btn').disabled = false;
+    el('video-cancel-btn').disabled = false;
+    S.lastTime = 0;
+    S.rafId = requestAnimationFrame(render);
+  }
+}
+
 function resizeCanvas(w, h) {
   S.canvasW = w; S.canvasH = h;
   canvas.width = w; canvas.height = h;
@@ -4839,9 +5024,33 @@ function wireEvents() {
   document.getElementById('btn-help').addEventListener('click', toggleHelp);
   document.getElementById('btn-help-close').addEventListener('click', closeHelp);
   document.getElementById('help-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelp(); });
-  document.getElementById('btn-export').addEventListener('click', exportPNG);
-  document.getElementById('btn-export-gif').addEventListener('click', () => showGifModal('gif'));
-  document.getElementById('btn-export-webp').addEventListener('click', () => showGifModal('webp'));
+  // Export dropdown menu
+  const exportMenu = document.getElementById('export-menu');
+  document.getElementById('btn-export-menu').addEventListener('click', e => {
+    e.stopPropagation();
+    exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', e => {
+    if (exportMenu.style.display !== 'none' && !e.target.closest('#export-dropdown')) {
+      exportMenu.style.display = 'none';
+    }
+  });
+  document.getElementById('btn-export').addEventListener('click', () => { exportMenu.style.display = 'none'; exportPNG(); });
+  document.getElementById('btn-export-gif').addEventListener('click', () => { exportMenu.style.display = 'none'; showGifModal('gif'); });
+  document.getElementById('btn-export-webp').addEventListener('click', () => { exportMenu.style.display = 'none'; showGifModal('webp'); });
+  document.getElementById('btn-export-video').addEventListener('click', () => { exportMenu.style.display = 'none'; showVideoModal(); });
+
+  // Video export modal
+  document.getElementById('video-cancel-btn').addEventListener('click', () => {
+    document.getElementById('video-modal').style.display = 'none';
+  });
+  document.getElementById('video-export-btn').addEventListener('click', doExportVideo);
+  document.getElementById('video-preset').addEventListener('change', e => applyVideoPreset(e.target.value));
+  document.getElementById('video-width').addEventListener('input', e => {
+    const w = parseInt(e.target.value) || S.canvasW;
+    const aspect = parseFloat(e.target.dataset.aspect) || (S.canvasW / S.canvasH);
+    document.getElementById('video-height-label').textContent = Math.round(w / aspect);
+  });
   function syncPlayPauseBtns() {
     const icon = S.animPaused ? '▶' : '⏸';
     document.getElementById('btn-anim-playpause').textContent = icon;

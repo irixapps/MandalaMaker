@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mandala Maker</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=1.3">
 <style>
 /* Showcase mode */
 body.showcase #toolbar,
@@ -110,9 +110,28 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
       <button class="btn" id="btn-new" title="New project">New</button>
       <button class="btn" id="btn-save" title="Save project (Ctrl+S)">Save</button>
       <button class="btn" id="btn-load" title="Load project">Load</button>
-      <button class="btn" id="btn-export" title="Export PNG">Export PNG</button>
-      <button class="btn" id="btn-export-gif" title="Export animated GIF">Export GIF</button>
-      <button class="btn" id="btn-export-webp" title="Export animated WebP">Export WebP</button>
+      <div class="export-dropdown" id="export-dropdown">
+        <button class="btn" id="btn-export-menu" title="Export">Export ▾</button>
+        <div class="export-menu" id="export-menu" style="display:none">
+          <button class="export-menu-item" id="btn-export">
+            <span class="export-menu-title">PNG</span>
+            <span class="export-menu-sub">Still image</span>
+          </button>
+          <button class="export-menu-item" id="btn-export-gif">
+            <span class="export-menu-title">GIF</span>
+            <span class="export-menu-sub">Animated, universal</span>
+          </button>
+          <button class="export-menu-item" id="btn-export-webp">
+            <span class="export-menu-title">WebP</span>
+            <span class="export-menu-sub">Animated, smaller file</span>
+          </button>
+          <div class="export-menu-sep"></div>
+          <button class="export-menu-item" id="btn-export-video">
+            <span class="export-menu-title">Video</span>
+            <span class="export-menu-sub">MP4/WebM, platform presets</span>
+          </button>
+        </div>
+      </div>
       <button class="btn" id="btn-anim-playpause" title="Pause / resume all keyframe animations" style="font-size:14px;padding:2px 8px;line-height:1.4">⏸</button>
     </div>
     <div class="toolbar-sep"></div>
@@ -838,6 +857,71 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
   </div>
 </div>
 
+<!-- Video Export Modal -->
+<div id="video-modal" class="modal-overlay" style="display:none">
+  <div class="modal-dialog" style="width:360px;gap:0">
+    <h3 style="margin:0 0 14px;font-size:14px">Export Video</h3>
+
+    <div class="gif-row">
+      <label class="gif-label">Platform</label>
+      <select id="video-preset" style="flex:1">
+        <option value="custom">Custom (canvas size)</option>
+        <option value="ig-post">Instagram Post (1:1)</option>
+        <option value="reel">Reels / Story / Shorts / TikTok (9:16)</option>
+        <option value="yt-landscape">YouTube / Facebook (16:9)</option>
+        <option value="twitter">Twitter / X (16:9)</option>
+        <option value="pin">Pinterest Pin (2:3)</option>
+      </select>
+    </div>
+    <div class="gif-hint" id="video-preset-hint"></div>
+
+    <div class="gif-row" style="margin-top:8px">
+      <label class="gif-label">Size</label>
+      <input type="number" id="video-width" min="50" max="4096" style="width:70px">
+      <span class="gif-unit">× <span id="video-height-label"></span> px</span>
+    </div>
+    <div class="gif-hint" id="video-size-hint">Content is centered and letterboxed to fit — no stretching</div>
+
+    <div class="gif-row" style="margin-top:8px">
+      <label class="gif-label">Frame rate</label>
+      <select id="video-fps">
+        <option value="24">24 fps (cinematic)</option>
+        <option value="30" selected>30 fps (recommended)</option>
+        <option value="60">60 fps (smooth motion)</option>
+      </select>
+    </div>
+
+    <div class="gif-row" style="margin-top:8px">
+      <label class="gif-label">Duration</label>
+      <input type="number" id="video-duration" min="0.5" max="120" step="0.5" style="width:60px">
+      <span class="gif-unit">seconds</span>
+    </div>
+    <div class="gif-hint" id="video-duration-hint"></div>
+
+    <div class="gif-row" style="margin-top:8px">
+      <label class="gif-label">Quality</label>
+      <select id="video-quality">
+        <option value="0.05">Standard</option>
+        <option value="0.08" selected>High (recommended)</option>
+        <option value="0.12">Maximum</option>
+      </select>
+    </div>
+    <div class="gif-hint" id="video-format-hint"></div>
+
+    <div id="video-progress-wrap" style="display:none;margin-top:12px">
+      <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+        <div id="video-progress-bar" style="background:#7c6af0;height:100%;width:0%;transition:width 0.1s linear"></div>
+      </div>
+      <div id="video-progress-label" style="font-size:11px;margin-top:5px;opacity:0.65">Recording…</div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button class="btn" id="video-cancel-btn">Cancel</button>
+      <button class="btn" id="video-export-btn" style="background:#7c6af0;color:#fff;border-color:#7c6af0">Export</button>
+    </div>
+  </div>
+</div>
+
 <div id="showcase-hint">Press Esc to exit Showcase</div>
 
 <!-- ── Help overlay ── -->
@@ -897,6 +981,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=1.2"></script>
+<script src="app.js?v=1.3"></script>
 </body>
 </html>
