@@ -63,7 +63,7 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=3.1">
+<link rel="stylesheet" href="style.css?v=3.2">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -897,32 +897,42 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
   </div>
 
   <footer id="status-bar">
-    <div class="toolbar-group">
-      <label style="font-size:12px">Color:</label>
-      <input type="color" id="draw-color" value="#ff6b9d">
-      <div id="color-swatch"></div>
-    </div>
-    <div class="toolbar-sep"></div>
-    <div class="toolbar-group">
-      <button id="btn-gradient-mode" title="Toggle gradient stroke mode" style="font-size:11px;padding:2px 7px;line-height:1.4">Gradient</button>
-    </div>
-    <div class="toolbar-sep"></div>
-    <div class="toolbar-group">
-      <label style="font-size:12px">Size:</label>
-      <input type="range" id="brush-size" min="1" max="60" value="4">
-      <span id="brush-size-val" style="min-width:20px">4</span>
-    </div>
-    <div class="toolbar-sep"></div>
-    <div class="toolbar-group">
-      <label style="font-size:12px">Opacity:</label>
-      <input type="range" id="draw-opacity" min="0.05" max="1" step="0.05" value="1">
-      <span id="draw-opacity-val" style="min-width:30px">100%</span>
-    </div>
-    <div class="toolbar-sep"></div>
-    <div class="toolbar-group">
-      <label style="font-size:12px">Smooth:</label>
-      <input type="range" id="brush-smooth" min="0" max="10" step="1" value="0">
-    </div>
+    <span class="status-group" data-tools="brush,line,circle,star,polygon">
+      <div class="toolbar-group">
+        <label style="font-size:12px">Color:</label>
+        <input type="color" id="draw-color" value="#ff6b9d">
+        <div id="color-swatch"></div>
+      </div>
+    </span>
+    <span class="status-group" data-tools="brush,line,circle,star,polygon">
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-group">
+        <button id="btn-gradient-mode" title="Toggle gradient stroke mode" style="font-size:11px;padding:2px 7px;line-height:1.4">Gradient</button>
+      </div>
+    </span>
+    <span class="status-group" data-tools="brush,line,erase,circle,star,polygon">
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-group">
+        <label style="font-size:12px">Size:</label>
+        <input type="range" id="brush-size" min="1" max="60" value="4">
+        <span id="brush-size-val" style="min-width:20px">4</span>
+      </div>
+    </span>
+    <span class="status-group" data-tools="brush,line,erase,circle,star,polygon">
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-group">
+        <label style="font-size:12px">Opacity:</label>
+        <input type="range" id="draw-opacity" min="0.05" max="1" step="0.05" value="1">
+        <span id="draw-opacity-val" style="min-width:30px">100%</span>
+      </div>
+    </span>
+    <span class="status-group" data-tools="brush">
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-group">
+        <label style="font-size:12px">Smooth:</label>
+        <input type="range" id="brush-smooth" min="0" max="10" step="1" value="0">
+      </div>
+    </span>
     <div id="cursor-pos" style="margin-left:auto;font-size:11px;opacity:.6">x:0 y:0</div>
     <button id="btn-help-status" title="Keyboard shortcuts (?)" onclick="toggleHelp()" style="margin-left:8px;background:none;border:1px solid var(--border);border-radius:50%;width:18px;height:18px;font-size:10px;line-height:1;color:var(--fg);opacity:.55;cursor:pointer;flex-shrink:0;padding:0">?</button>
     <span id="version-label" style="margin-left:8px;font-size:10px;opacity:.35;flex-shrink:0"></span>
@@ -1168,6 +1178,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.1"></script>
+<script src="app.js?v=3.2"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.1';
+const VERSION = '3.2';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4136,6 +4136,7 @@ function setTool(tool) {
   }
   updateShapePanel();
   updateGradientPanelVisibility();
+  updateStatusBarVisibility();
 }
 
 // Tools that actually draw a stroke/shape with the current colour or
@@ -4149,6 +4150,17 @@ function updateGradientPanelVisibility() {
   const show = S.gradientMode && GRADIENT_PANEL_TOOLS.has(S.tool);
   panel.classList.toggle('visible', show);
   if (show) toolbarGradientEditor?.render();
+}
+
+// Same idea for the status-bar's own Color/Gradient/Size/Opacity/Smooth
+// controls — each carries the set of tools it's actually relevant to via
+// its data-tools attribute, so unrelated tools (Select, Place, Eyedropper)
+// don't show controls that do nothing for them.
+function updateStatusBarVisibility() {
+  document.querySelectorAll('#status-bar .status-group[data-tools]').forEach(el => {
+    const tools = el.dataset.tools.split(',');
+    el.classList.toggle('tool-hidden', !tools.includes(S.tool));
+  });
 }
 
 function updateUndoButtons() {
@@ -5974,6 +5986,7 @@ function init() {
   wireEvents();
   updateUndoButtons();
   updateLayersList();
+  updateStatusBarVisibility();
   document.getElementById('color-swatch').style.background = S.color;
   centerCanvasView();
   requestAnimationFrame(render);
