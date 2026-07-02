@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.5';
+const VERSION = '3.6';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5785,6 +5785,13 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
     const gradient = getGradient();
     if (!gradient) return;
     const { stops, scale, speed } = gradient;
+    // sampleGradientRGB() caches parsed {r,g,b} by this exact stops array
+    // reference for hot-path performance — but stop edits mutate colours
+    // in place rather than replacing the array, so that cache never saw
+    // the change and kept feeding the renderer stale colours. render()
+    // runs after every stop edit (drag, recolour, add, remove), so
+    // invalidating here guarantees the next paint re-parses fresh values.
+    _parsedStopsCache.delete(stops);
     const rect = canvas.getBoundingClientRect();
     // While the panel is hidden (display:none ancestor) the box has zero
     // size — skip drawing rather than falling back to a guessed width.
@@ -5886,7 +5893,11 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
           // that guarantees the element doesn't leak either way.
           const picker = document.createElement('input');
           picker.type = 'color'; picker.value = stop.color;
-          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+          // Anchor the (invisible) input at the stop handle itself — with
+          // no position set it defaulted to the page's top-left corner, so
+          // the native colour picker popup opened there instead of next to
+          // the gradient bar the user was actually looking at.
+          picker.style.cssText = `position:fixed;left:${startX}px;top:${rect.top}px;width:1px;height:1px;opacity:0;pointer-events:none`;
           document.body.appendChild(picker);
           const cleanup = () => picker.remove();
           picker.addEventListener('input', ev => { stop.color = ev.target.value; render(); onChange?.(); });
