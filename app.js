@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.3';
+const VERSION = '2.4';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3078,6 +3078,7 @@ function wireStrokeProps() {
       invalidateStrokeCache();
       flushHasAnimCache();
       updateStrokeProps();
+      if (s.trailAnim.enabled && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
     });
   });
   document.getElementById('dp-trail-speed').addEventListener('input', e => {
