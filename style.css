@@ -658,7 +658,8 @@ select { cursor: pointer; }
   text-align: right;
 }
 #sprite-props input[type="range"],
-#shape-props input[type="range"] { flex: 1; min-width: 0; }
+#shape-props input[type="range"],
+#stroke-props input[type="range"] { flex: 1; min-width: 0; }
 
 .dp-grad-preset {
   flex: 1;
