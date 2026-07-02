@@ -40,7 +40,7 @@ body {
 
 /* ── Toolbar ── */
 #toolbar {
-  min-height: 36px;
+  min-height: 56px;
   background: var(--toolbar);
   border-bottom: 1px solid var(--border);
   display: flex;
