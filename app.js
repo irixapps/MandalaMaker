@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.4';
+const VERSION = '2.5';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2985,6 +2985,8 @@ function wireShapeProps() {
 }
 
 // ── Drawing (stroke) inspector — gradient/colour/thickness + trail anim ──
+let dpGradientEditor = null; // set up in wireStrokeProps(), reused across selections
+
 function updateStrokeProps() {
   const panel = document.getElementById('stroke-props');
   if (!panel) return;
@@ -3005,10 +3007,7 @@ function updateStrokeProps() {
   document.getElementById('dp-gradient-on').checked = hasGradient;
   document.getElementById('dp-gradient-options').style.display = hasGradient ? '' : 'none';
   if (hasGradient) {
-    document.getElementById('dp-grad-scale').value = stroke.gradient.scale;
-    document.getElementById('dp-grad-scale-val').textContent = Math.round(stroke.gradient.scale) + 'px';
-    document.getElementById('dp-grad-speed').value = Math.round(stroke.gradient.speed * 100);
-    document.getElementById('dp-grad-speed-val').textContent = stroke.gradient.speed.toFixed(1) + '×';
+    dpGradientEditor?.render();
   }
 
   const hasTrail = !!stroke.trailAnim?.enabled;
@@ -3042,32 +3041,69 @@ function wireStrokeProps() {
     });
   });
 
+  dpGradientEditor = makeGradientStopEditor({
+    canvas: document.getElementById('dp-grad-preview'),
+    scaleInput: document.getElementById('dp-grad-scale'),
+    scaleVal: document.getElementById('dp-grad-scale-val'),
+    speedInput: document.getElementById('dp-grad-speed'),
+    speedVal: document.getElementById('dp-grad-speed-val'),
+    getGradient: () => findSelectedStroke()?.stroke.gradient,
+    onChange: () => {
+      forStroke(s => {
+        invalidateStrokeCache();
+        flushHasAnimCache();
+        if (s.gradient?.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+      });
+    },
+  });
+
+  const dpPresetSel = document.getElementById('dp-grad-preset');
+  for (const name of Object.keys(GRADIENT_PRESETS)) {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    dpPresetSel.appendChild(opt);
+  }
+  dpPresetSel.addEventListener('change', () => {
+    forStroke(s => {
+      if (!s.gradient) return;
+      s.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[dpPresetSel.value]));
+      dpGradientEditor.resetSelection();
+      dpGradientEditor.render();
+      invalidateStrokeCache();
+    });
+  });
+
   document.getElementById('dp-gradient-on').addEventListener('change', e => {
     forStroke(s => {
       if (e.target.checked) {
-        s.gradient = { stops: S.gradient.stops, scale: S.gradient.scale, speed: S.gradient.speed };
+        // Deep-clone so this stroke's stops are independent of the shared
+        // toolbar gradient (and any other stroke) — editing one must not
+        // silently mutate the others.
+        s.gradient = { stops: JSON.parse(JSON.stringify(S.gradient.stops)), scale: S.gradient.scale, speed: S.gradient.speed };
+        dpGradientEditor.resetSelection();
       } else {
         s.gradient = null;
       }
       invalidateStrokeCache();
       flushHasAnimCache();
       updateStrokeProps();
+      if (s.gradient?.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
     });
   });
   document.getElementById('dp-grad-scale').addEventListener('input', e => {
     forStroke(s => {
       if (!s.gradient) return;
       s.gradient.scale = parseInt(e.target.value);
-      document.getElementById('dp-grad-scale-val').textContent = s.gradient.scale + 'px';
+      dpGradientEditor.render();
     });
   });
   document.getElementById('dp-grad-speed').addEventListener('input', e => {
     forStroke(s => {
       if (!s.gradient) return;
       s.gradient.speed = parseInt(e.target.value) / 100;
-      document.getElementById('dp-grad-speed-val').textContent = s.gradient.speed.toFixed(1) + '×';
+      dpGradientEditor.render();
       flushHasAnimCache();
-      if (s.gradient.speed > 0 && !S.rafId) S.rafId = requestAnimationFrame(render);
+      if (s.gradient.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
     });
   });
 
@@ -5658,8 +5694,149 @@ function wireEvents() {
 }
 
 // ── Gradient UI ──────────────────────────────────────────
-let _selectedStopIdx = 0;
+// Shared colour-stop bar editor: click empty space to add a stop, click a
+// stop to recolour it, drag to reposition, double-click to remove. Used by
+// both the toolbar's live-draw gradient panel and the per-stroke Drawing
+// Inspector — each instance owns its own selection state and reads/writes
+// whichever gradient object getGradient() currently points to.
 const HANDLE_H = 5; // triangle height at top + bottom of bar
+
+function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, speedVal, getGradient, onChange }) {
+  let selectedIdx = 0;
+
+  function render() {
+    const gradient = getGradient();
+    if (!gradient) return;
+    const { stops, scale, speed } = gradient;
+    const rect = canvas.getBoundingClientRect();
+    // Sync canvas pixel size to CSS size so it's crisp
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.round(rect.width * dpr) || 300;
+    const ch = Math.round(rect.height * dpr) || 28 * dpr;
+    if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+
+    const pc = canvas.getContext('2d');
+    pc.clearRect(0, 0, cw, ch);
+    pc.save(); pc.scale(dpr, dpr);
+
+    const W = cw / dpr, H = ch / dpr;
+    const barTop = HANDLE_H, barH = H - HANDLE_H * 2;
+
+    // Gradient bar
+    const grad = pc.createLinearGradient(0, 0, W, 0);
+    for (const s of stops) grad.addColorStop(Math.min(1, Math.max(0, s.pos)), s.color);
+    grad.addColorStop(1, stops[0].color); // seamless wrap hint
+    pc.fillStyle = grad;
+    pc.beginPath();
+    pc.roundRect(0, barTop, W, barH, 3);
+    pc.fill();
+
+    // Stop handles: triangles at top + bottom pointing inward
+    stops.forEach((stop, idx) => {
+      const x = stop.pos * W;
+      const sel = idx === selectedIdx;
+      const hc = sel ? '#ffe66d' : '#fff';
+
+      pc.fillStyle = stop.color;
+      pc.strokeStyle = hc;
+      pc.lineWidth = sel ? 1.5 : 1;
+
+      pc.beginPath();
+      pc.moveTo(x, 0);
+      pc.lineTo(x - HANDLE_H, barTop - 1);
+      pc.lineTo(x + HANDLE_H, barTop - 1);
+      pc.closePath();
+      pc.fill(); pc.stroke();
+
+      pc.beginPath();
+      pc.moveTo(x, H);
+      pc.lineTo(x - HANDLE_H, H - barTop + 1);
+      pc.lineTo(x + HANDLE_H, H - barTop + 1);
+      pc.closePath();
+      pc.fill(); pc.stroke();
+    });
+
+    pc.restore();
+
+    // Sync sliders
+    if (scaleVal) scaleVal.textContent = scale + 'px';
+    if (speedVal) speedVal.textContent = speed.toFixed(1) + '×';
+    if (scaleInput) scaleInput.value = scale;
+    if (speedInput) speedInput.value = Math.round(speed * 100);
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    const gradient = getGradient();
+    if (!gradient) return;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / w));
+    const THRESH = 8 / w; // 8px hit zone
+    const near = gradient.stops.findIndex(s => Math.abs(s.pos - t) < THRESH);
+
+    if (near >= 0) {
+      // Select existing stop + drag
+      selectedIdx = near;
+      render();
+      const stop = gradient.stops[near];
+      const startX = e.clientX, startPos = stop.pos;
+      let moved = false;
+      const onMove = ev => {
+        moved = true;
+        const dx = ev.clientX - startX;
+        stop.pos = Math.max(0, Math.min(1, startPos + dx / w));
+        gradient.stops.sort((a, b) => a.pos - b.pos);
+        selectedIdx = gradient.stops.findIndex(s => s === stop);
+        render();
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        if (!moved) {
+          // Single click on handle: open colour picker
+          const picker = document.createElement('input');
+          picker.type = 'color'; picker.value = stop.color;
+          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+          document.body.appendChild(picker);
+          picker.addEventListener('input', ev => { stop.color = ev.target.value; render(); onChange?.(); });
+          picker.addEventListener('change', () => picker.remove());
+          picker.click();
+        } else {
+          onChange?.();
+        }
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    } else {
+      // Click on empty area: add new stop
+      const color = sampleGradient(gradient.stops, t);
+      const newStop = { pos: t, color };
+      gradient.stops.push(newStop);
+      gradient.stops.sort((a, b) => a.pos - b.pos);
+      selectedIdx = gradient.stops.findIndex(s => s === newStop);
+      render();
+      onChange?.();
+    }
+  });
+
+  canvas.addEventListener('dblclick', e => {
+    const gradient = getGradient();
+    if (!gradient || gradient.stops.length <= 2) return;
+    const rect = canvas.getBoundingClientRect();
+    const t = (e.clientX - rect.left) / rect.width;
+    const near = gradient.stops.findIndex(s => Math.abs(s.pos - t) < 10 / rect.width);
+    if (near >= 0) {
+      gradient.stops.splice(near, 1);
+      selectedIdx = Math.min(selectedIdx, gradient.stops.length - 1);
+      render();
+      onChange?.();
+    }
+  });
+
+  return { render, resetSelection() { selectedIdx = 0; } };
+}
+
+let toolbarGradientEditor = null;
 
 function initGradientUI() {
   // Reflect the default gradientMode=true on startup
@@ -5672,10 +5849,20 @@ function initGradientUI() {
     opt.value = name; opt.textContent = name;
     sel.appendChild(opt);
   }
+
+  toolbarGradientEditor = makeGradientStopEditor({
+    canvas: document.getElementById('grad-preview'),
+    scaleInput: document.getElementById('grad-scale'),
+    scaleVal: document.getElementById('grad-scale-val'),
+    speedInput: document.getElementById('grad-speed'),
+    speedVal: document.getElementById('grad-speed-val'),
+    getGradient: () => S.gradient,
+  });
+
   sel.addEventListener('change', () => {
     S.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[sel.value]));
-    _selectedStopIdx = 0;
-    renderGradientUI();
+    toolbarGradientEditor.resetSelection();
+    toolbarGradientEditor.render();
   });
   document.getElementById('grad-scale').addEventListener('input', e => {
     S.gradient.scale = parseInt(e.target.value);
@@ -5692,132 +5879,7 @@ function initGradientUI() {
     document.getElementById('gradient-panel').classList.toggle('visible', S.gradientMode);
   });
 
-  // All handle interaction on the canvas via pointerdown
-  const cvs = document.getElementById('grad-preview');
-  cvs.addEventListener('pointerdown', e => {
-    const rect = cvs.getBoundingClientRect();
-    const w = rect.width;
-    const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / w));
-    const THRESH = 8 / w; // 8px hit zone
-    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < THRESH);
-
-    if (near >= 0) {
-      // Select existing stop + drag
-      _selectedStopIdx = near;
-      renderGradientUI();
-      const stop = S.gradient.stops[near];
-      const startX = e.clientX, startPos = stop.pos;
-      let moved = false;
-      const onMove = ev => {
-        moved = true;
-        const dx = ev.clientX - startX;
-        stop.pos = Math.max(0, Math.min(1, startPos + dx / w));
-        S.gradient.stops.sort((a, b) => a.pos - b.pos);
-        _selectedStopIdx = S.gradient.stops.findIndex(s => s === stop);
-        renderGradientUI();
-      };
-      const onUp = () => {
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        if (!moved) {
-          // Single click on handle: open colour picker
-          const picker = document.createElement('input');
-          picker.type = 'color'; picker.value = stop.color;
-          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-          document.body.appendChild(picker);
-          picker.addEventListener('input', ev => { stop.color = ev.target.value; renderGradientUI(); });
-          picker.addEventListener('change', () => picker.remove());
-          picker.click();
-        }
-      };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-    } else {
-      // Click on empty area: add new stop
-      const color = sampleGradient(S.gradient.stops, t);
-      const newStop = { pos: t, color };
-      S.gradient.stops.push(newStop);
-      S.gradient.stops.sort((a, b) => a.pos - b.pos);
-      _selectedStopIdx = S.gradient.stops.findIndex(s => s === newStop);
-      renderGradientUI();
-    }
-  });
-
-  cvs.addEventListener('dblclick', e => {
-    if (S.gradient.stops.length <= 2) return;
-    const rect = cvs.getBoundingClientRect();
-    const t = (e.clientX - rect.left) / rect.width;
-    const near = S.gradient.stops.findIndex(s => Math.abs(s.pos - t) < 10 / rect.width);
-    if (near >= 0) {
-      S.gradient.stops.splice(near, 1);
-      _selectedStopIdx = Math.min(_selectedStopIdx, S.gradient.stops.length - 1);
-      renderGradientUI();
-    }
-  });
-
-  renderGradientUI();
-}
-
-function renderGradientUI() {
-  const { stops, scale, speed } = S.gradient;
-  const cvs = document.getElementById('grad-preview');
-  const rect = cvs.getBoundingClientRect();
-  // Sync canvas pixel size to CSS size so it's crisp
-  const dpr = window.devicePixelRatio || 1;
-  const cw = Math.round(rect.width * dpr) || 300;
-  const ch = Math.round(rect.height * dpr) || 28 * dpr;
-  if (cvs.width !== cw || cvs.height !== ch) { cvs.width = cw; cvs.height = ch; }
-
-  const pc = cvs.getContext('2d');
-  pc.clearRect(0, 0, cw, ch);
-  pc.save(); pc.scale(dpr, dpr);
-
-  const W = cw / dpr, H = ch / dpr;
-  const barTop = HANDLE_H, barH = H - HANDLE_H * 2;
-
-  // Gradient bar
-  const grad = pc.createLinearGradient(0, 0, W, 0);
-  for (const s of stops) grad.addColorStop(Math.min(1, Math.max(0, s.pos)), s.color);
-  grad.addColorStop(1, stops[0].color); // seamless wrap hint
-  pc.fillStyle = grad;
-  pc.beginPath();
-  pc.roundRect(0, barTop, W, barH, 3);
-  pc.fill();
-
-  // Stop handles: triangles at top + bottom pointing inward
-  stops.forEach((stop, idx) => {
-    const x = stop.pos * W;
-    const sel = idx === _selectedStopIdx;
-    const hc = sel ? '#ffe66d' : '#fff';
-
-    pc.fillStyle = stop.color;
-    pc.strokeStyle = hc;
-    pc.lineWidth = sel ? 1.5 : 1;
-
-    // Top triangle (pointing down into bar)
-    pc.beginPath();
-    pc.moveTo(x, 0);
-    pc.lineTo(x - HANDLE_H, barTop - 1);
-    pc.lineTo(x + HANDLE_H, barTop - 1);
-    pc.closePath();
-    pc.fill(); pc.stroke();
-
-    // Bottom triangle (pointing up into bar)
-    pc.beginPath();
-    pc.moveTo(x, H);
-    pc.lineTo(x - HANDLE_H, H - barTop + 1);
-    pc.lineTo(x + HANDLE_H, H - barTop + 1);
-    pc.closePath();
-    pc.fill(); pc.stroke();
-  });
-
-  pc.restore();
-
-  // Sync sliders
-  document.getElementById('grad-scale-val').textContent = scale + 'px';
-  document.getElementById('grad-speed-val').textContent = speed.toFixed(1) + '×';
-  document.getElementById('grad-scale').value = scale;
-  document.getElementById('grad-speed').value = Math.round(speed * 100);
+  toolbarGradientEditor.render();
 }
 
 // ── Init ─────────────────────────────────────────────────
