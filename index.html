@@ -63,7 +63,7 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=2.2">
+<link rel="stylesheet" href="style.css?v=2.3">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -225,9 +225,10 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
       </span>
       <button class="btn snap-btn" id="btn-snap-axes" title="Axes snap — snaps to mandala axis lines">✦ Axes</button>
       <span id="snap-axes-opts" style="display:none;contents">
-        <span style="font-size:10px;opacity:.6">Rad</span>
+        <svg class="snap-dir-icon" width="17" height="17" viewBox="0 0 14 14" title="Radial ring spacing — distance between snap rings along each axis"><circle cx="7" cy="7" r="5.6" stroke="currentColor" stroke-width="0.9" fill="none" opacity="0.3"/><circle cx="7" cy="7" r="3.6" stroke="currentColor" stroke-width="0.9" fill="none" opacity="0.45"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="5.2" r="0.8" fill="currentColor"/><circle cx="7" cy="3.4" r="0.8" fill="currentColor"/><circle cx="7" cy="1.4" r="0.8" fill="currentColor"/></svg>
         <input type="number" id="snap-axes-radial" min="8" max="400" value="20" style="width:42px" title="Radial ring spacing (px) — distance between snap rings along each axis">
-        <span style="font-size:10px;opacity:.6">px Tang</span>
+        <span style="font-size:10px;opacity:.6">px</span>
+        <svg class="snap-dir-icon" width="17" height="17" viewBox="0 0 14 14" title="Tangential subdivisions — number of snap rays between each pair of guide lines"><circle cx="7" cy="7" r="5.6" stroke="currentColor" stroke-width="0.9" fill="none" opacity="0.4"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="1.4" r="0.8" fill="currentColor"/><circle cx="11.1" cy="4" r="0.8" fill="currentColor"/><circle cx="11.1" cy="10" r="0.8" fill="currentColor"/><circle cx="2.9" cy="10" r="0.8" fill="currentColor"/><circle cx="2.9" cy="4" r="0.8" fill="currentColor"/></svg>
         <input type="number" id="snap-axes-step" min="1" max="16" value="3" style="width:32px" title="Tangential subdivisions — number of snap rays between each pair of guide lines">
         <span style="font-size:10px;opacity:.6">div</span>
       </span>
@@ -1146,6 +1147,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=2.2"></script>
+<script src="app.js?v=2.3"></script>
 </body>
 </html>
