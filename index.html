@@ -63,7 +63,7 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=2.1">
+<link rel="stylesheet" href="style.css?v=2.2">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -122,18 +122,8 @@ body.theater-mode #theater-hint {
 .layer-eye:hover{opacity:1}
 .layer-hidden .layer-name,.layer-hidden .layer-icon,.layer-hidden .layer-type-tag{opacity:.3}
 .layer-hidden .layer-eye{opacity:.6}
-.layer-trail{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;opacity:.4;padding:0 2px;line-height:1;color:inherit}
-.layer-trail:hover{opacity:.85}
-.layer-trail.active{opacity:1;color:var(--accent)}
 .layer-delete{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:11px;opacity:.35;padding:0 2px;line-height:1;color:inherit}
 .layer-delete:hover{opacity:1;color:var(--danger-hover)}
-.layer-trail-panel{display:flex;flex-direction:column;gap:3px;padding:3px 10px 5px 30px;margin:0 4px 2px;font-size:10px;color:var(--text);opacity:.8;box-sizing:border-box;min-width:0}
-.layer-trail-row{display:flex;align-items:center;gap:6px;min-width:0}
-.layer-trail-row label{opacity:.6;width:34px;flex-shrink:0}
-.layer-trail-speed{width:48px;background:var(--btn);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:10px;padding:1px 4px;flex-shrink:0}
-.layer-trail-length{flex:1;min-width:0;height:12px;accent-color:var(--accent)}
-.layer-trail-unit{opacity:.5;flex-shrink:0}
-.layer-trail-length-val{width:28px;text-align:right}
 
 #help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 #help-overlay.visible{display:flex}
@@ -363,9 +353,18 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
     </div>
 
     <aside id="right-panel">
-      <!-- Palette section -->
+      <!-- Layers (moved to top — the primary at-a-glance view of everything in the mandala) -->
+      <div class="panel-header" style="justify-content:space-between">
+        <span>Layers</span>
+        <button id="btn-anim-playpause-layers" title="Pause / resume all keyframe animations" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--fg);opacity:.7;padding:0 2px;line-height:1">⏸</button>
+      </div>
+      <div id="layers-list" style="flex:1;min-height:180px;overflow-y:auto;padding:2px 0"></div>
+
+      <div class="panel-sep"></div>
+
+      <!-- Images section (was "Palette") -->
       <div class="panel-header">
-        <span>Palette</span>
+        <span>Images</span>
         <button class="btn-small" id="btn-add-image" title="Import image or GIF">+ Import</button>
       </div>
       <div id="palette-drop-zone">Drop images / GIFs here<br><small style="opacity:.6">(or click Import)</small></div>
@@ -373,9 +372,15 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 
       <div class="panel-sep"></div>
 
+      <!-- Inspector — contextual properties for whatever is currently selected
+           (sprite, shape, drawing/stroke, or an image in the Images list above).
+           Exactly one of the panels below is visible at a time. -->
+      <div class="panel-header"><span>Inspector</span></div>
+      <div id="inspector-empty" style="padding:10px;font-size:10px;opacity:.4">Select an item on the canvas, in Layers, or in Images to inspect and edit it here.</div>
+
       <!-- Sprite properties (shown when sprite selected) -->
       <div id="sprite-props" style="display:none">
-        <div class="panel-label">Sprite Properties</div>
+        <div class="panel-label">Sprite Inspector</div>
         <div class="prop-row">
           <label class="prop-label">Scale</label>
           <input type="range" id="prop-scale" min="0.05" max="8" step="0.05" value="1">
@@ -513,7 +518,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 
       <!-- Shape properties (shown when shape selected) -->
       <div id="shape-props" style="display:none">
-        <div class="panel-label">Shape — <span id="sp-type-label">Circle</span></div>
+        <div class="panel-label">Shape Inspector — <span id="sp-type-label">Circle</span></div>
 
         <!-- Radius -->
         <div class="prop-row">
@@ -743,7 +748,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 
       <!-- Palette item properties -->
       <div id="palette-item-props" style="display:none">
-        <div class="panel-label">Image Settings</div>
+        <div class="panel-label">Image Inspector</div>
         <div class="prop-row">
           <button class="btn" id="btn-crop" style="width:100%;margin-bottom:4px"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M3 1v9a1 1 0 001 1h9"/><path d="M1 3h9a1 1 0 011 1v9"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor" stroke="none"/></svg> Set Crop</button>
         </div>
@@ -775,13 +780,60 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         </div>
       </div>
 
-      <!-- Layers -->
-      <div class="panel-sep"></div>
-      <div class="panel-header" style="justify-content:space-between">
-        <span>Layers</span>
-        <button id="btn-anim-playpause-layers" title="Pause / resume all keyframe animations" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--fg);opacity:.7;padding:0 2px;line-height:1">⏸</button>
+      <!-- Drawing (stroke) inspector — shown when a drawn line/stroke layer is selected -->
+      <div id="stroke-props" style="display:none">
+        <div class="panel-label">Drawing Inspector</div>
+
+        <div class="prop-row">
+          <label class="prop-label">Color</label>
+          <input type="color" id="dp-color" value="#ff6b9d" style="width:32px;height:22px;padding:1px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Thickness</label>
+          <input type="range" id="dp-thickness" min="1" max="60" value="4">
+          <span class="prop-val" id="dp-thickness-val">4</span>
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Opacity</label>
+          <input type="range" id="dp-opacity" min="0.05" max="1" step="0.05" value="1">
+          <span class="prop-val" id="dp-opacity-val">100%</span>
+        </div>
+
+        <div class="prop-row" style="margin-top:6px">
+          <label class="checkbox-label"><input type="checkbox" id="dp-gradient-on"> Animated gradient</label>
+        </div>
+        <div id="dp-gradient-options" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Spread</label>
+            <input type="range" id="dp-grad-scale" min="20" max="2000" value="400">
+            <span class="prop-val" id="dp-grad-scale-val">400px</span>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Speed</label>
+            <input type="range" id="dp-grad-speed" min="0" max="200" value="30">
+            <span class="prop-val" id="dp-grad-speed-val">0.3×</span>
+          </div>
+        </div>
+
+        <div class="panel-sep" style="margin:8px 0"></div>
+        <div class="prop-row">
+          <label class="checkbox-label"><input type="checkbox" id="dp-trail-on"> Fading trail animation</label>
+        </div>
+        <div id="dp-trail-options" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Speed</label>
+            <input type="number" id="dp-trail-speed" min="0.1" max="20" step="0.1" value="2" style="width:56px">
+            <span class="prop-val">s / loop</span>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Length</label>
+            <input type="range" id="dp-trail-length" min="5" max="100" step="1" value="40">
+            <span class="prop-val" id="dp-trail-length-val">40%</span>
+          </div>
+        </div>
+
+        <button class="btn btn-danger" id="dp-delete" style="margin-top:10px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Drawing</button>
       </div>
-      <div id="layers-list" style="flex:1;min-height:180px;overflow-y:auto;padding:2px 0"></div>
     </aside>
   </main>
 
@@ -1094,6 +1146,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=2.1"></script>
+<script src="app.js?v=2.2"></script>
 </body>
 </html>

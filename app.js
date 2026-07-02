@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.1';
+const VERSION = '2.2';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -97,6 +97,7 @@ const S = {
   // palette
   palette: [],      // {id,name,img,dataUrl,isGif,transparentColor,tolerance,isSpriteSheet,cols,rows,selectedCell,processedCache}
   selectedPaletteId: null,
+  selectedStrokeId: null,
 
   // history
   history: [],
@@ -2750,6 +2751,37 @@ function findSelectedShape() {
   return null;
 }
 
+function findSelectedStroke() {
+  if (!S.selectedStrokeId) return null;
+  for (const m of S.mandalas) {
+    const stroke = (m.strokes || []).find(s => s.id === S.selectedStrokeId);
+    if (stroke) return { stroke, mandala: m };
+  }
+  return null;
+}
+
+// Clears selection across every layer type + the Images list. Used whenever a
+// new/different item is selected so the Inspector always reflects exactly one
+// thing (or nothing), never a stale panel left open from a previous selection.
+function clearAllSelections() {
+  S.selectedSpriteId = null;
+  S.selectedShapeId = null;
+  S.selectedStrokeId = null;
+  S.selectedPaletteId = null;
+}
+
+// Shows the "nothing selected" placeholder only when all four contextual
+// Inspector panels are hidden — call after any updateXProps() runs.
+function updateInspectorEmptyState() {
+  const panels = ['sprite-props', 'shape-props', 'palette-item-props', 'stroke-props'];
+  const anyVisible = panels.some(id => {
+    const el = document.getElementById(id);
+    return el && el.style.display !== 'none';
+  });
+  const empty = document.getElementById('inspector-empty');
+  if (empty) empty.style.display = anyVisible ? 'none' : '';
+}
+
 function shapeWorldCenter(m, shape) {
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   return {
@@ -2826,8 +2858,9 @@ function updateShapeProps() {
   const panel = document.getElementById('shape-props');
   if (!panel) return;
   const found = findSelectedShape();
-  if (!found) { panel.style.display = 'none'; updateLayersList(); return; }
+  if (!found) { panel.style.display = 'none'; updateInspectorEmptyState(); updateLayersList(); return; }
   panel.style.display = '';
+  updateInspectorEmptyState();
   updateLayersList();
   const { shape } = found;
   document.getElementById('sp-type-label').textContent =
@@ -2948,6 +2981,132 @@ function wireShapeProps() {
     found.mandala.shapes = (found.mandala.shapes || []).filter(s => s.id !== found.shape.id);
     S.selectedShapeId = null;
     updateShapeProps();
+  });
+}
+
+// ── Drawing (stroke) inspector — gradient/colour/thickness + trail anim ──
+function updateStrokeProps() {
+  const panel = document.getElementById('stroke-props');
+  if (!panel) return;
+  const found = findSelectedStroke();
+  if (!found) { panel.style.display = 'none'; updateInspectorEmptyState(); updateLayersList(); return; }
+  panel.style.display = '';
+  updateInspectorEmptyState();
+  updateLayersList();
+  const { stroke } = found;
+
+  document.getElementById('dp-color').value = stroke.color;
+  document.getElementById('dp-thickness').value = stroke.thickness;
+  document.getElementById('dp-thickness-val').textContent = stroke.thickness;
+  document.getElementById('dp-opacity').value = stroke.opacity;
+  document.getElementById('dp-opacity-val').textContent = Math.round(stroke.opacity * 100) + '%';
+
+  const hasGradient = !!stroke.gradient;
+  document.getElementById('dp-gradient-on').checked = hasGradient;
+  document.getElementById('dp-gradient-options').style.display = hasGradient ? '' : 'none';
+  if (hasGradient) {
+    document.getElementById('dp-grad-scale').value = stroke.gradient.scale;
+    document.getElementById('dp-grad-scale-val').textContent = Math.round(stroke.gradient.scale) + 'px';
+    document.getElementById('dp-grad-speed').value = Math.round(stroke.gradient.speed * 100);
+    document.getElementById('dp-grad-speed-val').textContent = stroke.gradient.speed.toFixed(1) + '×';
+  }
+
+  const hasTrail = !!stroke.trailAnim?.enabled;
+  document.getElementById('dp-trail-on').checked = hasTrail;
+  document.getElementById('dp-trail-options').style.display = hasTrail ? '' : 'none';
+  if (stroke.trailAnim) {
+    document.getElementById('dp-trail-speed').value = stroke.trailAnim.duration;
+    document.getElementById('dp-trail-length').value = stroke.trailAnim.lengthPct;
+    document.getElementById('dp-trail-length-val').textContent = stroke.trailAnim.lengthPct + '%';
+  }
+}
+
+function wireStrokeProps() {
+  function forStroke(fn) { const f = findSelectedStroke(); if (f) fn(f.stroke); }
+
+  document.getElementById('dp-color').addEventListener('input', e => {
+    forStroke(s => { s.color = e.target.value; invalidateStrokeCache(); });
+  });
+  document.getElementById('dp-thickness').addEventListener('input', e => {
+    forStroke(s => {
+      s.thickness = parseInt(e.target.value) || 1;
+      document.getElementById('dp-thickness-val').textContent = s.thickness;
+      invalidateStrokeCache();
+    });
+  });
+  document.getElementById('dp-opacity').addEventListener('input', e => {
+    forStroke(s => {
+      s.opacity = parseFloat(e.target.value);
+      document.getElementById('dp-opacity-val').textContent = Math.round(s.opacity * 100) + '%';
+      invalidateStrokeCache();
+    });
+  });
+
+  document.getElementById('dp-gradient-on').addEventListener('change', e => {
+    forStroke(s => {
+      if (e.target.checked) {
+        s.gradient = { stops: S.gradient.stops, scale: S.gradient.scale, speed: S.gradient.speed };
+      } else {
+        s.gradient = null;
+      }
+      invalidateStrokeCache();
+      flushHasAnimCache();
+      updateStrokeProps();
+    });
+  });
+  document.getElementById('dp-grad-scale').addEventListener('input', e => {
+    forStroke(s => {
+      if (!s.gradient) return;
+      s.gradient.scale = parseInt(e.target.value);
+      document.getElementById('dp-grad-scale-val').textContent = s.gradient.scale + 'px';
+    });
+  });
+  document.getElementById('dp-grad-speed').addEventListener('input', e => {
+    forStroke(s => {
+      if (!s.gradient) return;
+      s.gradient.speed = parseInt(e.target.value) / 100;
+      document.getElementById('dp-grad-speed-val').textContent = s.gradient.speed.toFixed(1) + '×';
+      flushHasAnimCache();
+      if (s.gradient.speed > 0 && !S.rafId) S.rafId = requestAnimationFrame(render);
+    });
+  });
+
+  document.getElementById('dp-trail-on').addEventListener('change', e => {
+    forStroke(s => {
+      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40 };
+      s.trailAnim.enabled = e.target.checked;
+      invalidateStrokeCache();
+      flushHasAnimCache();
+      updateStrokeProps();
+    });
+  });
+  document.getElementById('dp-trail-speed').addEventListener('input', e => {
+    forStroke(s => {
+      if (!s.trailAnim) return;
+      const v = parseFloat(e.target.value);
+      s.trailAnim.duration = (v > 0) ? v : 0.1;
+      markRenderDirty();
+    });
+  });
+  document.getElementById('dp-trail-length').addEventListener('input', e => {
+    forStroke(s => {
+      if (!s.trailAnim) return;
+      const v = parseInt(e.target.value) || 5;
+      s.trailAnim.lengthPct = v;
+      document.getElementById('dp-trail-length-val').textContent = v + '%';
+      markRenderDirty();
+    });
+  });
+
+  document.getElementById('dp-delete').addEventListener('click', () => {
+    const found = findSelectedStroke();
+    if (!found || !confirm('Delete this drawing? This cannot be undone.')) return;
+    historySnapshot();
+    found.mandala.strokes = (found.mandala.strokes || []).filter(s => s.id !== found.stroke.id);
+    S.selectedStrokeId = null;
+    invalidateStrokeCache();
+    flushHasAnimCache();
+    updateStrokeProps();
   });
 }
 
@@ -3203,29 +3362,31 @@ function onMouseDown(e) {
     // 3. Sprite body
     const hit = hitTestSprites(pos.x, pos.y);
     if (hit) {
+      clearAllSelections();
       S.selectedSpriteId = hit.sprite.id;
-      S.selectedShapeId = null;
       S.dragHandle = 'move';
       S.dragStart = pos;
       S.spriteDragOrigin = { ...hit.sprite };
       updateSpriteProps();
       updateShapeProps();
+      updateStrokeProps();
     } else {
       // 3b. Shape body
       const shapeHit = hitTestShapes(pos.x, pos.y);
       if (shapeHit) {
+        clearAllSelections();
         S.selectedShapeId = shapeHit.shape.id;
-        S.selectedSpriteId = null;
         S.shapeHandleDrag = 'shape-move';
         S.shapeHandleStart = pos;
         S.shapeDragOrigin = { ...shapeHit.shape };
         updateShapeProps();
         updateSpriteProps();
+        updateStrokeProps();
       } else {
-        S.selectedSpriteId = null;
-        S.selectedShapeId = null;
+        clearAllSelections();
         updateSpriteProps();
         updateShapeProps();
+        updateStrokeProps();
       }
     }
     markRenderDirty();
@@ -3570,10 +3731,10 @@ function updateLayersList() {
                : type === 'stroke' ? _STROKE_ICON
                : (_SHAPE_ICON[item.type] || '◇');
 
-    const isActive = type === 'sprite'
-      ? item.id === S.selectedSpriteId
-      : type === 'shape' ? item.id === S.selectedShapeId
-      : false;
+    const isActive = type === 'sprite'  ? item.id === S.selectedSpriteId
+                    : type === 'shape'  ? item.id === S.selectedShapeId
+                    : type === 'stroke' ? item.id === S.selectedStrokeId
+                    : false;
 
     const isVisible = item.visible !== false;
 
@@ -3584,16 +3745,13 @@ function updateLayersList() {
     row.title = name;
 
     const tagLabel = type === 'shape' ? item.type : type === 'stroke' ? 'stroke' : 'gif/img';
-    const isTrailOn = type === 'stroke' && !!item.trailAnim?.enabled;
+    const deleteTitle = type === 'stroke' ? 'Delete this drawing' : type === 'shape' ? 'Delete this shape' : 'Delete this sprite';
 
     row.innerHTML =
       `<span class="layer-icon">${icon}</span>` +
       `<span class="layer-name">${name}</span>` +
       `<span class="layer-type-tag">${tagLabel}</span>` +
-      (type === 'stroke'
-        ? `<button class="layer-trail${isTrailOn ? ' active' : ''}" title="Animate as trail">∿</button>` +
-          `<button class="layer-delete" title="Delete this drawing">🗑</button>`
-        : '') +
+      `<button class="layer-delete" title="${deleteTitle}">🗑</button>` +
       `<button class="layer-eye" title="Toggle visibility">${isVisible ? '👁' : '🚫'}</button>`;
 
     row.addEventListener('mouseenter', () => {
@@ -3613,89 +3771,49 @@ function updateLayersList() {
       updateLayersList();
     });
 
-    // Delete button (strokes only) — confirm before permanently removing the drawing.
-    const deleteBtn = row.querySelector('.layer-delete');
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-        historySnapshot();
+    // Delete button — confirm before permanently removing the layer. Works
+    // for all three layer types now (strokes, shapes, sprites).
+    row.querySelector('.layer-delete').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+      historySnapshot();
+      if (type === 'stroke') {
         const idx = m.strokes.findIndex(s => s.id === item.id);
         if (idx !== -1) m.strokes.splice(idx, 1);
-        if (_layersHoverItem?.id === item.id) _layersHoverItem = null;
-        invalidateStrokeCache();
-        flushHasAnimCache();
-        markRenderDirty();
-        updateLayersList();
-      });
-    }
-
-    // Trail-animation toggle (strokes only) — opening the icon enables the trail
-    // and reveals its speed input; clicking again disables and hides it.
-    const trailBtn = row.querySelector('.layer-trail');
-    if (trailBtn) {
-      trailBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        if (!item.trailAnim) item.trailAnim = { enabled: false, duration: 2, lengthPct: 40 };
-        item.trailAnim.enabled = !item.trailAnim.enabled;
-        invalidateStrokeCache();
-        flushHasAnimCache();
-        markRenderDirty();
-        updateLayersList();
-      });
-    }
-
-    row.addEventListener('click', () => {
-      if (type === 'sprite') {
-        S.selectedSpriteId = item.id;
-        S.selectedShapeId  = null;
+        if (S.selectedStrokeId === item.id) S.selectedStrokeId = null;
       } else if (type === 'shape') {
-        S.selectedShapeId  = item.id;
-        S.selectedSpriteId = null;
+        m.shapes = (m.shapes || []).filter(s => s.id !== item.id);
+        if (S.selectedShapeId === item.id) S.selectedShapeId = null;
+      } else {
+        m.sprites = m.sprites.filter(s => s.id !== item.id);
+        if (S.selectedSpriteId === item.id) S.selectedSpriteId = null;
       }
-      // strokes are not selectable yet — just leave selection unchanged
-      if (type !== 'stroke') {
-        setTool('select');
-        updateSpriteProps();
-        updateShapeProps();
-      }
+      if (_layersHoverItem?.id === item.id) _layersHoverItem = null;
+      invalidateStrokeCache();
+      flushHasAnimCache();
+      markRenderDirty();
+      updateStrokeProps();
+      updateShapeProps();
+      updateSpriteProps();
+    });
+
+    // Selecting a layer shows exactly that item's properties in the Inspector
+    // below — clears any other selection first so only one panel is ever open.
+    row.addEventListener('click', () => {
+      clearAllSelections();
+      if (type === 'sprite') S.selectedSpriteId = item.id;
+      else if (type === 'shape') S.selectedShapeId = item.id;
+      else S.selectedStrokeId = item.id;
+
+      if (type !== 'stroke') setTool('select');
+      updateSpriteProps();
+      updateShapeProps();
+      updateStrokeProps();
       updateLayersList();
       markRenderDirty();
     });
 
     list.appendChild(row);
-
-    if (isTrailOn) {
-      if (item.trailAnim.lengthPct == null) item.trailAnim.lengthPct = 40;
-      const panel = document.createElement('div');
-      panel.className = 'layer-trail-panel';
-      panel.innerHTML =
-        `<div class="layer-trail-row">` +
-          `<label>Speed</label>` +
-          `<input type="number" class="layer-trail-speed" min="0.1" max="20" step="0.1" value="${item.trailAnim.duration}">` +
-          `<span class="layer-trail-unit">s / loop</span>` +
-        `</div>` +
-        `<div class="layer-trail-row">` +
-          `<label>Length</label>` +
-          `<input type="range" class="layer-trail-length" min="5" max="100" step="1" value="${item.trailAnim.lengthPct}">` +
-          `<span class="layer-trail-unit layer-trail-length-val">${item.trailAnim.lengthPct}%</span>` +
-        `</div>`;
-      panel.querySelector('.layer-trail-speed').addEventListener('input', e => {
-        const v = parseFloat(e.target.value);
-        item.trailAnim.duration = (v > 0) ? v : 0.1;
-        markRenderDirty();
-      });
-      const lenInput = panel.querySelector('.layer-trail-length');
-      const lenVal   = panel.querySelector('.layer-trail-length-val');
-      lenInput.addEventListener('input', e => {
-        const v = parseInt(e.target.value) || 5;
-        item.trailAnim.lengthPct = v;
-        lenVal.textContent = v + '%';
-        markRenderDirty();
-      });
-      panel.addEventListener('click', e => e.stopPropagation());
-      list.appendChild(panel);
-    }
   }
 }
 
@@ -3774,9 +3892,10 @@ function renderLayerHoverHighlight() {
 function updateSpriteProps() {
   const found = S.selectedSpriteId ? findSprite(S.selectedSpriteId) : null;
   const panel = document.getElementById('sprite-props');
-  if (!found) { panel.style.display = 'none'; updateLayersList(); return; }
+  if (!found) { panel.style.display = 'none'; updateInspectorEmptyState(); updateLayersList(); return; }
   panel.style.display = 'flex';
   updateSpritePropsValues(found.sprite);
+  updateInspectorEmptyState();
   updateLayersList();
 }
 
@@ -3861,8 +3980,14 @@ function renderPaletteList() {
 }
 
 function selectPaletteItem(id) {
+  S.selectedSpriteId = null;
+  S.selectedShapeId = null;
+  S.selectedStrokeId = null;
   S.selectedPaletteId = id;
   renderPaletteList();
+  updateSpriteProps();
+  updateShapeProps();
+  updateStrokeProps();
   updatePaletteItemProps();
   setTool('place');
 }
@@ -3879,8 +4004,9 @@ function removePaletteItem(id) {
 function updatePaletteItemProps() {
   const panel = document.getElementById('palette-item-props');
   const item = getPaletteItem(S.selectedPaletteId);
-  if (!item) { panel.style.display = 'none'; return; }
+  if (!item) { panel.style.display = 'none'; updateInspectorEmptyState(); return; }
   panel.style.display = 'block';
+  updateInspectorEmptyState();
   document.getElementById('prop-sprite-sheet').checked = item.isSpriteSheet;
   document.getElementById('sprite-sheet-options').style.display = item.isSpriteSheet ? 'block' : 'none';
   document.getElementById('ss-cols').value = item.cols;
@@ -4976,8 +5102,7 @@ function newProject() {
   S.palette = [];
   S.history = [];
   S.redoStack = [];
-  S.selectedSpriteId = null;
-  S.selectedPaletteId = null;
+  clearAllSelections();
   hiddenImgs.innerHTML = '';
   S.bgColor = '#0d0d1a';
   document.getElementById('bg-color').value = S.bgColor;
@@ -4987,6 +5112,9 @@ function newProject() {
   addMandala();
   renderPaletteList();
   updateSpriteProps();
+  updateShapeProps();
+  updateStrokeProps();
+  updatePaletteItemProps();
   updateUndoButtons();
 }
 
@@ -5170,10 +5298,10 @@ function wireEvents() {
       m.strokes = []; invalidateStrokeCache();
       m.sprites = [];
       m.shapes = [];
-      S.selectedSpriteId = null;
-      S.selectedShapeId = null;
+      clearAllSelections();
       updateSpriteProps();
       updateShapeProps();
+      updateStrokeProps();
       updateLayersList();
     }
   });
@@ -5524,6 +5652,7 @@ function wireEvents() {
   wireShapePanel();
   wireShapeProps();
   wireShapeAnimProps();
+  wireStrokeProps();
   wireSnapUI();
 }
 
