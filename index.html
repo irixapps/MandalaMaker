@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.11">
+<link rel="stylesheet" href="style.css?v=3.12">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -147,23 +147,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <div id="app">
   <header id="toolbar">
     <div class="toolbar-group" style="margin-right:4px">
-      <svg width="28" height="28" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0">
-        <circle cx="32" cy="32" r="32" fill="#0d0d1a"/>
-        <g stroke="#ff6b9d" stroke-width="1.5" fill="none">
-          <circle cx="32" cy="32" r="28" stroke-opacity=".3"/>
-          <circle cx="32" cy="32" r="18" stroke-opacity=".5"/>
-        </g>
-        <g fill="#ff6b9d">
-          <circle cx="32" cy="4" r="3"/><circle cx="54.6" cy="18" r="3"/><circle cx="54.6" cy="46" r="3"/>
-          <circle cx="32" cy="60" r="3"/><circle cx="9.4" cy="46" r="3"/><circle cx="9.4" cy="18" r="3"/>
-        </g>
-        <g fill="#7c6af0">
-          <circle cx="32" cy="14" r="2"/><circle cx="46.4" cy="23" r="2"/><circle cx="46.4" cy="41" r="2"/>
-          <circle cx="32" cy="50" r="2"/><circle cx="17.6" cy="41" r="2"/><circle cx="17.6" cy="23" r="2"/>
-        </g>
-        <circle cx="32" cy="32" r="5" fill="#ff6b9d"/>
-        <circle cx="32" cy="32" r="2.5" fill="#7c6af0"/>
-      </svg>
+      <img src="logo.png" alt="Mandalize" width="32" height="32" style="display:block;flex-shrink:0;object-fit:contain">
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group">
@@ -1199,6 +1183,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.11"></script>
+<script src="app.js?v=3.12"></script>
 </body>
 </html>
