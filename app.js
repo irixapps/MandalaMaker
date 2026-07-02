@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.3';
+const VERSION = '3.4';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3097,6 +3097,7 @@ function wireStrokeProps() {
       if (!s.gradient) return;
       s.gradient.scale = parseInt(e.target.value);
       dpGradientEditor.render();
+      invalidateStrokeCache();
     });
   });
   document.getElementById('dp-grad-speed').addEventListener('input', e => {
@@ -5780,6 +5781,16 @@ const HANDLE_H = 5; // triangle height at top + bottom of bar
 function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, speedVal, getGradient, onChange }) {
   let selectedIdx = 0;
 
+  // One reusable hidden colour input per editor, instead of creating (and
+  // relying on a 'change' event to remove) a new one on every single click
+  // — the native picker doesn't always fire 'change' (e.g. clicking away
+  // without picking, or no real display to open it against), which leaked
+  // an invisible <input> into the document on every such click.
+  const picker = document.createElement('input');
+  picker.type = 'color';
+  picker.style.cssText = 'position:fixed;left:-9999px;opacity:0;pointer-events:none';
+  document.body.appendChild(picker);
+
   function render() {
     const gradient = getGradient();
     if (!gradient) return;
@@ -5878,12 +5889,8 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
         window.removeEventListener('pointerup', onUp);
         if (!moved) {
           // Single click on handle: open colour picker
-          const picker = document.createElement('input');
-          picker.type = 'color'; picker.value = stop.color;
-          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-          document.body.appendChild(picker);
-          picker.addEventListener('input', ev => { stop.color = ev.target.value; render(); onChange?.(); });
-          picker.addEventListener('change', () => picker.remove());
+          picker.value = stop.color;
+          picker.oninput = ev => { stop.color = ev.target.value; render(); onChange?.(); };
           picker.click();
         } else {
           onChange?.();
