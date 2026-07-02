@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.5';
+const VERSION = '2.6';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5409,6 +5409,20 @@ function wireEvents() {
     document.getElementById('draw-opacity-val').textContent = Math.round(e.target.value * 100) + '%';
   });
   document.getElementById('brush-smooth').addEventListener('input', e => { S.smooth = parseInt(e.target.value); });
+
+  // Images panel — collapses to a thin strip so a large image library
+  // doesn't have to compete with the Layers/Inspector column for space.
+  const imagesPanel = document.getElementById('images-panel');
+  let imagesCollapsed = false;
+  try { imagesCollapsed = localStorage.getItem('mandala-images-collapsed') === '1'; } catch {}
+  imagesPanel.classList.toggle('collapsed', imagesCollapsed);
+  function setImagesCollapsed(collapsed) {
+    imagesCollapsed = collapsed;
+    imagesPanel.classList.toggle('collapsed', collapsed);
+    try { localStorage.setItem('mandala-images-collapsed', collapsed ? '1' : '0'); } catch {}
+  }
+  document.getElementById('btn-images-collapse').addEventListener('click', () => setImagesCollapsed(true));
+  document.getElementById('btn-images-expand').addEventListener('click', () => setImagesCollapsed(false));
 
   // Palette
   document.getElementById('btn-add-image').addEventListener('click', () => document.getElementById('image-import').click());

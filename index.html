@@ -63,12 +63,13 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=2.5">
+<link rel="stylesheet" href="style.css?v=2.6">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
 body.theater-mode #left-panel,
 body.theater-mode #right-panel,
+body.theater-mode #images-panel,
 body.theater-mode #status-bar,
 body.theater-mode #shape-panel { display: none !important; }
 body.theater-mode #canvas-container {
@@ -359,24 +360,17 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <span>Layers</span>
         <button id="btn-anim-playpause-layers" title="Pause / resume all keyframe animations" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--fg);opacity:.7;padding:0 2px;line-height:1">⏸</button>
       </div>
-      <div id="layers-list" style="flex:1;min-height:180px;overflow-y:auto;padding:2px 0"></div>
-
-      <div class="panel-sep"></div>
-
-      <!-- Images section (was "Palette") -->
-      <div class="panel-header">
-        <span>Images</span>
-        <button class="btn-small" id="btn-add-image" title="Import image or GIF">+ Import</button>
-      </div>
-      <div id="palette-drop-zone">Drop images / GIFs here<br><small style="opacity:.6">(or click Import)</small></div>
-      <div id="palette-list"></div>
+      <div id="layers-list" class="layers-list"></div>
 
       <div class="panel-sep"></div>
 
       <!-- Inspector — contextual properties for whatever is currently selected
-           (sprite, shape, drawing/stroke, or an image in the Images list above).
-           Exactly one of the panels below is visible at a time. -->
+           (sprite, shape, drawing/stroke, or an image in the Images panel).
+           Exactly one of the panels below is visible at a time. Given its
+           own flexible, independently-scrolling region below the (height-
+           capped) Layers list so it's never scrolled out of view. -->
       <div class="panel-header"><span>Inspector</span></div>
+      <div id="inspector-panel" class="inspector-panel">
       <div id="inspector-empty" style="padding:10px;font-size:10px;opacity:.4">Select an item on the canvas, in Layers, or in Images to inspect and edit it here.</div>
 
       <!-- Sprite properties (shown when sprite selected) -->
@@ -840,6 +834,22 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 
         <button class="btn btn-danger" id="dp-delete" style="margin-top:10px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Drawing</button>
       </div>
+      </div><!-- /#inspector-panel -->
+    </aside>
+
+    <!-- Images — its own collapsible column so a large image library never
+         crowds out the Layers/Inspector column. Collapses to a thin strip. -->
+    <aside id="images-panel">
+      <button id="btn-images-collapse" title="Collapse Images panel">›</button>
+      <div class="images-panel-body">
+        <div class="panel-header">
+          <span>Images</span>
+          <button class="btn-small" id="btn-add-image" title="Import image or GIF">+ Import</button>
+        </div>
+        <div id="palette-drop-zone">Drop images / GIFs here<br><small style="opacity:.6">(or click Import)</small></div>
+        <div id="palette-list"></div>
+      </div>
+      <button id="btn-images-expand" title="Expand Images panel">Images ‹</button>
     </aside>
   </main>
 
@@ -1152,6 +1162,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=2.5"></script>
+<script src="app.js?v=2.6"></script>
 </body>
 </html>
