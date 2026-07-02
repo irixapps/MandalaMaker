@@ -163,10 +163,15 @@ body {
 .images-panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 #images-panel.collapsed .images-panel-body { display: none; }
 
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 #btn-images-collapse {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+  flex-shrink: 0;
   width: 18px;
   height: 18px;
   display: flex;
@@ -179,7 +184,6 @@ body {
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
-  z-index: 1;
 }
 #btn-images-collapse:hover { background: var(--btn-hover); }
 #images-panel.collapsed #btn-images-collapse { display: none; }

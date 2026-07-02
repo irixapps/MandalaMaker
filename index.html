@@ -63,7 +63,7 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=2.6">
+<link rel="stylesheet" href="style.css?v=2.7">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -840,11 +840,13 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
     <!-- Images — its own collapsible column so a large image library never
          crowds out the Layers/Inspector column. Collapses to a thin strip. -->
     <aside id="images-panel">
-      <button id="btn-images-collapse" title="Collapse Images panel">›</button>
       <div class="images-panel-body">
         <div class="panel-header">
           <span>Images</span>
-          <button class="btn-small" id="btn-add-image" title="Import image or GIF">+ Import</button>
+          <div class="panel-header-actions">
+            <button class="btn-small" id="btn-add-image" title="Import image or GIF">+ Import</button>
+            <button id="btn-images-collapse" title="Collapse Images panel">›</button>
+          </div>
         </div>
         <div id="palette-drop-zone">Drop images / GIFs here<br><small style="opacity:.6">(or click Import)</small></div>
         <div id="palette-list"></div>
@@ -1162,6 +1164,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=2.6"></script>
+<script src="app.js?v=2.7"></script>
 </body>
 </html>
