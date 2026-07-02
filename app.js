@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.9';
+const VERSION = '3.10';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5885,17 +5885,15 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         if (!moved) {
-          // Single click on handle: open colour picker. Browsers only
-          // anchor the native picker popup reliably to a genuinely VISIBLE
-          // element — an invisible (opacity:0) input's popup position is
-          // undefined behaviour in practice and consistently fell back to
-          // the page's top-left corner no matter what left/top was set.
-          // So show a small real swatch at the stop instead of hiding it.
+          // Single click on handle: open colour picker. On macOS, Chrome
+          // and Safari hand <input type=color> off to the OS's own colour
+          // panel — a separate window whose position macOS controls (it
+          // remembers wherever it was last dragged to), not something any
+          // CSS/JS on the page can influence. So there's no point trying
+          // to anchor this element on-screen; keep it fully invisible.
           const picker = document.createElement('input');
           picker.type = 'color'; picker.value = stop.color;
-          picker.className = 'grad-stop-picker';
-          picker.style.left = startX + 'px';
-          picker.style.top = rect.top + 'px';
+          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
           document.body.appendChild(picker);
           const cleanup = () => picker.remove();
           picker.addEventListener('input', ev => { stop.color = ev.target.value; render(); onChange?.(); });
