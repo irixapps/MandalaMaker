@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.7';
+const VERSION = '2.8';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5422,6 +5422,7 @@ function wireEvents() {
     try { localStorage.setItem('mandala-images-collapsed', collapsed ? '1' : '0'); } catch {}
   }
   document.getElementById('btn-images-collapse').addEventListener('click', () => setImagesCollapsed(true));
+  document.getElementById('btn-images-expand-icon').addEventListener('click', () => setImagesCollapsed(false));
   document.getElementById('btn-images-expand').addEventListener('click', () => setImagesCollapsed(false));
 
   // Palette
