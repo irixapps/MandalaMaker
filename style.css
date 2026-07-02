@@ -531,6 +531,18 @@ select { cursor: pointer; }
   padding: 4px 6px;
   flex-shrink: 0;
 }
+
+/* Image Inspector accordion — JS moves this element to sit directly under
+   whichever image is selected in #palette-list, so it reads as an inline
+   expansion of that item rather than a separate detached panel. */
+.accordion-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px;
+  margin: -1px 0 2px;
+}
+.accordion-panel .panel-label { padding: 0 0 6px; }
 .palette-item {
   display: flex;
   align-items: center;

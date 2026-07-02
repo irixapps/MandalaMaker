@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.8';
+const VERSION = '2.9';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2770,10 +2770,12 @@ function clearAllSelections() {
   S.selectedPaletteId = null;
 }
 
-// Shows the "nothing selected" placeholder only when all four contextual
-// Inspector panels are hidden — call after any updateXProps() runs.
+// Shows the "nothing selected" placeholder only when all three layer-item
+// Inspector panels are hidden — call after any updateXProps() runs. The
+// Image Inspector lives as its own accordion in the Images panel instead,
+// so it's intentionally excluded here.
 function updateInspectorEmptyState() {
-  const panels = ['sprite-props', 'shape-props', 'palette-item-props', 'stroke-props'];
+  const panels = ['sprite-props', 'shape-props', 'stroke-props'];
   const anyVisible = panels.some(id => {
     const el = document.getElementById(id);
     return el && el.style.display !== 'none';
@@ -3407,6 +3409,7 @@ function onMouseDown(e) {
       updateSpriteProps();
       updateShapeProps();
       updateStrokeProps();
+      updatePaletteItemProps();
     } else {
       // 3b. Shape body
       const shapeHit = hitTestShapes(pos.x, pos.y);
@@ -3419,11 +3422,13 @@ function onMouseDown(e) {
         updateShapeProps();
         updateSpriteProps();
         updateStrokeProps();
+        updatePaletteItemProps();
       } else {
         clearAllSelections();
         updateSpriteProps();
         updateShapeProps();
         updateStrokeProps();
+        updatePaletteItemProps();
       }
     }
     markRenderDirty();
@@ -3846,6 +3851,7 @@ function updateLayersList() {
       updateSpriteProps();
       updateShapeProps();
       updateStrokeProps();
+      updatePaletteItemProps();
       updateLayersList();
       markRenderDirty();
     });
@@ -3976,7 +3982,13 @@ function updateSpritePropsValues(spr) {
 
 function renderPaletteList() {
   const list = document.getElementById('palette-list');
+  // The Image Inspector accordion lives inside this list, moved to sit
+  // right after whichever item is selected — detach it first so it
+  // survives the innerHTML wipe below instead of being destroyed with it.
+  const propsPanel = document.getElementById('palette-item-props');
+  propsPanel.remove();
   list.innerHTML = '';
+  let propsPlaced = false;
   S.palette.forEach(item => {
     const div = document.createElement('div');
     div.className = 'palette-item' + (item.id === S.selectedPaletteId ? ' selected' : '');
@@ -4013,7 +4025,15 @@ function renderPaletteList() {
     div.appendChild(del);
     div.addEventListener('click', () => selectPaletteItem(item.id));
     list.appendChild(div);
+
+    if (item.id === S.selectedPaletteId) {
+      list.appendChild(propsPanel);
+      propsPlaced = true;
+    }
   });
+  // Nothing selected (or the selected item vanished) — park the panel at
+  // the end of the list, hidden, so it stays in the document for later.
+  if (!propsPlaced) list.appendChild(propsPanel);
 }
 
 function selectPaletteItem(id) {
@@ -4041,7 +4061,14 @@ function removePaletteItem(id) {
 function updatePaletteItemProps() {
   const panel = document.getElementById('palette-item-props');
   const item = getPaletteItem(S.selectedPaletteId);
+  // Keep each row's highlight in sync even when this is called from a
+  // selection made elsewhere (canvas, Layers) without a full list re-render.
+  document.querySelectorAll('#palette-list .palette-item.selected').forEach(el => {
+    if (!item || el.dataset.id !== item.id) el.classList.remove('selected');
+  });
   if (!item) { panel.style.display = 'none'; updateInspectorEmptyState(); return; }
+  const row = document.querySelector(`#palette-list .palette-item[data-id="${item.id}"]`);
+  if (row) row.classList.add('selected');
   panel.style.display = 'block';
   updateInspectorEmptyState();
   document.getElementById('prop-sprite-sheet').checked = item.isSpriteSheet;
@@ -5339,6 +5366,7 @@ function wireEvents() {
       updateSpriteProps();
       updateShapeProps();
       updateStrokeProps();
+      updatePaletteItemProps();
       updateLayersList();
     }
   });

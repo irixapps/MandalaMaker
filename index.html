@@ -63,7 +63,7 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=2.8">
+<link rel="stylesheet" href="style.css?v=2.9">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -371,7 +371,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
            capped) Layers list so it's never scrolled out of view. -->
       <div class="panel-header"><span>Inspector</span></div>
       <div id="inspector-panel" class="inspector-panel">
-      <div id="inspector-empty" style="padding:10px;font-size:10px;opacity:.4">Select an item on the canvas, in Layers, or in Images to inspect and edit it here.</div>
+      <div id="inspector-empty" style="padding:10px;font-size:10px;opacity:.4">Select an item on the canvas or in Layers to inspect and edit it here.</div>
 
       <!-- Sprite properties (shown when sprite selected) -->
       <div id="sprite-props" style="display:none">
@@ -741,40 +741,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <button class="btn btn-danger" id="sp-delete" style="margin-top:6px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Shape</button>
       </div>
 
-      <!-- Palette item properties -->
-      <div id="palette-item-props" style="display:none">
-        <div class="panel-label">Image Inspector</div>
-        <div class="prop-row">
-          <button class="btn" id="btn-crop" style="width:100%;margin-bottom:4px"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M3 1v9a1 1 0 001 1h9"/><path d="M1 3h9a1 1 0 011 1v9"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor" stroke="none"/></svg> Set Crop</button>
-        </div>
-        <div class="prop-row">
-          <button class="btn" id="btn-transparency" style="width:100%"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><rect x="1" y="1" width="12" height="12" rx="2"/><line x1="1" y1="1" x2="13" y2="13" stroke-width="1.2" stroke-dasharray="2 2"/><path d="M4 10 Q7 4 10 10" stroke-width="1.3"/><line x1="5" y1="8.5" x2="9" y2="8.5"/></svg> Set Transparent Color</button>
-        </div>
-        <div class="prop-row">
-          <label class="prop-label">Tolerance</label>
-          <input type="range" id="trans-tolerance" min="0" max="100" step="1" value="15">
-          <span class="prop-val" id="trans-tolerance-val">15</span>
-        </div>
-        <div class="prop-row" style="margin-top:4px">
-          <button class="btn" id="btn-split-frames" style="width:100%"><svg width="14" height="13" viewBox="0 0 15 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><rect x="1" y="2" width="13" height="9" rx="1"/><line x1="5" y1="2" x2="5" y2="11"/><line x1="10" y1="2" x2="10" y2="11"/><line x1="1" y1="4.5" x2="5" y2="4.5"/><line x1="10" y1="4.5" x2="14" y2="4.5"/><line x1="1" y1="8.5" x2="5" y2="8.5"/><line x1="10" y1="8.5" x2="14" y2="8.5"/></svg> Split into Frames</button>
-        </div>
-        <div id="split-frames-info" style="font-size:10px;color:var(--text-dim);padding:2px 0 6px;display:none"></div>
-        <div class="prop-row">
-          <label class="checkbox-label"><input type="checkbox" id="prop-sprite-sheet"> Sprite Sheet</label>
-        </div>
-        <div id="sprite-sheet-options" style="display:none">
-          <div class="prop-row">
-            <label class="prop-label">Cols</label>
-            <input type="number" id="ss-cols" value="4" min="1" max="32" style="width:50px">
-          </div>
-          <div class="prop-row">
-            <label class="prop-label">Rows</label>
-            <input type="number" id="ss-rows" value="4" min="1" max="32" style="width:50px">
-          </div>
-          <div id="ss-grid-preview"></div>
-        </div>
-      </div>
-
       <!-- Drawing (stroke) inspector — shown when a drawn line/stroke layer is selected -->
       <div id="stroke-props" style="display:none">
         <div class="panel-label">Drawing Inspector</div>
@@ -850,6 +816,43 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         </div>
         <div id="palette-drop-zone">Drop images / GIFs here<br><small style="opacity:.6">(or click Import)</small></div>
         <div id="palette-list"></div>
+
+        <!-- Image Inspector — accordion panel that JS relocates to sit
+             directly under whichever image is currently selected in
+             #palette-list, instead of living in the left Layers/Inspector
+             column (that column is reserved for layer items). -->
+        <div id="palette-item-props" class="accordion-panel" style="display:none">
+          <div class="panel-label">Image Inspector</div>
+          <div class="prop-row">
+            <button class="btn" id="btn-crop" style="width:100%;margin-bottom:4px"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M3 1v9a1 1 0 001 1h9"/><path d="M1 3h9a1 1 0 011 1v9"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor" stroke="none"/></svg> Set Crop</button>
+          </div>
+          <div class="prop-row">
+            <button class="btn" id="btn-transparency" style="width:100%"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><rect x="1" y="1" width="12" height="12" rx="2"/><line x1="1" y1="1" x2="13" y2="13" stroke-width="1.2" stroke-dasharray="2 2"/><path d="M4 10 Q7 4 10 10" stroke-width="1.3"/><line x1="5" y1="8.5" x2="9" y2="8.5"/></svg> Set Transparent Color</button>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Tolerance</label>
+            <input type="range" id="trans-tolerance" min="0" max="100" step="1" value="15">
+            <span class="prop-val" id="trans-tolerance-val">15</span>
+          </div>
+          <div class="prop-row" style="margin-top:4px">
+            <button class="btn" id="btn-split-frames" style="width:100%"><svg width="14" height="13" viewBox="0 0 15 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><rect x="1" y="2" width="13" height="9" rx="1"/><line x1="5" y1="2" x2="5" y2="11"/><line x1="10" y1="2" x2="10" y2="11"/><line x1="1" y1="4.5" x2="5" y2="4.5"/><line x1="10" y1="4.5" x2="14" y2="4.5"/><line x1="1" y1="8.5" x2="5" y2="8.5"/><line x1="10" y1="8.5" x2="14" y2="8.5"/></svg> Split into Frames</button>
+          </div>
+          <div id="split-frames-info" style="font-size:10px;color:var(--text-dim);padding:2px 0 6px;display:none"></div>
+          <div class="prop-row">
+            <label class="checkbox-label"><input type="checkbox" id="prop-sprite-sheet"> Sprite Sheet</label>
+          </div>
+          <div id="sprite-sheet-options" style="display:none">
+            <div class="prop-row">
+              <label class="prop-label">Cols</label>
+              <input type="number" id="ss-cols" value="4" min="1" max="32" style="width:50px">
+            </div>
+            <div class="prop-row">
+              <label class="prop-label">Rows</label>
+              <input type="number" id="ss-rows" value="4" min="1" max="32" style="width:50px">
+            </div>
+            <div id="ss-grid-preview"></div>
+          </div>
+        </div>
       </div>
       <button id="btn-images-expand-icon" title="Expand Images panel">‹</button>
       <button id="btn-images-expand" title="Expand Images panel">Images</button>
@@ -1165,6 +1168,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=2.8"></script>
+<script src="app.js?v=2.9"></script>
 </body>
 </html>
