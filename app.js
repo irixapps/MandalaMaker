@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.7';
+const VERSION = '3.9';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5885,22 +5885,17 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         if (!moved) {
-          // Single click on handle: open colour picker. Created fresh each
-          // time (a persisted, reused element stopped the native picker
-          // from opening in real browsers) and cleaned up on 'change' or
-          // 'blur' — the native dialog doesn't always fire 'change' (e.g.
-          // dismissed without picking a colour), so 'blur' is the fallback
-          // that guarantees the element doesn't leak either way.
+          // Single click on handle: open colour picker. Browsers only
+          // anchor the native picker popup reliably to a genuinely VISIBLE
+          // element — an invisible (opacity:0) input's popup position is
+          // undefined behaviour in practice and consistently fell back to
+          // the page's top-left corner no matter what left/top was set.
+          // So show a small real swatch at the stop instead of hiding it.
           const picker = document.createElement('input');
           picker.type = 'color'; picker.value = stop.color;
-          // Anchor the (invisible) input at the stop handle itself — with
-          // no position set it defaulted to the page's top-left corner, so
-          // the native colour picker popup opened there instead of next to
-          // the gradient bar the user was actually looking at. Left at its
-          // natural (unset) width/height: shrinking it to 1x1px gave the
-          // browser too small an anchor rect to position the popup against,
-          // so it fell back to the same top-left default anyway.
-          picker.style.cssText = `position:fixed;left:${startX}px;top:${rect.top}px;opacity:0;pointer-events:none`;
+          picker.className = 'grad-stop-picker';
+          picker.style.left = startX + 'px';
+          picker.style.top = rect.top + 'px';
           document.body.appendChild(picker);
           const cleanup = () => picker.remove();
           picker.addEventListener('input', ev => { stop.color = ev.target.value; render(); onChange?.(); });

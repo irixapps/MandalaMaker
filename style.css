@@ -683,6 +683,26 @@ select { cursor: pointer; }
   background: rgba(80, 100, 200, 0.18);
 }
 
+/* Small real (visible) swatch popped up right at a clicked gradient stop —
+   browsers only anchor the native colour-picker dialog reliably to a
+   genuinely visible element, so this can't be opacity:0 like the rest of
+   the app's hidden trigger inputs. */
+.grad-stop-picker {
+  position: fixed;
+  z-index: 500;
+  transform: translate(-50%, 6px);
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.grad-stop-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.grad-stop-picker::-webkit-color-swatch { border: none; border-radius: 50%; }
+
 /* ── Mandala list ── */
 #mandala-list {
   display: flex;
