@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.13';
+const VERSION = '3.14';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2259,14 +2259,6 @@ function renderGuides(m, isActive) {
     ctx.globalAlpha = isActive ? 0.28 : 0.10;
     ctx.beginPath();
     ctx.moveTo(0, -len); ctx.lineTo(0, len);
-    ctx.stroke();
-    // Shorter bright tick at center
-    ctx.setLineDash([]);
-    ctx.lineWidth = isActive ? 1.5 : 0.8;
-    ctx.globalAlpha = isActive ? 0.5 : 0.18;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, -30);
     ctx.stroke();
     ctx.restore();
   }
