@@ -95,6 +95,9 @@ body {
   left: 0;
   z-index: 2;
   cursor: crosshair;
+  /* Let JS handle single-finger drawing gestures instead of the browser's
+     native scroll/pinch-zoom/pull-to-refresh handling. */
+  touch-action: none;
 }
 
 /* ── Right panel ── */

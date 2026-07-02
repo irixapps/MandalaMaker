@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.0';
+const VERSION = '2.1';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3156,7 +3156,8 @@ function toMandalaLocal(m, wx, wy) {
 }
 
 function onMouseDown(e) {
-  if (e.button !== 0) return;
+  // e.button is undefined for touch events — only gate on it for real mouse events.
+  if (e.button != null && e.button !== 0) return;
   const rawPos = canvasPos(e);
   const m = getActiveMandala();
   const pos = applySnap(rawPos.x, rawPos.y, m);
@@ -5041,6 +5042,30 @@ function wireEvents() {
     if (S.dragHandle || S.drawing) onMouseMove(e);
   });
   window.addEventListener('mouseup', e => {
+    if (S.dragHandle || S.drawing) onMouseUp(e);
+  });
+
+  // Touch support (single-finger drawing/selection) — mirrors the mouse
+  // handlers above. canvasPos() already reads e.touches[0] when present, so
+  // these route straight into the same onMouseDown/onMouseMove/onMouseUp
+  // logic. preventDefault stops the page from scrolling/pinch-zooming while
+  // a single-finger gesture is drawing on the canvas.
+  overlayCanvas.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return; // let 2+ finger gestures fall through (e.g. pinch)
+    e.preventDefault();
+    onMouseDown(e);
+  }, { passive: false });
+  overlayCanvas.addEventListener('touchmove', e => {
+    if (!S.dragHandle && !S.drawing) return;
+    e.preventDefault();
+    onMouseMove(e);
+  }, { passive: false });
+  overlayCanvas.addEventListener('touchend', e => { onMouseUp(e); });
+  overlayCanvas.addEventListener('touchcancel', e => { onMouseUp(e); });
+  window.addEventListener('touchmove', e => {
+    if (S.dragHandle || S.drawing) { e.preventDefault(); onMouseMove(e); }
+  }, { passive: false });
+  window.addEventListener('touchend', e => {
     if (S.dragHandle || S.drawing) onMouseUp(e);
   });
 
