@@ -823,7 +823,7 @@ select { cursor: pointer; }
   border-left: 2px solid var(--accent);
   border-radius: 0 4px 4px 0;
 }
-.anim-controls {
+.anim-controls, .anim-panel-controls {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -832,7 +832,11 @@ select { cursor: pointer; }
 }
 .anim-label { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
 .anim-hint  { font-size: 9px; color: var(--text-dim); opacity: 0.6; line-height: 1.3; margin-top: 3px; }
-.anim-controls input[type="number"] { width: 42px; font-size: 11px; }
+/* 46px rather than the sprite panel's 42px — the shape panel's duration
+   field sits directly against a spinner-up/down control and was clipping
+   two-digit / one-decimal values (e.g. "7.5") at anything narrower. */
+.anim-controls input[type="number"],
+.anim-panel-controls input[type="number"] { width: 46px; font-size: 11px; }
 .anim-preset-sel { font-size: 10px; background: var(--btn); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 1px 2px; flex: 1; min-width: 0; cursor: pointer; }
 .anim-ease-sel   { font-size: 10px; background: var(--btn); color: var(--text); border: 1px solid var(--accent); border-radius: 3px; padding: 1px 4px; cursor: pointer; }
 .anim-kf-row { display: flex; align-items: center; gap: 5px; margin-top: 4px; padding: 3px 4px; background: rgba(124,106,240,0.1); border-radius: 3px; }

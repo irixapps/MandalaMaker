@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.4">
+<link rel="stylesheet" href="style.css?v=3.5">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -528,7 +528,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-radius" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-radius" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-radius" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-radius" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Breathe</option><option>Shrink</option></select>
           </div>
@@ -563,7 +563,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-thickness" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-thickness" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-thickness" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-thickness" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Breathe</option></select>
           </div>
@@ -585,7 +585,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-opacity" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-opacity" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-opacity" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-opacity" class="anim-preset-sel"><option value="">Presets…</option><option>Fade In/Out</option><option>Flicker</option><option>Appear</option></select>
           </div>
@@ -607,7 +607,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-rotation" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-rotation" value="3" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-rotation" value="3" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-rotation" class="anim-preset-sel"><option value="">Presets…</option><option>Spin CW</option><option>Spin CCW</option><option>Rock</option><option>Wobble</option></select>
           </div>
@@ -629,7 +629,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-orbit" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-orbit" value="4" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-orbit" value="4" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-orbit" class="anim-preset-sel"><option value="">Presets…</option><option>Orbit CW</option><option>Orbit CCW</option><option>Swing</option></select>
           </div>
@@ -654,7 +654,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-offsetX" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-offsetX" value="2.5" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-offsetX" value="2.5" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-offsetX" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse Out</option><option>Breathe</option><option>Approach</option><option>Expand</option><option>Heartbeat</option></select>
           </div>
@@ -679,7 +679,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="anim-panel" id="sa-panel-offsetY" style="display:none">
           <div class="anim-panel-controls">
             <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-offsetY" value="2" min="0.1" max="60" step="0.1" style="width:36px">
+            <input type="number" id="sa-dur-offsetY" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
             <select id="sa-preset-offsetY" class="anim-preset-sel"><option value="">Presets…</option><option>Arc Swing</option><option>Drift</option><option>Shimmer</option></select>
           </div>
@@ -1181,6 +1181,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.4"></script>
+<script src="app.js?v=3.5"></script>
 </body>
 </html>
