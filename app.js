@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '2.9';
+const VERSION = '3.1';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3287,6 +3287,7 @@ function wireShapePanel() {
     // Keep main gradient toggle in sync
     const mainBtn = document.getElementById('btn-gradient-mode');
     if (mainBtn) mainBtn.classList.toggle('active', S.gradientMode);
+    updateGradientPanelVisibility();
   });
 }
 
@@ -4134,6 +4135,20 @@ function setTool(tool) {
     updateShapeProps();
   }
   updateShapePanel();
+  updateGradientPanelVisibility();
+}
+
+// Tools that actually draw a stroke/shape with the current colour or
+// gradient — the only ones the gradient panel is relevant for. Every other
+// tool (erase, select, place/stamp, eyedropper) hides it automatically.
+const GRADIENT_PANEL_TOOLS = new Set(['brush', 'line', 'circle', 'star', 'polygon']);
+
+function updateGradientPanelVisibility() {
+  const panel = document.getElementById('gradient-panel');
+  if (!panel) return;
+  const show = S.gradientMode && GRADIENT_PANEL_TOOLS.has(S.tool);
+  panel.classList.toggle('visible', show);
+  if (show) toolbarGradientEditor?.render();
 }
 
 function updateUndoButtons() {
@@ -5752,10 +5767,18 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
     if (!gradient) return;
     const { stops, scale, speed } = gradient;
     const rect = canvas.getBoundingClientRect();
+    // While the panel is hidden (display:none ancestor) the box has zero
+    // size — skip drawing rather than falling back to a guessed width.
+    // Baking in a fake width here is what caused the canvas to render
+    // stretched/blocky later: its bitmap resolution would stay fixed at
+    // that guess while its real CSS box (and any handle triangles drawn
+    // into the bitmap) grew or shrank around it. The ResizeObserver below
+    // re-renders as soon as the box actually has a real size.
+    if (rect.width === 0 || rect.height === 0) return;
     // Sync canvas pixel size to CSS size so it's crisp
     const dpr = window.devicePixelRatio || 1;
-    const cw = Math.round(rect.width * dpr) || 300;
-    const ch = Math.round(rect.height * dpr) || 28 * dpr;
+    const cw = Math.round(rect.width * dpr);
+    const ch = Math.round(rect.height * dpr);
     if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
 
     const pc = canvas.getContext('2d');
@@ -5876,6 +5899,13 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
     }
   });
 
+  // Re-render whenever the canvas's actual box size changes for any reason
+  // — window resize, its panel being shown/hidden, a sidebar collapsing,
+  // a display DPI change — so the bitmap resolution never goes stale.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => render()).observe(canvas);
+  }
+
   return { render, resetSelection() { selectedIdx = 0; } };
 }
 
@@ -5884,7 +5914,7 @@ let toolbarGradientEditor = null;
 function initGradientUI() {
   // Reflect the default gradientMode=true on startup
   document.getElementById('btn-gradient-mode').classList.toggle('active', S.gradientMode);
-  document.getElementById('gradient-panel').classList.toggle('visible', S.gradientMode);
+  updateGradientPanelVisibility();
 
   const sel = document.getElementById('grad-preset');
   for (const name of Object.keys(GRADIENT_PRESETS)) {
@@ -5919,7 +5949,7 @@ function initGradientUI() {
   document.getElementById('btn-gradient-mode').addEventListener('click', () => {
     S.gradientMode = !S.gradientMode;
     document.getElementById('btn-gradient-mode').classList.toggle('active', S.gradientMode);
-    document.getElementById('gradient-panel').classList.toggle('visible', S.gradientMode);
+    updateGradientPanelVisibility();
   });
 
   toolbarGradientEditor.render();

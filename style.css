@@ -239,6 +239,13 @@ body {
   flex-shrink: 0;
 }
 
+/* Explicit height is required here: canvas elements fall back to their own
+   height ATTRIBUTE for CSS layout when nothing else constrains it. Since
+   render() sets canvas.height from the measured box height × devicePixelRatio,
+   leaving this unconstrained created a feedback loop on any HiDPI display —
+   each re-render measured a taller box than the last and grew it further. */
+#grad-preview { display: block; height: 22px; }
+
 .grad-label {
   font-size: 11px;
   opacity: .6;
