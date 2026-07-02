@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.10';
+const VERSION = '3.11';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1017,8 +1017,162 @@ function hexToRgb(hex) {
   return { r, g, b };
 }
 
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  if (h < 0) h += 360;
+  return { h, s: max === 0 ? 0 : d / max, v: max };
+}
+
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360 / 60;
+  const c = v * s, x = c * (1 - Math.abs(h % 2 - 1)), m = v - c;
+  let r, g, b;
+  if (h < 1) [r, g, b] = [c, x, 0];
+  else if (h < 2) [r, g, b] = [x, c, 0];
+  else if (h < 3) [r, g, b] = [0, c, x];
+  else if (h < 4) [r, g, b] = [0, x, c];
+  else if (h < 5) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+}
+
 function colorDist(r1, g1, b1, r2, g2, b2) {
   return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+}
+
+// ── Custom colour popover ───────────────────────────────
+// Fully in-page HSV picker used for gradient stop editing instead of the
+// native <input type=color> — on macOS that hands off to the OS's own
+// colour panel, whose on-screen position the page has no way to influence,
+// so it always opened wherever the system last left it (often the corner).
+// This one we draw and position ourselves.
+let _cpState = null;
+
+function initColorPopover() {
+  const pop = document.getElementById('color-popover');
+  const svCanvas = document.getElementById('cp-sv');
+  const svHandle = document.getElementById('cp-sv-handle');
+  const hueEl = document.getElementById('cp-hue');
+  const hueHandle = document.getElementById('cp-hue-handle');
+  const swatch = document.getElementById('cp-swatch');
+  const hexInput = document.getElementById('cp-hex');
+  const svCtx = svCanvas.getContext('2d');
+
+  function drawSV() {
+    const w = svCanvas.width, h = svCanvas.height;
+    const hueRgb = hsvToRgb(_cpState.h, 1, 1);
+    svCtx.fillStyle = `rgb(${hueRgb.r | 0},${hueRgb.g | 0},${hueRgb.b | 0})`;
+    svCtx.fillRect(0, 0, w, h);
+    const gradWhite = svCtx.createLinearGradient(0, 0, w, 0);
+    gradWhite.addColorStop(0, 'rgba(255,255,255,1)');
+    gradWhite.addColorStop(1, 'rgba(255,255,255,0)');
+    svCtx.fillStyle = gradWhite;
+    svCtx.fillRect(0, 0, w, h);
+    const gradBlack = svCtx.createLinearGradient(0, 0, 0, h);
+    gradBlack.addColorStop(0, 'rgba(0,0,0,0)');
+    gradBlack.addColorStop(1, 'rgba(0,0,0,1)');
+    svCtx.fillStyle = gradBlack;
+    svCtx.fillRect(0, 0, w, h);
+  }
+
+  function updateHandles() {
+    svHandle.style.left = (_cpState.s * 100) + '%';
+    svHandle.style.top = ((1 - _cpState.v) * 100) + '%';
+    hueHandle.style.left = (_cpState.h / 360 * 100) + '%';
+  }
+
+  function commit(skipHexInput) {
+    const { r, g, b } = hsvToRgb(_cpState.h, _cpState.s, _cpState.v);
+    const hex = rgbToHex(r, g, b);
+    swatch.style.background = hex;
+    if (!skipHexInput) hexInput.value = hex.toUpperCase();
+    _cpState.onChange?.(hex);
+  }
+
+  function dragOn(el, onMove) {
+    el.addEventListener('pointerdown', e => {
+      if (!_cpState) return;
+      onMove(e);
+      const move = ev => onMove(ev);
+      const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
+  dragOn(svCanvas, e => {
+    const rect = svCanvas.getBoundingClientRect();
+    _cpState.s = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    _cpState.v = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    updateHandles();
+    commit();
+  });
+
+  dragOn(hueEl, e => {
+    const rect = hueEl.getBoundingClientRect();
+    _cpState.h = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 360;
+    drawSV();
+    updateHandles();
+    commit();
+  });
+
+  hexInput.addEventListener('input', () => {
+    if (!_cpState) return;
+    let v = hexInput.value.trim();
+    if (v && !v.startsWith('#')) v = '#' + v;
+    if (!/^#[0-9a-fA-F]{6}$/.test(v)) return;
+    const { r, g, b } = hexToRgb(v);
+    const hsv = rgbToHsv(r, g, b);
+    _cpState.h = hsv.h; _cpState.s = hsv.s; _cpState.v = hsv.v;
+    drawSV();
+    updateHandles();
+    commit(true);
+  });
+
+  function closePopover() {
+    if (!_cpState) return;
+    pop.classList.remove('visible');
+    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+    const cb = _cpState.onClose;
+    _cpState = null;
+    cb?.();
+  }
+
+  function onOutsidePointerDown(e) {
+    if (!pop.contains(e.target)) closePopover();
+  }
+
+  window.openColorPopover = function (x, y, hex, onChange, onClose) {
+    const { r, g, b } = hexToRgb(hex);
+    const hsv = rgbToHsv(r, g, b);
+    _cpState = { h: hsv.h, s: hsv.s, v: hsv.v, onChange, onClose };
+    drawSV();
+    updateHandles();
+    swatch.style.background = hex;
+    hexInput.value = hex.toUpperCase();
+    pop.classList.add('visible');
+    requestAnimationFrame(() => {
+      const pr = pop.getBoundingClientRect();
+      const left = Math.max(6, Math.min(window.innerWidth - pr.width - 6, x - pr.width / 2));
+      const top = Math.max(6, Math.min(window.innerHeight - pr.height - 6, y));
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+    });
+    setTimeout(() => document.addEventListener('pointerdown', onOutsidePointerDown, true), 0);
+  };
+
+  window.closeColorPopover = closePopover;
 }
 
 // ── History ─────────────────────────────────────────────
@@ -5760,6 +5914,7 @@ function wireEvents() {
   });
 
   // ── Gradient panel ──────────────────────────────────────
+  initColorPopover();
   initGradientUI();
 
   // ── Shape panel + snap ───────────────────────────────────
@@ -5885,21 +6040,12 @@ function makeGradientStopEditor({ canvas, scaleInput, scaleVal, speedInput, spee
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         if (!moved) {
-          // Single click on handle: open colour picker. On macOS, Chrome
-          // and Safari hand <input type=color> off to the OS's own colour
-          // panel — a separate window whose position macOS controls (it
-          // remembers wherever it was last dragged to), not something any
-          // CSS/JS on the page can influence. So there's no point trying
-          // to anchor this element on-screen; keep it fully invisible.
-          const picker = document.createElement('input');
-          picker.type = 'color'; picker.value = stop.color;
-          picker.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-          document.body.appendChild(picker);
-          const cleanup = () => picker.remove();
-          picker.addEventListener('input', ev => { stop.color = ev.target.value; render(); onChange?.(); });
-          picker.addEventListener('change', cleanup);
-          picker.addEventListener('blur', cleanup);
-          picker.click();
+          // Single click on handle: open the custom colour popover,
+          // anchored exactly at the stop — see initColorPopover() for why
+          // this isn't the native <input type=color> any more.
+          openColorPopover(startX, rect.bottom, stop.color, hex => {
+            stop.color = hex; render(); onChange?.();
+          });
         } else {
           onChange?.();
         }
