@@ -747,6 +747,29 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           <span class="prop-val" id="dp-opacity-val">100%</span>
         </div>
 
+        <!-- Orbit — rotates the whole drawing around the mandala centre,
+             same behaviour/presets as the shape Orbit control. -->
+        <div class="prop-row">
+          <label class="prop-label">Orbit</label>
+          <input type="range" id="dp-orbit" min="-180" max="180" value="0">
+          <span class="prop-val" id="dp-orbit-val">0°</span>
+          <button class="anim-btn" id="dpa-btn-orbit" title="Animate Orbit">∿</button>
+        </div>
+        <div class="anim-panel" id="dpa-panel-orbit" style="display:none">
+          <div class="anim-panel-controls">
+            <span class="anim-label">Dur</span>
+            <input type="number" id="dpa-dur-orbit" value="4" min="0.1" max="60" step="0.1">
+            <span class="anim-label">s</span>
+            <select id="dpa-preset-orbit" class="anim-preset-sel"><option value="">Presets…</option><option>Orbit CW</option><option>Orbit CCW</option><option>Swing</option></select>
+          </div>
+          <canvas id="dpa-tl-orbit" width="196" height="72"></canvas>
+          <div class="anim-kf-row" id="dpa-kf-row-orbit" style="display:none">
+            <span class="anim-label">Easing</span>
+            <select id="dpa-ease-sel-orbit" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+            <button class="anim-kf-del" id="dpa-kf-del-orbit" style="display:none">🗑</button>
+          </div>
+        </div>
+
         <div class="prop-row" style="margin-top:6px">
           <label class="checkbox-label"><input type="checkbox" id="dp-gradient-on"> Animated gradient</label>
         </div>
@@ -1183,6 +1206,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.14"></script>
+<script src="app.js?v=3.16"></script>
 </body>
 </html>

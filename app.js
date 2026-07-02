@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.14';
+const VERSION = '3.16';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -378,6 +378,7 @@ function hasAnyAnimation() {
   if (S.mandalas.some(m => (m.shapes || []).some(s => s.anim && Object.values(s.anim).some(ap => ap.enabled)))) return true;
   if (S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0))) return true;
   if (S.mandalas.some(m => m.strokes.some(s => s.trailAnim?.enabled))) return true;
+  if (S.mandalas.some(m => m.strokes.some(s => s.anim?.orbit?.enabled))) return true;
   return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
 }
 
@@ -866,6 +867,204 @@ function initShapeTimelineCanvas(prop) {
     }
   });
   el.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+// ── Drawing (stroke) orbit timeline ──────────────────────
+// Same keyframe/timeline machinery as shape animation, scoped to the single
+// 'orbit' property strokes support — mirrors initShapeTimelineCanvas etc.
+// but against the selected stroke instead of the selected shape.
+const DPA_ORBIT_CFG = { min: -180, max: 180 };
+const DTL = { dragging: false, selectedKfIdx: null };
+
+function dpaEntity() { const f = findSelectedStroke(); return f ? f.stroke : null; }
+function dpaTlCanvasEl() { return document.getElementById('dpa-tl-orbit'); }
+
+function dpaTlCoords(canvasEl) {
+  const W = canvasEl.width, H = canvasEl.height;
+  const PAD = { l: 6, r: 6, t: 8, b: 8 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+  const { min: vMin, max: vMax } = DPA_ORBIT_CFG;
+  return {
+    W, H, PAD, iW, iH,
+    tx: t  => PAD.l + t * iW,
+    vy: v  => PAD.t + (1 - (v - vMin) / (vMax - vMin)) * iH,
+    tv: px => Math.max(0, Math.min(1, (px - PAD.l) / iW)),
+    yv: py => vMin + (1 - (py - PAD.t) / iH) * (vMax - vMin),
+  };
+}
+
+function drawDrawingOrbitTimeline() {
+  const el = dpaTlCanvasEl(); const stroke = dpaEntity();
+  if (!el || !stroke?.anim?.orbit) return;
+  const selKf = DTL.selectedKfIdx != null ? { kfIdx: DTL.selectedKfIdx } : null;
+  drawTimelineOn(el, DPA_ORBIT_CFG, stroke.anim.orbit, selKf);
+}
+
+function refreshDrawingOrbitTimeline() { drawDrawingOrbitTimeline(); }
+
+function dpaNearestKf(el, px, py, radius = 14) {
+  const ap = dpaEntity()?.anim?.orbit; if (!ap) return -1;
+  const { tx, vy } = dpaTlCoords(el);
+  let best = -1, bestD = radius;
+  ap.keyframes.forEach((kf, i) => {
+    const d = Math.hypot(tx(kf.t) - px, vy(kf.value) - py);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+function syncDrawingOrbitEasingDropdown() {
+  const sel = document.getElementById('dpa-ease-sel-orbit');
+  const row = document.getElementById('dpa-kf-row-orbit');
+  if (!sel || !row) return;
+  const stroke = dpaEntity();
+  const kfIdx = DTL.selectedKfIdx;
+  if (kfIdx == null || kfIdx < 0 || !stroke?.anim?.orbit) { row.style.display = 'none'; return; }
+  const kfs = stroke.anim.orbit.keyframes;
+  const hasNext = kfIdx < kfs.length - 1;
+  row.style.display = hasNext ? 'flex' : 'none';
+  if (hasNext) sel.value = kfs[kfIdx].easing;
+  const delBtn = document.getElementById('dpa-kf-del-orbit');
+  if (delBtn) {
+    const canDel = kfIdx > 0 && kfIdx < kfs.length - 1 && kfs.length > 2;
+    delBtn.style.display = canDel ? '' : 'none';
+  }
+}
+
+function initDrawingOrbitTimelineCanvas() {
+  const el = dpaTlCanvasEl(); if (!el) return;
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleX;
+    const stroke = dpaEntity(); if (!stroke?.anim?.orbit) return;
+    if (e.button === 2) {
+      const idx = dpaNearestKf(el, px, py);
+      if (idx >= 0 && stroke.anim.orbit.keyframes.length > 2) { stroke.anim.orbit.keyframes.splice(idx, 1); historySnapshot(); }
+      return;
+    }
+    const kfIdx = dpaNearestKf(el, px, py);
+    if (kfIdx >= 0) {
+      DTL.dragging = true; DTL.selectedKfIdx = kfIdx;
+      syncDrawingOrbitEasingDropdown(); return;
+    }
+    DTL.selectedKfIdx = null; syncDrawingOrbitEasingDropdown();
+    const { tv, yv } = dpaTlCoords(el);
+    const t = tv(px), v = Math.max(DPA_ORBIT_CFG.min, Math.min(DPA_ORBIT_CFG.max, yv(py)));
+    const kfs = stroke.anim.orbit.keyframes;
+    const prevKf = kfs.filter(k => k.t < t).pop();
+    kfs.push({ t, value: v, easing: prevKf?.easing ?? 'linear' });
+    kfs.sort((a, b) => a.t - b.t);
+    historySnapshot();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!DTL.dragging) return;
+    const rect = el.getBoundingClientRect();
+    const scaleX = el.width / rect.width, scaleY = el.height / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    const stroke = dpaEntity(); if (!stroke?.anim?.orbit) return;
+    const { tv, yv } = dpaTlCoords(el);
+    const kfs = stroke.anim.orbit.keyframes;
+    const kf = kfs[DTL.selectedKfIdx];
+    if (!kf) return;
+    kf.t = Math.max(0, Math.min(1, tv(px)));
+    kf.value = Math.max(DPA_ORBIT_CFG.min, Math.min(DPA_ORBIT_CFG.max, yv(py)));
+    kfs.sort((a, b) => a.t - b.t);
+    DTL.selectedKfIdx = kfs.indexOf(kf);
+  });
+  window.addEventListener('mouseup', () => {
+    if (DTL.dragging) {
+      const stroke = dpaEntity();
+      if (DTL.selectedKfIdx != null && stroke?.anim?.orbit)
+        DTL.selectedKfIdx = Math.min(DTL.selectedKfIdx, stroke.anim.orbit.keyframes.length - 1);
+      syncDrawingOrbitEasingDropdown();
+      DTL.dragging = false; historySnapshot();
+    }
+  });
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function wireStrokeOrbitAnim() {
+  const btn = document.getElementById('dpa-btn-orbit');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const found = findSelectedStroke(); if (!found) return;
+    const stroke = found.stroke;
+    if (!stroke.anim) stroke.anim = {};
+    historySnapshot();
+    if (stroke.anim.orbit?.enabled) {
+      stroke.anim.orbit.enabled = false;
+      btn.classList.remove('active');
+      document.getElementById('dpa-panel-orbit').style.display = 'none';
+      invalidateStrokeCache(); // re-enter the static cache at its current orbit value
+    } else {
+      const presets = SHAPE_ANIM_PRESETS.orbit;
+      if (!stroke.anim.orbit) {
+        const defaultPreset = presets?.[0];
+        stroke.anim.orbit = defaultPreset ? applyPreset(defaultPreset) : defaultAnimProp(stroke.orbit || 0);
+      } else {
+        stroke.anim.orbit.enabled = true;
+      }
+      btn.classList.add('active');
+      document.getElementById('dpa-panel-orbit').style.display = '';
+      document.getElementById('dpa-dur-orbit').value = stroke.anim.orbit.duration;
+      drawDrawingOrbitTimeline();
+      // Leave the static cache: it must stop drawing this stroke now that
+      // it's animating live, or the cached copy and the live copy both
+      // render at once (a stale frozen copy plus the moving one).
+      invalidateStrokeCache();
+      if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+    }
+  });
+
+  document.getElementById('dpa-dur-orbit').addEventListener('change', e => {
+    const found = findSelectedStroke(); if (!found?.stroke?.anim?.orbit) return;
+    found.stroke.anim.orbit.duration = Math.max(0.1, parseFloat(e.target.value) || 1);
+    drawDrawingOrbitTimeline();
+  });
+
+  document.getElementById('dpa-preset-orbit').addEventListener('change', e => {
+    const found = findSelectedStroke(); if (!found) return;
+    const stroke = found.stroke;
+    const preset = SHAPE_ANIM_PRESETS.orbit.find(p => p.label === e.target.value);
+    if (!preset) { e.target.value = ''; return; }
+    if (!stroke.anim) stroke.anim = {};
+    stroke.anim.orbit = applyPreset(preset);
+    document.getElementById('dpa-dur-orbit').value = stroke.anim.orbit.duration;
+    document.getElementById('dpa-btn-orbit').classList.add('active');
+    document.getElementById('dpa-panel-orbit').style.display = '';
+    drawDrawingOrbitTimeline();
+    e.target.value = '';
+    flushHasAnimCache();
+    if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+    historySnapshot();
+  });
+
+  document.getElementById('dpa-ease-sel-orbit').addEventListener('change', e => {
+    const found = findSelectedStroke(); if (!found?.stroke?.anim?.orbit) return;
+    const kfIdx = DTL.selectedKfIdx;
+    if (kfIdx != null && kfIdx >= 0 && kfIdx < found.stroke.anim.orbit.keyframes.length - 1)
+      found.stroke.anim.orbit.keyframes[kfIdx].easing = e.target.value;
+    drawDrawingOrbitTimeline();
+  });
+
+  document.getElementById('dpa-kf-del-orbit').addEventListener('click', () => {
+    const found = findSelectedStroke(); if (!found?.stroke?.anim?.orbit) return;
+    const kfIdx = DTL.selectedKfIdx;
+    const kfs = found.stroke.anim.orbit.keyframes;
+    if (kfIdx != null && kfIdx > 0 && kfIdx < kfs.length - 1 && kfs.length > 2) {
+      kfs.splice(kfIdx, 1);
+      DTL.selectedKfIdx = null;
+      syncDrawingOrbitEasingDropdown();
+      drawDrawingOrbitTimeline();
+      historySnapshot();
+    }
+  });
+
+  initDrawingOrbitTimelineCanvas();
 }
 
 function tlNearestKf(el, prop, px, py, radius = 14) {
@@ -1616,9 +1815,9 @@ function rebuildStrokeCache() {
   for (const m of S.mandalas) {
     if (!m.visible) continue;
     for (const stroke of m.strokes) {
-      if (stroke.pts.length < 2 || stroke.gradient || stroke.trailAnim?.enabled || stroke.visible === false) continue; // skip gradient/trail — rendered live
+      if (stroke.pts.length < 2 || stroke.gradient || stroke.trailAnim?.enabled || stroke.anim?.orbit?.enabled || stroke.visible === false) continue; // skip gradient/trail/orbit — rendered live
       const axes = stroke.axes != null ? stroke.axes : m.axes;
-      const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+      const rot  = strokeEffectiveRot(stroke, m, S.animClock);
       // Use the offscreen ctx, not the main ctx
       const savedCtx = ctx;
       // Temporarily rebind renderStrokeSymmetric to use cc
@@ -1648,6 +1847,9 @@ function render(timestamp) {
         document.getElementById('sa-anim-panel-radius')?.offsetParent !== null) {
       refreshAllTimelines();
       refreshAllShapeTimelines();
+    }
+    if (document.getElementById('dpa-panel-orbit')?.offsetParent !== null) {
+      refreshDrawingOrbitTimeline();
     }
   }
 
@@ -1800,6 +2002,15 @@ function shapeRadialTangentialOffset(shape, clk) {
   const radius = animOffX ?? baseRadius;
   const angle  = baseAngle + (animOffY ?? 0) / Math.max(radius, 1);
   return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+}
+
+// A stroke's effective axis rotation (degrees), including its static Orbit
+// offset and, if enabled, the animated value in place of the static one —
+// same "extra rotation added to the axis spoke" model as shape orbit.
+function strokeEffectiveRot(stroke, m, clk) {
+  const base = (stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation) || 0;
+  const orbit = getAnimValue(stroke, 'orbit', clk) ?? (stroke.orbit || 0);
+  return base + orbit;
 }
 
 // Animated version of shapeWorldCenter — accounts for orbit and animated offsetX/Y.
@@ -1997,7 +2208,7 @@ function renderMandala(m, forExport) {
   for (const stroke of m.strokes) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
-    const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+    const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (stroke.trailAnim?.enabled) {
       const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
       renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac, stroke.erase ? null : stroke.gradient);
@@ -2009,14 +2220,15 @@ function renderMandala(m, forExport) {
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
 }
 
-// Live render — gradient/trail strokes + shapes + sprites (static solid strokes come from cache)
+// Live render — gradient/trail/orbit strokes + shapes + sprites (static solid strokes come from cache)
 function renderMandalaLive(m) {
   for (const stroke of m.strokes) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const isTrail = !!stroke.trailAnim?.enabled;
-    if (!stroke.gradient && !isTrail) continue; // static — already in cache
+    const isOrbiting = !!stroke.anim?.orbit?.enabled;
+    if (!stroke.gradient && !isTrail && !isOrbiting) continue; // static — already in cache
     const axes = stroke.axes != null ? stroke.axes : m.axes;
-    const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+    const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (isTrail) {
       const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
       renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac, stroke.erase ? null : stroke.gradient);
@@ -3151,6 +3363,14 @@ function updateStrokeProps() {
   document.getElementById('dp-opacity').value = stroke.opacity;
   document.getElementById('dp-opacity-val').textContent = Math.round(stroke.opacity * 100) + '%';
 
+  document.getElementById('dp-orbit').value = stroke.orbit || 0;
+  document.getElementById('dp-orbit-val').textContent = (stroke.orbit || 0) + '°';
+  const orbitAnim = stroke.anim?.orbit;
+  document.getElementById('dpa-btn-orbit').classList.toggle('active', !!orbitAnim?.enabled);
+  document.getElementById('dpa-panel-orbit').style.display = orbitAnim?.enabled ? '' : 'none';
+  if (orbitAnim) document.getElementById('dpa-dur-orbit').value = orbitAnim.duration;
+  drawDrawingOrbitTimeline();
+
   const hasGradient = !!stroke.gradient;
   document.getElementById('dp-gradient-on').checked = hasGradient;
   document.getElementById('dp-gradient-options').style.display = hasGradient ? '' : 'none';
@@ -3188,6 +3408,14 @@ function wireStrokeProps() {
       invalidateStrokeCache();
     });
   });
+  document.getElementById('dp-orbit').addEventListener('input', e => {
+    forStroke(s => {
+      s.orbit = parseInt(e.target.value) || 0;
+      document.getElementById('dp-orbit-val').textContent = s.orbit + '°';
+      invalidateStrokeCache();
+    });
+  });
+  wireStrokeOrbitAnim();
 
   dpGradientEditor = makeGradientStopEditor({
     canvas: document.getElementById('dp-grad-preview'),
@@ -4023,7 +4251,7 @@ function renderLayerHoverHighlight() {
     const stroke = (m.strokes || []).find(s => s.id === _layersHoverItem.id);
     if (!stroke || stroke.pts.length < 2 || stroke.visible === false) return;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
-    const rot  = stroke.axisRotation != null ? stroke.axisRotation : m.axisRotation;
+    const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     ctx.save();
     ctx.globalAlpha = pulse;
     ctx.globalCompositeOperation = 'source-over';
