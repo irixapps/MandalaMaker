@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.2';
+const VERSION = '3.3';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4038,16 +4038,19 @@ function renderPaletteList() {
 }
 
 function selectPaletteItem(id) {
+  // Clicking the already-open image closes its accordion instead of
+  // re-opening it — same toggle behaviour as an accordion header.
+  const wasSelected = S.selectedPaletteId === id;
   S.selectedSpriteId = null;
   S.selectedShapeId = null;
   S.selectedStrokeId = null;
-  S.selectedPaletteId = id;
+  S.selectedPaletteId = wasSelected ? null : id;
   renderPaletteList();
   updateSpriteProps();
   updateShapeProps();
   updateStrokeProps();
   updatePaletteItemProps();
-  setTool('place');
+  if (!wasSelected) setTool('place');
 }
 
 function removePaletteItem(id) {
@@ -5326,7 +5329,10 @@ function wireEvents() {
     const icon = S.animPaused ? '▶' : '⏸';
     document.getElementById('btn-anim-playpause').textContent = icon;
     const l = document.getElementById('btn-anim-playpause-layers');
-    if (l) l.textContent = icon;
+    if (l) {
+      l.querySelector('.anim-playpause-icon').textContent = icon;
+      l.querySelector('.anim-playpause-label').textContent = S.animPaused ? 'Play Anims' : 'Pause Anims';
+    }
   }
   document.getElementById('btn-anim-playpause').addEventListener('click', () => {
     S.animPaused = !S.animPaused;

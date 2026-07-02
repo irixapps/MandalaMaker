@@ -63,7 +63,10 @@
 <!-- ── /SEO ── -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=3.2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css?v=3.3">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -358,7 +361,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
       <!-- Layers (moved to top — the primary at-a-glance view of everything in the mandala) -->
       <div class="panel-header" style="justify-content:space-between">
         <span>Layers</span>
-        <button id="btn-anim-playpause-layers" title="Pause / resume all keyframe animations" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--fg);opacity:.7;padding:0 2px;line-height:1">⏸</button>
+        <button id="btn-anim-playpause-layers" title="Pause / resume all keyframe animations" style="display:flex;align-items:center;gap:4px;background:none;border:none;cursor:pointer;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--fg);opacity:.7;padding:0 2px;line-height:1"><span class="anim-playpause-icon">⏸</span><span class="anim-playpause-label">Pause Anims</span></button>
       </div>
       <div id="layers-list" class="layers-list"></div>
 
@@ -910,7 +913,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <button id="btn-gradient-mode" title="Toggle gradient stroke mode" style="font-size:11px;padding:2px 7px;line-height:1.4">Gradient</button>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,erase,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,circle,star,polygon">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <label style="font-size:12px">Size:</label>
@@ -918,7 +921,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <span id="brush-size-val" style="min-width:20px">4</span>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,erase,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,circle,star,polygon">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <label style="font-size:12px">Opacity:</label>
@@ -1178,6 +1181,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.2"></script>
+<script src="app.js?v=3.3"></script>
 </body>
 </html>
