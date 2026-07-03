@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.38';
+const VERSION = '3.39';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -117,6 +117,7 @@ const S = {
   wingTip: null,
   wingEnd: null,
   wingCurve: 0.35,
+  wingMirrorAngle: 0,  // captured from tip->mandala-centre direction on the first click
 
   // drawing transient
   drawing: false,
@@ -2861,9 +2862,10 @@ function render(timestamp) {
     }
   }
 
-  // Wing preview — the bottom point is mirrored across the fixed vertical
-  // axis from the very start of the drag (see renderWingGuides), so both
-  // arms are visibly distinct live, not just once edited afterward.
+  // Wing preview — the bottom point is mirrored across the tip->mandala-
+  // centre axis captured on the first click (S.wingMirrorAngle, see
+  // renderWingGuides), so both arms are visibly distinct live, not just
+  // once edited afterward.
   if (S.tool === 'wing' && S.wingPhase && S.wingTip && S.wingEnd) {
     const m = getActiveMandala();
     if (m) {
@@ -2874,7 +2876,7 @@ function render(timestamp) {
         bezierDx: dx, bezierDy: dy,
         bezierCurve: S.wingCurve,
         bezierC1x: null, bezierC1y: null, bezierC2x: null, bezierC2y: null,
-        wingMirrorAngle: WING_MIRROR_ANGLE,
+        wingMirrorAngle: S.wingMirrorAngle,
         r: 0, color: S.color, thickness: S.thickness, opacity: S.opacity,
         fill: null, lineCap: S.shapeLineCap, lineJoin: S.shapeLineJoin, dash: [],
         gradient: null, rotation: 0, orbit: 0, anim: {}, params: {},
@@ -2883,7 +2885,7 @@ function render(timestamp) {
       ctx.save(); ctx.globalAlpha = 0.7;
       renderShapeSymmetric(ctx, m, previewShape);
       ctx.restore();
-      renderWingGuides(m, S.wingTip, S.wingEnd, S.wingPhase === 'curve' ? S.wingCurve : null);
+      renderWingGuides(m, S.wingTip, S.wingEnd, S.wingPhase === 'curve' ? S.wingCurve : null, S.wingMirrorAngle);
     }
   }
 
@@ -3536,10 +3538,10 @@ function renderPetalGuides(m, tip, base, curveVal) {
 // second arm end) as its own dashed line + dot, live as the primary end
 // point moves — since Wing's two arms are meant to read as distinct from
 // the very start of the drag, not just once edited afterward.
-function renderWingGuides(m, tip, end, curveVal) {
+function renderWingGuides(m, tip, end, curveVal, mirrorAngle) {
   const rotRad = ((m.axisRotation) || 0) * Math.PI / 180;
   const rel = { x: end.x - tip.x, y: end.y - tip.y };
-  const mirroredRel = mirrorAcrossAxis(rel, WING_MIRROR_ANGLE);
+  const mirroredRel = mirrorAcrossAxis(rel, mirrorAngle);
   const mirroredEnd = { x: tip.x + mirroredRel.x, y: tip.y + mirroredRel.y };
 
   ctx.save();
@@ -4143,13 +4145,14 @@ function mirrorAcrossAxis(p, angle) {
 
 // Wing: Bezier's primary curve (tip -> bezierDx/Dy via bezierC1/C2, exactly
 // like Bezier — same fields, same edit handles) plus a second arm that's a
-// live mirror of it across a fixed vertical axis through the tip
-// (WING_MIRROR_ANGLE, stored per-shape as wingMirrorAngle so it always
-// renders the same way it did while being drawn). Since the primary curve's
-// end is wherever the cursor was clicked — not constrained to that vertical
-// axis — the two arms read as visibly separate from the very first drag,
-// unlike Petal's forced-closed loop; only a perfectly vertical drag joins
-// them at the bottom.
+// live mirror of it across an axis through the tip (stored per-shape as
+// wingMirrorAngle, captured on the tool's first click as the tip->mandala-
+// centre direction, so it always renders the same way it did while being
+// drawn — see the 'wing' tool block in onMouseDown). Since the primary
+// curve's end is wherever the cursor was clicked next — not constrained to
+// that axis — the two arms read as visibly separate from the very first
+// drag, unlike Petal's forced-closed loop; only a drag exactly along the
+// mirror axis joins them at the bottom.
 function wingCurves(shape) {
   const primary = bezierControlPoints(shape);
   const angle = shape.wingMirrorAngle || 0;
@@ -4164,6 +4167,19 @@ function wingOutlinePoints(shape) {
   return [
     ...sampleCubicBezier(primary.dx, primary.dy, primary.cA, primary.cB),
     ...sampleCubicBezier(mirrored.dx, mirrored.dy, mirrored.cA, mirrored.cB),
+  ];
+}
+
+// Like wingOutlinePoints, but keeps the two arms as separate point lists
+// instead of concatenating them — used for the gradient stroke walk so each
+// arm's arc-length restarts at 0 from the shared tip, rather than one arm
+// inheriting wherever the other left off (see the gradient stroke block in
+// renderShapeInContext).
+function wingArmPointLists(shape) {
+  const { primary, mirrored } = wingCurves(shape);
+  return [
+    sampleCubicBezier(primary.dx, primary.dy, primary.cA, primary.cB),
+    sampleCubicBezier(mirrored.dx, mirrored.dy, mirrored.cA, mirrored.cB),
   ];
 }
 
@@ -4252,18 +4268,22 @@ function renderShapeInContext(tCtx, shape) {
 
   // Stroke
   if (shape.gradient && tCtx === ctx) {
-    const pts        = getShapePoints(shape);
     const scaledDash = (shape.dash && shape.dash.length) ? shape.dash.map(v => v * t) : null;
     const lineCap    = shape.lineCap  || 'round';
     const lineJoin   = shape.lineJoin || 'round';
-    // Wing's two arms are disconnected subpaths, but its point array (used
-    // for the arc-length gradient walk below) has to jump between them —
-    // force the masked/composite path so that phantom jump never renders as
-    // a visible bridge; the mask comes from the real two-subpath Path2D,
-    // which has no ink in the gap.
-    const needsComposite = lineJoin !== 'round' || (lineCap !== 'round' && scaledDash) || shape.type === 'wing';
+    const isWing     = shape.type === 'wing';
+    // Wing's two arms are disconnected subpaths that both start at the tip.
+    // Walked as separate point lists (each restarting its own arc-length at
+    // 0) rather than one concatenated list, so both arms sample the same
+    // gradient colour at the shared tip and read as true mirror images of
+    // each other; concatenating them would also bridge a phantom segment
+    // between the arms, which forcing the masked/composite path below hides
+    // (the mask comes from the real two-subpath Path2D, which has no ink in
+    // the gap).
+    const armPtsList = isWing ? wingArmPointLists(shape) : [getShapePoints(shape)];
+    const needsComposite = lineJoin !== 'round' || (lineCap !== 'round' && scaledDash) || isWing;
 
-    if (pts.length > 1) {
+    if (armPtsList.some(pts => pts.length > 1)) {
       if (needsComposite) {
         // Composite approach: render gradient colours to a temp canvas, then
         // mask with a native stroke (correct lineCap/lineJoin/dash) via destination-in.
@@ -4271,10 +4291,13 @@ function renderShapeInContext(tCtx, shape) {
         _ensureGradOffscreen(W, H);
         const xf = ctx.getTransform();
 
-        // 1. Draw gradient arc-walk into colour canvas
+        // 1. Draw gradient arc-walk(s) into colour canvas — one call per arm
+        // for Wing so each starts fresh at the tip.
         _gradColorCtx.clearRect(0, 0, W, H);
         _gradColorCtx.setTransform(xf);
-        renderGradientSegments(pts, shape.gradient, shape.thickness, null, 'round', _gradColorCtx);
+        for (const pts of armPtsList) {
+          if (pts.length > 1) renderGradientSegments(pts, shape.gradient, shape.thickness, null, 'round', _gradColorCtx);
+        }
         _gradColorCtx.setTransform(1, 0, 0, 1, 0, 0);
 
         // 2. Draw native stroke (correct cap/join/dash) as white mask
@@ -4301,7 +4324,7 @@ function renderShapeInContext(tCtx, shape) {
         ctx.drawImage(_gradColorCanvas, 0, 0);
         ctx.restore();
       } else {
-        renderGradientSegments(pts, shape.gradient, shape.thickness, scaledDash, lineCap);
+        renderGradientSegments(armPtsList[0], shape.gradient, shape.thickness, scaledDash, lineCap);
       }
     }
   } else {
@@ -5684,15 +5707,20 @@ function onMouseDown(e) {
   }
 
   // Wing tool — identical three-click flow to Bezier, except the bottom
-  // point is mirrored across a fixed vertical axis through the tip from the
-  // very start of the drag (see onMouseMove's 'axis' phase below), so both
-  // arms are visibly distinct while drawing, not just once edited later.
+  // point is mirrored across an axis through the tip from the very start of
+  // the drag (see onMouseMove's 'axis' phase below), so both arms are
+  // visibly distinct while drawing, not just once edited later. That mirror
+  // axis is captured on the first click as the direction from the tip to
+  // the mandala's centre (local (0,0)), so the wing radiates naturally
+  // regardless of where on the canvas it's drawn.
   if (S.tool === 'wing') {
     if (!m) return;
     const local = toMandalaLocal(m, pos.x, pos.y);
     if (S.wingPhase === null) {
       S.wingTip = local;
       S.wingEnd = local;
+      const distToCentre = Math.hypot(local.x, local.y);
+      S.wingMirrorAngle = distToCentre > 0.5 ? Math.atan2(-local.y, -local.x) : WING_MIRROR_ANGLE;
       S.wingPhase = 'axis';
     } else if (S.wingPhase === 'axis') {
       const axisLen = Math.hypot(S.wingEnd.x - S.wingTip.x, S.wingEnd.y - S.wingTip.y);
@@ -5716,7 +5744,7 @@ function onMouseDown(e) {
         bezierDx: dx, bezierDy: dy,
         bezierC1x: midX + px * bulge, bezierC1y: midY + py * bulge,
         bezierC2x: midX - px * bulge, bezierC2y: midY - py * bulge,
-        wingMirrorAngle: WING_MIRROR_ANGLE,
+        wingMirrorAngle: S.wingMirrorAngle,
         r: 0,
         color: S.color,
         thickness: S.thickness,
