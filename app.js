@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.39';
+const VERSION = '3.40';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -790,7 +790,7 @@ const EFFECT_TYPES = {
     label: 'Bloom',
     defaults: () => ({ amount: 50, threshold: 60, radius: 12 }),
     controls: [
-      { key: 'amount',    label: 'Amount',    min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'amount',    label: 'Amount',    min: 0, max: 200, step: 1, format: v => Math.round(v) + '%', animatable: true },
       { key: 'threshold', label: 'Threshold', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
       { key: 'radius',    label: 'Blur Radius', min: 1, max: 60, step: 1, format: v => Math.round(v) + 'px', animatable: false },
     ],
@@ -815,10 +815,19 @@ const EFFECT_TYPES = {
       _bloomCtx.drawImage(canvas, 0, 0);
       _bloomCtx.filter = 'none';
 
+      // 0-100 draws the glow layer once, at up to full alpha, exactly as
+      // before. A single 'lighter' pass at alpha 1 is already as bright as
+      // one copy of the glow layer can get, so past 100 the range instead
+      // draws a second additive pass — 100-200 fades that second copy in,
+      // doubling the maximum possible bloom brightness at 200%.
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = Math.min(1, amount / 100);
       ctx.drawImage(_bloomCanvas, 0, 0);
+      if (amount > 100) {
+        ctx.globalAlpha = Math.min(1, (amount - 100) / 100);
+        ctx.drawImage(_bloomCanvas, 0, 0);
+      }
       ctx.restore();
     },
   },
