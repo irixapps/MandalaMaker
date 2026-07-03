@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.42';
+const VERSION = '3.43';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -7731,28 +7731,6 @@ function resizeCanvas(w, h) {
   centerCanvasView();
 }
 
-function newProject() {
-  if (!confirm('Start a new project? Unsaved changes will be lost.')) return;
-  S.mandalas = [];
-  S.palette = [];
-  S.history = [];
-  S.redoStack = [];
-  clearAllSelections();
-  hiddenImgs.innerHTML = '';
-  S.bgColor = '#0d0d1a';
-  document.getElementById('bg-color').value = S.bgColor;
-  invalidateStrokeCache();
-  // Reset layer name counters for the new project
-  Object.keys(_layerSeq).forEach(k => delete _layerSeq[k]);
-  addMandala();
-  renderPaletteList();
-  updateSpriteProps();
-  updateShapeProps();
-  updateStrokeProps();
-  updatePaletteItemProps();
-  updateUndoButtons();
-}
-
 function addMandala() {
   const cx = S.canvasW / 2 + (S.mandalas.length * 30);
   const cy = S.canvasH / 2 + (S.mandalas.length * 20);
@@ -7877,7 +7855,6 @@ function wireEvents() {
   });
 
   // Toolbar
-  document.getElementById('btn-new').addEventListener('click', newProject);
   document.getElementById('btn-save').addEventListener('click', saveProject);
   document.getElementById('btn-theater').addEventListener('click', enterTheaterMode);
   document.getElementById('btn-help').addEventListener('click', toggleHelp);
@@ -8081,6 +8058,20 @@ function wireEvents() {
   document.getElementById('btn-images-collapse').addEventListener('click', () => setImagesCollapsed(true));
   document.getElementById('btn-images-expand-icon').addEventListener('click', () => setImagesCollapsed(false));
   document.getElementById('btn-images-expand').addEventListener('click', () => setImagesCollapsed(false));
+
+  // Effects/Layers/Inspector panel — same collapsible-strip pattern as Images.
+  const rightPanel = document.getElementById('right-panel');
+  let rightCollapsed = false;
+  try { rightCollapsed = localStorage.getItem('mandala-right-collapsed') === '1'; } catch {}
+  rightPanel.classList.toggle('collapsed', rightCollapsed);
+  function setRightCollapsed(collapsed) {
+    rightCollapsed = collapsed;
+    rightPanel.classList.toggle('collapsed', collapsed);
+    try { localStorage.setItem('mandala-right-collapsed', collapsed ? '1' : '0'); } catch {}
+  }
+  document.getElementById('btn-right-collapse').addEventListener('click', () => setRightCollapsed(true));
+  document.getElementById('btn-right-expand-icon').addEventListener('click', () => setRightCollapsed(false));
+  document.getElementById('btn-right-expand').addEventListener('click', () => setRightCollapsed(false));
 
   // Palette
   document.getElementById('btn-add-image').addEventListener('click', () => document.getElementById('image-import').click());

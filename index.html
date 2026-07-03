@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.42">
+<link rel="stylesheet" href="style.css?v=3.43">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -168,9 +168,8 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
     </div>
     <div class="toolbar-sep"></div>
     <div class="toolbar-group">
-      <button class="btn" id="btn-new" title="New project">New</button>
-      <button class="btn" id="btn-save" title="Save project (Ctrl+S)">Save</button>
-      <button class="btn" id="btn-load" title="Load project">Load</button>
+      <button class="btn" id="btn-load" title="Load project"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M1.5 4.2V3a1 1 0 011-1h2.8l1.3 1.5H11.5a1 1 0 011 1v.7"/><path d="M1.3 4.6a.8.8 0 01.8-.6h9.8a.8.8 0 01.79.92l-.86 5.6a1 1 0 01-.99.84H3.36a1 1 0 01-.99-.84l-.86-5.6a.8.8 0 01-.02-.22z"/></svg> Load</button>
+      <button class="btn" id="btn-save" title="Save project (Ctrl+S)"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M2 1.5h7.5L12.5 4.5V11.5a1 1 0 01-1 1H2a1 1 0 01-1-1V2.5a1 1 0 011-1z"/><path d="M4 1.5h4.5v3H4z"/><path d="M3.3 8h7.4v4.5H3.3z"/></svg> Save</button>
       <div class="export-dropdown" id="export-dropdown">
         <button class="btn" id="btn-export-menu" title="Export">Export ▾</button>
         <div class="export-menu" id="export-menu" style="display:none">
@@ -390,14 +389,18 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
     </div>
 
     <aside id="right-panel">
+      <div class="right-panel-body">
       <!-- Effects — global post-process stack, applied after everything else
            renders. See "EFFECT-MODULE" comments in app.js for the module
            contract used to add new effect types. -->
       <div class="panel-header" id="effects-header" style="justify-content:space-between;cursor:pointer">
         <span id="effects-title">Effects ▾</span>
-        <select id="effect-add-select" title="Add an effect" onclick="event.stopPropagation()" style="font-size:10px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:1px 3px">
-          <option value="">+ Add…</option>
-        </select>
+        <div class="panel-header-actions">
+          <select id="effect-add-select" title="Add an effect" onclick="event.stopPropagation()" style="font-size:10px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:1px 3px">
+            <option value="">+ Add…</option>
+          </select>
+          <button id="btn-right-collapse" title="Collapse Effects/Layers panel" onclick="event.stopPropagation()">›</button>
+        </div>
       </div>
       <div id="effects-list" class="layers-list"></div>
       <div class="panel-sep"></div>
@@ -930,6 +933,9 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <button class="btn btn-danger" id="dp-delete" style="margin-top:10px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Drawing</button>
       </div>
       </div><!-- /#inspector-panel -->
+      </div><!-- /.right-panel-body -->
+      <button id="btn-right-expand-icon" title="Expand Effects/Layers panel">‹</button>
+      <button id="btn-right-expand" title="Expand Effects/Layers panel">Layers</button>
     </aside>
 
     <!-- Images — its own collapsible column so a large image library never
@@ -1326,6 +1332,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.42"></script>
+<script src="app.js?v=3.43"></script>
 </body>
 </html>
