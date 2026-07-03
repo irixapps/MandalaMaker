@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.28';
+const VERSION = '3.29';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -414,50 +414,69 @@ function hasAnyAnimation() {
   return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
 }
 
-// Computes the visible trail window [tailFrac, headFrac] (both 0..1, arc-length fractions
-// of the stroke path) for a given point in the loop cycle.
-// Draw phase: head sweeps 0 -> 1 while tail trails `visibleFrac` behind it (clamped to 0).
-// Recede phase: head holds at 1 while tail sweeps up to close the window, then the loop repeats.
-// Phase durations are weighted by distance travelled so the leading/trailing edges move at a
-// constant, matched speed across both phases.
-function trailWindowFrac(trailAnim, clock) {
+// True if `pts` forms a closed loop (its start and end points coincide) —
+// used to decide how Continuous chase mode should treat a path: closed
+// loops can wrap the trail seamlessly, open paths can't and ping-pong instead.
+function isClosedLoop(pts) {
+  if (pts.length < 2) return false;
+  const dx = pts[0].x - pts[pts.length - 1].x, dy = pts[0].y - pts[pts.length - 1].y;
+  return Math.hypot(dx, dy) < 0.5;
+}
+
+// Computes the visible trail window as arc-length fractions of the path —
+// { tailFrac, headFrac, fadeAtStart, wrap }. Two families:
+// - Pulse (default, trailAnim.continuous falsy): grow-then-recede-then-loop.
+//   Draw phase: head sweeps 0 -> 1 while tail trails `visibleFrac` behind it.
+//   Recede phase: head holds at 1 while tail sweeps up to close the window,
+//   then the whole thing repeats. Phase durations are weighted by distance
+//   travelled so the leading/trailing edges move at a constant, matched
+//   speed across both phases.
+// - Continuous (trailAnim.continuous): always advancing, never pausing.
+//   Closed loops wrap the window seamlessly through the 1.0/0.0 seam
+//   forever, like a comet orbiting endlessly (tailFrac can go negative —
+//   renderTrailWindowInContext wraps it via `wrap`). Open paths have no
+//   seamless wrap point, so they ping-pong: the head bounces 0 -> 1 -> 0
+//   forever, with the tail always trailing behind whichever direction
+//   it's currently moving (fadeAtStart flips accordingly).
+function trailWindowFrac(trailAnim, clock, isClosed) {
   const duration = trailAnim.duration > 0 ? trailAnim.duration : 0.1;
   const visibleFrac = Math.max(0.02, Math.min(1, (trailAnim.lengthPct ?? 40) / 100));
-  const totalTravel = 1 + visibleFrac;
-  const drawPhaseFrac = 1 / totalTravel;
-  const t = (clock % duration) / duration;
-  const recedeStart = Math.max(0, 1 - visibleFrac);
-  if (t < drawPhaseFrac) {
-    const headFrac = t / drawPhaseFrac;
-    return { tailFrac: Math.max(0, headFrac - visibleFrac), headFrac };
+
+  if (!trailAnim.continuous) {
+    const totalTravel = 1 + visibleFrac;
+    const drawPhaseFrac = 1 / totalTravel;
+    const t = (clock % duration) / duration;
+    const recedeStart = Math.max(0, 1 - visibleFrac);
+    if (t < drawPhaseFrac) {
+      const headFrac = t / drawPhaseFrac;
+      return { tailFrac: Math.max(0, headFrac - visibleFrac), headFrac, fadeAtStart: true, wrap: false };
+    }
+    const recedeT = (t - drawPhaseFrac) / (1 - drawPhaseFrac);
+    return { tailFrac: recedeStart + recedeT * (1 - recedeStart), headFrac: 1, fadeAtStart: true, wrap: false };
   }
-  const recedeT = (t - drawPhaseFrac) / (1 - drawPhaseFrac);
-  return { tailFrac: recedeStart + recedeT * (1 - recedeStart), headFrac: 1 };
+
+  if (isClosed) {
+    const headFrac = (clock % duration) / duration;
+    return { tailFrac: headFrac - visibleFrac, headFrac, fadeAtStart: true, wrap: true };
+  }
+
+  const t = (clock % (duration * 2)) / duration; // 0..2, one full there-and-back per 2x duration
+  const forward = t <= 1;
+  const raw = forward ? t : 2 - t;
+  return forward
+    ? { tailFrac: Math.max(0, raw - visibleFrac), headFrac: raw, fadeAtStart: true, wrap: false }
+    : { tailFrac: raw, headFrac: Math.min(1, raw + visibleFrac), fadeAtStart: false, wrap: false };
 }
 
-// Walks pts from arc-distance fromD to toD (via the shared ptAtDist lookup) as one stroked path.
-function _trailArcStroke(ctx, ptAtDist, fromD, toD, step) {
-  if (toD <= fromD) return;
-  ctx.beginPath();
-  let d = fromD;
-  let p = ptAtDist(d);
-  ctx.moveTo(p.x, p.y);
-  while (d < toD) {
-    d = Math.min(d + step, toD);
-    p = ptAtDist(d);
-    ctx.lineTo(p.x, p.y);
-  }
-  ctx.stroke();
-}
-
-// Draws the [tailFrac, headFrac] arc-length window of `pts` — already in
-// whatever local frame the caller has already transformed `ctx` into — as
-// one stroked path, with the trailing 25% of that window fading from
-// transparent to full opacity (the actual "fading trail" look). Factored
-// out of renderStrokeTrailSymmetric so shapes can reuse it too, via
-// renderShapeTrailSymmetric, without duplicating the arc-walk/fade math.
-function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, tailFrac, headFrac) {
-  if (pts.length < 2 || headFrac <= 0) return;
+// Draws the trail `window` (see trailWindowFrac) of `pts` — already in
+// whatever local frame the caller has already transformed `ctx` into — with
+// a 25%-of-window fade at whichever end trails the direction of travel
+// (fadeAtStart) and, for wrap:true, seamless wraparound through the path's
+// start/end seam. Factored out of renderStrokeTrailSymmetric so shapes can
+// reuse it too, via renderShapeTrailSymmetric, without duplicating this math.
+function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, window) {
+  const { tailFrac, headFrac, fadeAtStart = true, wrap = false } = window;
+  if (pts.length < 2 || headFrac <= tailFrac) return;
 
   const lens = [0];
   for (let i = 1; i < pts.length; i++) {
@@ -467,14 +486,16 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
   const totalLen = lens[lens.length - 1];
   if (totalLen <= 0) return;
 
-  const tailDist = Math.max(0, Math.min(totalLen, tailFrac * totalLen));
-  const headDist = Math.max(0, Math.min(totalLen, headFrac * totalLen));
+  // headFrac is always <=1 in both modes. Non-wrapping windows also clamp
+  // tailDist to the path's real extent; wrapping ones allow it to go
+  // negative — ptAtDist below wraps it back into [0, totalLen).
+  const tailDist = wrap ? tailFrac * totalLen : Math.max(0, tailFrac * totalLen);
+  const headDist = Math.min(totalLen, headFrac * totalLen);
   if (headDist <= tailDist) return;
   const fadeLen = (headDist - tailDist) * 0.25;
-  const fadeEndDist = tailDist + fadeLen;
 
   function ptAtDist(d) {
-    d = Math.max(0, Math.min(totalLen, d));
+    d = wrap ? ((d % totalLen) + totalLen) % totalLen : Math.max(0, Math.min(totalLen, d));
     for (let i = 0; i < pts.length - 1; i++) {
       if (d <= lens[i + 1] + 1e-6) {
         const segLen = lens[i + 1] - lens[i];
@@ -486,6 +507,18 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
     return pts[pts.length - 1];
   }
 
+  function alphaAt(midD) {
+    if (fadeLen <= 0.01) return opacity;
+    if (fadeAtStart) {
+      return midD < tailDist + fadeLen
+        ? Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity
+        : opacity;
+    }
+    return midD > headDist - fadeLen
+      ? Math.max(0, Math.min(1, (headDist - midD) / fadeLen)) * opacity
+      : opacity;
+  }
+
   const solidRGB = gradient ? null : hexToRgb(color);
   const timeOffset = gradient ? (S.animClock * gradient.speed) % 1 : 0;
   const step = Math.max(1.5, thickness * 0.65); // round-cap smoothing, matches gradient arc-walk
@@ -494,51 +527,30 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  if (gradient) {
-    // Colour shifts continuously along the path, so walk the whole window in small
-    // segments — alpha ramps through the fade zone, full opacity beyond it.
-    let d = tailDist;
-    while (d < headDist) {
-      const dNext = Math.min(d + step, headDist);
-      const midD = (d + dNext) / 2;
-      const alpha = (fadeLen > 0.01 && midD < fadeEndDist)
-        ? Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity
-        : opacity;
+  let d = tailDist;
+  while (d < headDist) {
+    const dNext = Math.min(d + step, headDist);
+    const midD = (d + dNext) / 2;
+    const alpha = alphaAt(midD);
+    const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
+    if (gradient) {
       const { r, g, b } = sampleGradientRGB(gradient.stops, midD / gradient.scale + timeOffset);
-      const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
       ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-      d = dNext;
-    }
-  } else if (fadeLen <= 0.01) {
-    const { r, g, b } = solidRGB;
-    ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
-    _trailArcStroke(ctx, ptAtDist, tailDist, headDist, step);
-  } else {
-    const { r, g, b } = solidRGB;
-    // Fading tail: alpha ramps 0 -> opacity across [tailDist, fadeEndDist]
-    let d = tailDist;
-    while (d < fadeEndDist) {
-      const dNext = Math.min(d + step, fadeEndDist);
-      const midD = (d + dNext) / 2;
-      const alpha = Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity;
-      const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
+    } else {
+      const { r, g, b } = solidRGB;
       ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-      d = dNext;
     }
-    // Solid head: full opacity across [fadeEndDist, headDist]
-    if (fadeEndDist < headDist) {
-      ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
-      _trailArcStroke(ctx, ptAtDist, fadeEndDist, headDist, step);
-    }
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    d = dNext;
   }
 }
 
 // Renders the visible [tailFrac, headFrac] window of `pts` across all symmetry copies, with the
 // trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
-function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, tailFrac, headFrac, gradient) {
-  if (pts.length < 2 || headFrac <= 0) return;
+function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, trailAnim, gradient) {
+  if (pts.length < 2) return;
+  const window = trailWindowFrac(trailAnim, S.animClock, isClosedLoop(pts));
+  if (window.headFrac <= window.tailFrac) return;
   const n = axes != null ? axes : m.axes;
   const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
@@ -554,7 +566,7 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
       ctx.translate(m.cx, m.cy);
       ctx.rotate(rotRad + segAngle * i);
       if (flip === 1) ctx.scale(1, -1);
-      renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, tailFrac, headFrac);
+      renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, window);
       ctx.restore();
     }
   }
@@ -2374,8 +2386,7 @@ function renderMandala(m, forExport) {
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (stroke.trailAnim?.enabled) {
-      const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac, stroke.erase ? null : stroke.gradient);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.erase ? null : stroke.gradient);
       continue;
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
@@ -2383,8 +2394,7 @@ function renderMandala(m, forExport) {
   for (const shape of (m.shapes || [])) {
     if (shape.visible === false) continue;
     if (shape.trailAnim?.enabled) {
-      const { tailFrac, headFrac } = trailWindowFrac(shape.trailAnim, S.animClock);
-      renderShapeTrailSymmetric(ctx, m, shape, tailFrac, headFrac);
+      renderShapeTrailSymmetric(ctx, m, shape);
     } else {
       renderShapeSymmetric(ctx, m, shape);
     }
@@ -2402,8 +2412,7 @@ function renderMandalaLive(m) {
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (isTrail) {
-      const { tailFrac, headFrac } = trailWindowFrac(stroke.trailAnim, S.animClock);
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, tailFrac, headFrac, stroke.erase ? null : stroke.gradient);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.erase ? null : stroke.gradient);
       continue;
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
@@ -2411,8 +2420,7 @@ function renderMandalaLive(m) {
   for (const shape of (m.shapes || [])) {
     if (shape.visible === false) continue;
     if (shape.trailAnim?.enabled) {
-      const { tailFrac, headFrac } = trailWindowFrac(shape.trailAnim, S.animClock);
-      renderShapeTrailSymmetric(ctx, m, shape, tailFrac, headFrac);
+      renderShapeTrailSymmetric(ctx, m, shape);
     } else {
       renderShapeSymmetric(ctx, m, shape);
     }
@@ -3537,10 +3545,12 @@ function renderShapeSymmetric(tCtx, m, shape) {
 // pipeline (including the petal/bezier/wing pivot rotation), but draws the
 // [tailFrac, headFrac] arc-length window of the shape's outline instead of
 // the whole thing, via the same low-level walker strokes use.
-function renderShapeTrailSymmetric(tCtx, m, shape, tailFrac, headFrac) {
+function renderShapeTrailSymmetric(tCtx, m, shape) {
   const { effShape, effRotRad, effOrbitRad, effX, effY } = computeShapeRenderParams(shape);
   const pts = getShapePoints(effShape);
-  if (pts.length < 2 || headFrac <= 0) return;
+  if (pts.length < 2) return;
+  const window = trailWindowFrac(shape.trailAnim, S.animClock, isClosedLoop(pts));
+  if (window.headFrac <= window.tailFrac) return;
 
   const n = shape.axes != null ? shape.axes : m.axes;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
@@ -3559,7 +3569,7 @@ function renderShapeTrailSymmetric(tCtx, m, shape, tailFrac, headFrac) {
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
       applyShapeLocalRotation(tCtx, shape, effRotRad);
-      renderTrailWindowInContext(tCtx, pts, effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, tailFrac, headFrac);
+      renderTrailWindowInContext(tCtx, pts, effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, window);
       tCtx.restore();
     }
   }
@@ -4003,6 +4013,7 @@ function updateShapeProps() {
     document.getElementById('sp-trail-speed').value = shape.trailAnim.duration;
     document.getElementById('sp-trail-length').value = shape.trailAnim.lengthPct;
     document.getElementById('sp-trail-length-val').textContent = shape.trailAnim.lengthPct + '%';
+    document.getElementById('sp-trail-continuous').checked = !!shape.trailAnim.continuous;
   }
 }
 
@@ -4141,7 +4152,7 @@ function wireShapeProps() {
 
   document.getElementById('sp-trail-on').addEventListener('change', e => {
     forShape(s => {
-      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40 };
+      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40, continuous: false };
       s.trailAnim.enabled = e.target.checked;
       markRenderDirty();
       flushHasAnimCache();
@@ -4163,6 +4174,13 @@ function wireShapeProps() {
       const v = parseInt(e.target.value);
       s.trailAnim.lengthPct = v;
       document.getElementById('sp-trail-length-val').textContent = v + '%';
+      markRenderDirty();
+    });
+  });
+  document.getElementById('sp-trail-continuous').addEventListener('change', e => {
+    forShape(s => {
+      if (!s.trailAnim) return;
+      s.trailAnim.continuous = e.target.checked;
       markRenderDirty();
     });
   });
@@ -4218,6 +4236,7 @@ function updateStrokeProps() {
     document.getElementById('dp-trail-speed').value = stroke.trailAnim.duration;
     document.getElementById('dp-trail-length').value = stroke.trailAnim.lengthPct;
     document.getElementById('dp-trail-length-val').textContent = stroke.trailAnim.lengthPct + '%';
+    document.getElementById('dp-trail-continuous').checked = !!stroke.trailAnim.continuous;
   }
 }
 
@@ -4319,7 +4338,7 @@ function wireStrokeProps() {
 
   document.getElementById('dp-trail-on').addEventListener('change', e => {
     forStroke(s => {
-      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40 };
+      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40, continuous: false };
       s.trailAnim.enabled = e.target.checked;
       invalidateStrokeCache();
       flushHasAnimCache();
@@ -4341,6 +4360,13 @@ function wireStrokeProps() {
       const v = parseInt(e.target.value) || 5;
       s.trailAnim.lengthPct = v;
       document.getElementById('dp-trail-length-val').textContent = v + '%';
+      markRenderDirty();
+    });
+  });
+  document.getElementById('dp-trail-continuous').addEventListener('change', e => {
+    forStroke(s => {
+      if (!s.trailAnim) return;
+      s.trailAnim.continuous = e.target.checked;
       markRenderDirty();
     });
   });
