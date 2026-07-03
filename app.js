@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.40';
+const VERSION = '3.41';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -802,16 +802,20 @@ const EFFECT_TYPES = {
       ],
     },
     // Cheap canvas-2D approximation of bloom: no per-pixel readback (that'd
-    // be far too slow for GIF/WebP export's per-frame loop), so "threshold"
-    // is faked by cranking contrast/brightness before blurring rather than
-    // a true luminance cutoff — bright areas survive, midtones get crushed
-    // toward black, then the blurred result is screened back on top.
+    // be far too slow for GIF/WebP export's per-frame loop). "Threshold" is
+    // a real per-channel cutoff-with-renormalization, applied via a
+    // referenced SVG filter (see _setBloomThreshold) rather than CSS
+    // contrast() — contrast alone only pushes values away from mid-grey, so
+    // it barely affects near-black-background/near-max-brightness artwork
+    // (this app's typical look, with little actual midtone content); a true
+    // threshold clips low values to 0 and rescales the rest, so it visibly
+    // shrinks/grows the bloom regardless of how saturated the source is.
     apply(ctx, canvas, { amount, threshold, radius }) {
       if (amount <= 0 || radius <= 0) return;
       _ensureBloomOffscreen(canvas.width, canvas.height);
       _bloomCtx.clearRect(0, 0, canvas.width, canvas.height);
-      const contrastPct = 100 + threshold * 3;
-      _bloomCtx.filter = `contrast(${contrastPct}%) brightness(130%) blur(${radius}px)`;
+      _setBloomThreshold(threshold);
+      _bloomCtx.filter = `url(#bloom-threshold-filter) brightness(130%) blur(${radius}px)`;
       _bloomCtx.drawImage(canvas, 0, 0);
       _bloomCtx.filter = 'none';
 
@@ -1170,6 +1174,55 @@ function _ensureBloomOffscreen(W, H) {
     _bloomCanvas = document.createElement('canvas');
     _bloomCanvas.width = W; _bloomCanvas.height = H;
     _bloomCtx = _bloomCanvas.getContext('2d');
+  }
+}
+
+// A real per-channel threshold-with-renormalization, applied as an SVG
+// filter (referenced from Canvas2D's `filter` via url(#id), same cost class
+// as the built-in contrast()/blur() filters already in the chain — no JS
+// pixel readback). CSS contrast() alone only pushes values away from mid-
+// grey, so it does nothing on content that's already near-black background
+// plus near-max-brightness foreground (this app's typical look) — there's
+// no midtone for it to act on. A true threshold instead clips anything
+// below the cutoff to 0 and rescales what's left back up to the full 0-1
+// range, so it visibly shrinks/grows the bloom regardless of how saturated
+// the artwork already is.
+// feFuncR/G/B's linear transfer: out = slope*in + intercept, clamped to
+// [0,1]. For cutoff t: out = (in - t) / (1 - t) for in > t, else 0 — i.e.
+// slope = 1/(1-t), intercept = -t/(1-t). t is clamped below 1 to avoid a
+// divide-by-zero (t=1 would mean "nothing ever blooms").
+let _bloomThresholdFuncs = null;
+function _ensureBloomThresholdFilter() {
+  if (_bloomThresholdFuncs) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.style.position = 'absolute';
+  svg.style.pointerEvents = 'none';
+  const filter = document.createElementNS(NS, 'filter');
+  filter.setAttribute('id', 'bloom-threshold-filter');
+  const transfer = document.createElementNS(NS, 'feComponentTransfer');
+  const funcs = {};
+  for (const ch of ['R', 'G', 'B']) {
+    const fn = document.createElementNS(NS, `feFunc${ch}`);
+    fn.setAttribute('type', 'linear');
+    transfer.appendChild(fn);
+    funcs[ch] = fn;
+  }
+  filter.appendChild(transfer);
+  svg.appendChild(filter);
+  document.body.appendChild(svg);
+  _bloomThresholdFuncs = funcs;
+}
+function _setBloomThreshold(thresholdPct) {
+  _ensureBloomThresholdFilter();
+  const t = Math.min(0.98, Math.max(0, thresholdPct / 100));
+  const slope = 1 / (1 - t);
+  const intercept = -t * slope;
+  for (const ch of ['R', 'G', 'B']) {
+    _bloomThresholdFuncs[ch].setAttribute('slope', slope);
+    _bloomThresholdFuncs[ch].setAttribute('intercept', intercept);
   }
 }
 
