@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.37">
+<link rel="stylesheet" href="style.css?v=3.38">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -297,11 +297,20 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           <path d="M4 18 Q2 21 5 20" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
         </svg>
       </button>
-      <button class="tool-btn" data-tool="line" title="Line — draw straight lines with radial symmetry, hold Snap for 15° increments (L)">
+      <button class="tool-btn" data-tool="line" title="Line — click to place the start, click again to finish, radial symmetry, hold Snap for 15° increments (L)">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
           <line x1="4" y1="18" x2="18" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           <circle cx="4" cy="18" r="2.5" fill="currentColor"/>
           <circle cx="18" cy="4" r="2.5" fill="currentColor"/>
+        </svg>
+      </button>
+      <button class="tool-btn" data-tool="lineChain" title="Line Chain — click to place the start, click to finish, then immediately keep clicking to chain more straight lines end-to-end; Esc to stop (K)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="3,19 8,7 14,15 19,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="3" cy="19" r="2.2" fill="currentColor"/>
+          <circle cx="8" cy="7" r="2.2" fill="currentColor"/>
+          <circle cx="14" cy="15" r="2.2" fill="currentColor"/>
+          <circle cx="19" cy="3" r="2.2" fill="currentColor"/>
         </svg>
       </button>
       <button class="tool-btn" data-tool="erase" title="Eraser — erase with radial symmetry (E)">
@@ -1016,20 +1025,20 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
   </div>
 
   <footer id="status-bar">
-    <span class="status-group" data-tools="brush,line,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon">
       <div class="toolbar-group">
         <label style="font-size:12px">Color:</label>
         <input type="color" id="draw-color" value="#ff6b9d">
         <div id="color-swatch"></div>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <button id="btn-gradient-mode" title="Toggle gradient stroke mode" style="font-size:11px;padding:2px 7px;line-height:1.4">Gradient</button>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,erase,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,erase,circle,star,polygon">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <label style="font-size:12px">Size:</label>
@@ -1037,7 +1046,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <span id="brush-size-val" style="min-width:20px">4</span>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,erase,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,erase,circle,star,polygon">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <label style="font-size:12px">Opacity:</label>
@@ -1226,6 +1235,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <div class="help-section-title">Tools</div>
         <div class="help-row"><kbd>B</kbd><span>Brush</span></div>
         <div class="help-row"><kbd>L</kbd><span>Line</span></div>
+        <div class="help-row"><kbd>K</kbd><span>Line Chain</span></div>
         <div class="help-row"><kbd>E</kbd><span>Eraser</span></div>
         <div class="help-row"><kbd>S</kbd><span>Select</span></div>
         <div class="help-row"><kbd>P</kbd><span>Stamp / Place</span></div>
@@ -1315,6 +1325,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.37"></script>
+<script src="app.js?v=3.38"></script>
 </body>
 </html>

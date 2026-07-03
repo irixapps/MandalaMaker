@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.37';
+const VERSION = '3.38';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -121,7 +121,14 @@ const S = {
   // drawing transient
   drawing: false,
   pts: [],
-  lineStart: null,
+
+  // line tool transient — click-to-place-start, click-to-finish, same
+  // 'axis'-phase click flow as Petal/Bezier/Wing's first stage but with no
+  // curvature phase. Shared by 'line' (single segment) and 'lineChain'
+  // (auto-restarts from the just-placed end after each finalize).
+  linePhase: null,     // null | 'axis'
+  lineTip: null,
+  lineEnd: null,
 
   // sprite selection
   selectedSpriteId: null,
@@ -2784,12 +2791,15 @@ function render(timestamp) {
     const liveGrad = (S.gradientMode && S.tool !== 'erase') ? S.gradient : null;
     if (m) renderStrokeSymmetric(ctx, m, S.pts, S.color, S.thickness, S.opacity, S.tool === 'erase', m.mirror !== false, m.axes, m.axisRotation, liveGrad);
   }
-  if (S.drawing && S.tool === 'line' && S.lineStart && S.pts.length > 0) {
+  // Line / Line Chain preview — live symmetric line plus tip/end guide dots
+  // (reusing Petal/Bezier's guide renderer with no curvature handle, since a
+  // straight line has none).
+  if ((S.tool === 'line' || S.tool === 'lineChain') && S.linePhase === 'axis' && S.lineTip && S.lineEnd) {
     const m = getActiveMandala();
     if (m) {
-      const last = S.pts[S.pts.length - 1];
       const liveGrad = S.gradientMode ? S.gradient : null;
-      renderLineSymmetric(ctx, m, S.lineStart, last, S.color, S.thickness, S.opacity, m.mirror !== false, m.axes, m.axisRotation, liveGrad);
+      renderLineSymmetric(ctx, m, S.lineTip, S.lineEnd, S.color, S.thickness, S.opacity, m.mirror !== false, m.axes, m.axisRotation, liveGrad);
+      renderPetalGuides(m, S.lineTip, S.lineEnd, null);
     }
   }
 
@@ -5734,12 +5744,59 @@ function onMouseDown(e) {
     return;
   }
 
-  // Brush / line / erase drawing
+  // Line tool — click to place the start, move for a live preview, click to
+  // finish and commit the straight-line stroke (same click flow as Petal/
+  // Bezier's first stage, no curvature phase). Line Chain is the identical
+  // two-click cycle, except finalizing immediately re-arms 'axis' phase
+  // from the just-placed end point instead of returning to Select, so
+  // repeated clicks keep chaining new independent line strokes end-to-end
+  // until Escape or a tool switch.
+  if (S.tool === 'line' || S.tool === 'lineChain') {
+    if (!m) return;
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    if (S.linePhase === null) {
+      S.lineTip = local;
+      S.lineEnd = local;
+      S.linePhase = 'axis';
+    } else if (S.linePhase === 'axis') {
+      const axisLen = Math.hypot(S.lineEnd.x - S.lineTip.x, S.lineEnd.y - S.lineTip.y);
+      if (axisLen < 3) {
+        S.linePhase = null; S.lineTip = null; S.lineEnd = null;
+      } else {
+        historySnapshot();
+        const newStroke = {
+          id: uid(),
+          pts: [S.lineTip, S.lineEnd],
+          color: S.color,
+          thickness: S.thickness,
+          opacity: S.opacity,
+          erase: false,
+          axes: m.axes,
+          axisRotation: m.axisRotation,
+          mirror: m.mirror,
+          gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+        };
+        m.strokes.push(newStroke);
+        if (!newStroke.gradient) invalidateStrokeCache();
+        updateLayersList();
+        if (S.tool === 'lineChain') {
+          S.lineTip = S.lineEnd;
+          S.lineEnd = S.lineTip;
+          S.linePhase = 'axis';
+        } else {
+          S.linePhase = null; S.lineTip = null; S.lineEnd = null;
+          setTool('select');
+        }
+      }
+    }
+    return;
+  }
+
+  // Brush / erase drawing
   if (!m) return;
   const local = toMandalaLocal(m, pos.x, pos.y);
   S.drawing = true;
   S.pts = [local];
-  if (S.tool === 'line') S.lineStart = local;
 }
 
 function onMouseMove(e) {
@@ -5846,6 +5903,17 @@ function onMouseMove(e) {
     return;
   }
 
+  // Line / Line Chain stage 2 — same axis tracking as Bezier/Petal/Wing's
+  // first stage (endpoint follows the cursor, angle-snaps with Snap held);
+  // there's no curvature phase, the next click finalizes directly.
+  if ((S.tool === 'line' || S.tool === 'lineChain') && S.linePhase === 'axis' && m) {
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    let dx = local.x - S.lineTip.x, dy = local.y - S.lineTip.y;
+    if (S.snapAngle) { const snap = snapAngle(dx, dy); dx = snap.dx; dy = snap.dy; }
+    S.lineEnd = { x: S.lineTip.x + dx, y: S.lineTip.y + dy };
+    return;
+  }
+
   // Update cursor in select mode
   if (S.tool === 'select' && !S.dragHandle && !S.shapeHandleDrag) {
     const handle = getHandleAtPoint(pos.x, pos.y);
@@ -5864,14 +5932,7 @@ function onMouseMove(e) {
   if (!m) return;
 
   const local = toMandalaLocal(m, pos.x, pos.y);
-
-  if (S.tool === 'line') {
-    let dx = local.x - S.lineStart.x, dy = local.y - S.lineStart.y;
-    if (S.snapAngle) { const s = snapAngle(dx, dy); dx = s.dx; dy = s.dy; }
-    S.pts = [S.lineStart, { x: S.lineStart.x + dx, y: S.lineStart.y + dy }];
-  } else {
-    S.pts.push(local);
-  }
+  S.pts.push(local);
 }
 
 function onMouseUp(e) {
@@ -5912,15 +5973,16 @@ function onMouseUp(e) {
     return;
   }
 
-  // Petal/Bezier placement is fully click-driven (handled in onMouseDown) —
-  // every stage transition happens on mousedown, so mouseup has nothing to do.
-  if (S.tool === 'petal' || S.tool === 'bezier' || S.tool === 'wing') return;
+  // Petal/Bezier/Wing/Line/Line Chain placement is fully click-driven
+  // (handled in onMouseDown) — every stage transition happens on
+  // mousedown, so mouseup has nothing to do.
+  if (S.tool === 'petal' || S.tool === 'bezier' || S.tool === 'wing' || S.tool === 'line' || S.tool === 'lineChain') return;
 
   if (!S.drawing) return;
   S.drawing = false;
 
   const m = getActiveMandala();
-  if (!m || S.pts.length < 2) { S.pts = []; S.lineStart = null; return; }
+  if (!m || S.pts.length < 2) { S.pts = []; return; }
 
   historySnapshot();
 
@@ -5943,7 +6005,6 @@ function onMouseUp(e) {
   updateLayersList();
 
   S.pts = [];
-  S.lineStart = null;
 }
 
 function handleSpriteDrag(pos) {
@@ -6507,6 +6568,13 @@ function setTool(tool) {
     S.wingTip = null;
     S.wingEnd = null;
   }
+  if (tool !== 'line' && tool !== 'lineChain') {
+    // Abandon an in-progress line (or chain) if the user switches tools
+    // before finishing the current segment.
+    S.linePhase = null;
+    S.lineTip = null;
+    S.lineEnd = null;
+  }
   updateShapePanel();
   updateGradientPanelVisibility();
   updateStatusBarVisibility();
@@ -6515,7 +6583,7 @@ function setTool(tool) {
 // Tools that actually draw a stroke/shape with the current colour or
 // gradient — the only ones the gradient panel is relevant for. Every other
 // tool (erase, select, place/stamp, eyedropper) hides it automatically.
-const GRADIENT_PANEL_TOOLS = new Set(['brush', 'line', 'circle', 'star', 'polygon']);
+const GRADIENT_PANEL_TOOLS = new Set(['brush', 'line', 'lineChain', 'circle', 'star', 'polygon']);
 
 function updateGradientPanelVisibility() {
   const panel = document.getElementById('gradient-panel');
@@ -8112,7 +8180,13 @@ function wireEvents() {
       if (S.lastStampedId) { S.selectedSpriteId = S.lastStampedId; updateSpriteProps(); }
       return;
     }
-    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing' };
+    if (e.key === 'Escape' && (S.tool === 'line' || S.tool === 'lineChain') && S.linePhase) {
+      // Cancel the pending segment and drop out of the tool — for Line
+      // Chain this is also how you stop chaining.
+      setTool('select');
+      return;
+    }
+    const map = { b:'brush', l:'line', k:'lineChain', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
     if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {
