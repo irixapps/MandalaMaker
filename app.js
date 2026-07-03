@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.32';
+const VERSION = '3.33';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -851,8 +851,185 @@ const EFFECT_TYPES = {
     },
     resetState(effectId) { _echoBuffers.delete(effectId); },
   },
+  chromaticAberration: {
+    label: 'Chromatic Aberration',
+    defaults: () => ({ amount: 30, angle: 0 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'angle',  label: 'Angle',  min: 0, max: 360, step: 1, format: v => Math.round(v) + '°', animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Pulse',  kfs: [{t:0,v:0,e:'ease'},{t:0.5,v:80,e:'ease'},{t:1,v:0,e:'ease'}], dur: 1.5 },
+        { label: 'Glitch', kfs: [{t:0,v:10,e:'linear'},{t:0.1,v:90,e:'linear'},{t:0.15,v:10,e:'linear'},{t:0.5,v:10,e:'linear'},{t:0.55,v:70,e:'linear'},{t:0.6,v:10,e:'linear'},{t:1,v:10,e:'linear'}], dur: 2 },
+      ],
+    },
+    // No per-pixel readback (same reasoning as Bloom) — instead, isolate
+    // each colour channel with a 'multiply' fill against a pure R/G/B
+    // colour (multiplying by e.g. (255,0,0) zeroes G and B while leaving R
+    // exactly as it was), draw each isolated channel from a slightly
+    // different offset, then recombine with 'lighter' (additive) so the
+    // three offset channels sum back into a full-colour image that's split
+    // apart along the fringe. This is a fixed-direction split (set by
+    // Angle), not a true per-pixel-radial one — a real radial falloff
+    // would need per-pixel distance math, which isn't cheap enough for
+    // GIF/WebP export's per-frame loop.
+    apply(ctx, canvas, { amount, angle }) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      _ensureChromaOffscreen(W, H);
+      const maxOffset = (amount / 100) * Math.max(W, H) * 0.02;
+      const rad = angle * Math.PI / 180;
+      const dx = Math.cos(rad) * maxOffset, dy = Math.sin(rad) * maxOffset;
+
+      function isolatedChannel(color, ox, oy) {
+        _chromaMaskCtx.clearRect(0, 0, W, H);
+        _chromaMaskCtx.globalCompositeOperation = 'source-over';
+        _chromaMaskCtx.drawImage(canvas, ox, oy);
+        _chromaMaskCtx.globalCompositeOperation = 'multiply';
+        _chromaMaskCtx.fillStyle = color;
+        _chromaMaskCtx.fillRect(0, 0, W, H);
+      }
+
+      _chromaCtx.clearRect(0, 0, W, H);
+      _chromaCtx.globalCompositeOperation = 'lighter';
+      isolatedChannel('#ff0000', dx, dy);
+      _chromaCtx.drawImage(_chromaMaskCanvas, 0, 0);
+      isolatedChannel('#00ff00', 0, 0);
+      _chromaCtx.drawImage(_chromaMaskCanvas, 0, 0);
+      isolatedChannel('#0000ff', -dx, -dy);
+      _chromaCtx.drawImage(_chromaMaskCanvas, 0, 0);
+      _chromaCtx.globalCompositeOperation = 'source-over';
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(_chromaCanvas, 0, 0);
+    },
+  },
+  vignette: {
+    label: 'Vignette',
+    defaults: () => ({ amount: 60, spread: 50 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'spread', label: 'Spread', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Pulse', kfs: [{t:0,v:30,e:'ease'},{t:0.5,v:80,e:'ease'},{t:1,v:30,e:'ease'}], dur: 3 },
+      ],
+    },
+    // Simplest possible effect in the whole stack — one radial-gradient
+    // fill, darkening toward the edges. No offscreen buffer needed at all.
+    apply(ctx, canvas, { amount, spread }) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      const cx = W / 2, cy = H / 2;
+      const maxR = Math.hypot(cx, cy);
+      const innerR = maxR * (spread / 100) * 0.6;
+      const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, maxR);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, `rgba(0,0,0,${Math.min(1, amount / 100)})`);
+      ctx.save();
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    },
+  },
+  zoomBlur: {
+    label: 'Zoom Blur',
+    defaults: () => ({ amount: 40 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+    ],
+    presets: {
+      amount: [
+        { label: 'Burst', kfs: [{t:0,v:0,e:'ease-out'},{t:0.2,v:90,e:'ease-out'},{t:1,v:0,e:'linear'}], dur: 2 },
+      ],
+    },
+    // Approximates a radial/zoom blur without any per-pixel work: redraw
+    // the frame several times at slightly increasing scale around the
+    // canvas centre, each pass more transparent than the last, so the
+    // stack reads as streaks radiating outward. Centred on the canvas
+    // (not any one mandala), which lines up with this app's usual
+    // centred-mandala compositions.
+    apply(ctx, canvas, { amount }) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      _ensureZoomBlurOffscreen(W, H);
+      _zoomBlurCtx.clearRect(0, 0, W, H);
+      const cx = W / 2, cy = H / 2;
+      const steps = 10;
+      const maxScale = 1 + (amount / 100) * 0.25;
+      for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1);
+        const scale = 1 + (maxScale - 1) * t;
+        _zoomBlurCtx.save();
+        _zoomBlurCtx.globalAlpha = Math.min(1, ((1 - t) / steps) * 2.2);
+        _zoomBlurCtx.translate(cx, cy);
+        _zoomBlurCtx.scale(scale, scale);
+        _zoomBlurCtx.translate(-cx, -cy);
+        _zoomBlurCtx.drawImage(canvas, 0, 0);
+        _zoomBlurCtx.restore();
+      }
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(_zoomBlurCanvas, 0, 0);
+    },
+  },
+  hueRotate: {
+    label: 'Hue Rotate',
+    defaults: () => ({ angle: 0 }),
+    controls: [
+      { key: 'angle', label: 'Angle', min: 0, max: 360, step: 1, format: v => Math.round(v) + '°', animatable: true },
+    ],
+    presets: {
+      angle: [
+        { label: 'Cycle', kfs: [{t:0,v:0,e:'linear'},{t:1,v:360,e:'linear'}], dur: 6 },
+      ],
+    },
+    // The cheapest module in the stack — a single native CSS filter.
+    apply(ctx, canvas, { angle }) {
+      const a = ((angle % 360) + 360) % 360;
+      if (a === 0) return;
+      _ensureHueOffscreen(canvas.width, canvas.height);
+      _hueCtx.clearRect(0, 0, canvas.width, canvas.height);
+      _hueCtx.filter = `hue-rotate(${a}deg)`;
+      _hueCtx.drawImage(canvas, 0, 0);
+      _hueCtx.filter = 'none';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(_hueCanvas, 0, 0);
+    },
+  },
   // Add new modules here.
 };
+
+let _chromaCanvas = null, _chromaCtx = null, _chromaMaskCanvas = null, _chromaMaskCtx = null;
+function _ensureChromaOffscreen(W, H) {
+  if (!_chromaCanvas || _chromaCanvas.width !== W || _chromaCanvas.height !== H) {
+    _chromaCanvas = document.createElement('canvas');
+    _chromaCanvas.width = W; _chromaCanvas.height = H;
+    _chromaCtx = _chromaCanvas.getContext('2d');
+    _chromaMaskCanvas = document.createElement('canvas');
+    _chromaMaskCanvas.width = W; _chromaMaskCanvas.height = H;
+    _chromaMaskCtx = _chromaMaskCanvas.getContext('2d');
+  }
+}
+
+let _zoomBlurCanvas = null, _zoomBlurCtx = null;
+function _ensureZoomBlurOffscreen(W, H) {
+  if (!_zoomBlurCanvas || _zoomBlurCanvas.width !== W || _zoomBlurCanvas.height !== H) {
+    _zoomBlurCanvas = document.createElement('canvas');
+    _zoomBlurCanvas.width = W; _zoomBlurCanvas.height = H;
+    _zoomBlurCtx = _zoomBlurCanvas.getContext('2d');
+  }
+}
+
+let _hueCanvas = null, _hueCtx = null;
+function _ensureHueOffscreen(W, H) {
+  if (!_hueCanvas || _hueCanvas.width !== W || _hueCanvas.height !== H) {
+    _hueCanvas = document.createElement('canvas');
+    _hueCanvas.width = W; _hueCanvas.height = H;
+    _hueCtx = _hueCanvas.getContext('2d');
+  }
+}
 
 let _echoBuffers = new Map(); // effectId -> { canvas, ctx } — see the Echo module above
 function _ensureEchoBuffer(id, W, H) {
