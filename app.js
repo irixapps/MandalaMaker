@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.20';
+const VERSION = '3.21';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -81,8 +81,9 @@ const S = {
   shapeHandleStart: null,
   shapeDragOrigin: null,
 
-  // petal tool transient — two-drag creation: null -> 'axis' (drag 1: tip to
-  // base) -> 'axisDone' (idle, between drags) -> 'curve' (drag 2: curvature) -> null
+  // petal tool transient — three-click creation, no dragging: null -> 'axis'
+  // (base follows cursor until click 2) -> 'curve' (curvature follows cursor
+  // until click 3 finalizes) -> null
   petalPhase: null,
   petalTip: null,
   petalBase: null,
@@ -4054,9 +4055,9 @@ function onMouseDown(e) {
     return;
   }
 
-  // Petal tool — two separate drags: drag 1 (tip -> base) sets the axis,
-  // drag 2 (anywhere) sets curvature by how far the cursor strays from
-  // that axis. Between drags we sit in 'axisDone' waiting for drag 2 to start.
+  // Petal tool — three clicks, no dragging: click 1 sets the tip, move and
+  // click 2 sets the base (axis live-previews as the cursor moves), move
+  // and click 3 sets curvature (also live-previewed) and finalizes.
   if (S.tool === 'petal') {
     if (!m) return;
     const local = toMandalaLocal(m, pos.x, pos.y);
@@ -4064,8 +4065,45 @@ function onMouseDown(e) {
       S.petalTip = local;
       S.petalBase = local;
       S.petalPhase = 'axis';
-    } else if (S.petalPhase === 'axisDone') {
-      S.petalPhase = 'curve';
+    } else if (S.petalPhase === 'axis') {
+      const axisLen = Math.hypot(S.petalBase.x - S.petalTip.x, S.petalBase.y - S.petalTip.y);
+      if (axisLen < 3) {
+        S.petalPhase = null; S.petalTip = null; S.petalBase = null;
+      } else {
+        S.petalPhase = 'curve';
+        S.petalCurve = 0.35;
+      }
+    } else if (S.petalPhase === 'curve') {
+      historySnapshot();
+      const shape = {
+        id: uid(), type: 'petal',
+        x: S.petalTip.x, y: S.petalTip.y,
+        petalDx: S.petalBase.x - S.petalTip.x,
+        petalDy: S.petalBase.y - S.petalTip.y,
+        petalCurve: S.petalCurve,
+        r: 0,
+        color: S.color,
+        thickness: S.thickness,
+        opacity: S.opacity,
+        fill: S.shapeFill,
+        lineCap: S.shapeLineCap,
+        lineJoin: 'miter', // keeps the tip/base corners sharp regardless of the shared Join dropdown default
+        dash: [...S.shapeDash],
+        gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+        rotation: 0, orbit: 0,
+        anim: {},
+        params: {},
+        axes: m.axes,
+        axisRotation: m.axisRotation,
+        mirror: m.mirror,
+      };
+      if (!m.shapes) m.shapes = [];
+      m.shapes.push(shape);
+      S.selectedShapeId = shape.id;
+      updateShapeProps();
+      updateLayersList();
+      setTool('select');
+      S.petalPhase = null; S.petalTip = null; S.petalBase = null;
     }
     return;
   }
@@ -4112,8 +4150,9 @@ function onMouseMove(e) {
     return;
   }
 
-  // Petal drag 1 — position the base, angle-snapping the tip->base axis
-  // the same way the Line tool snaps (S.snapAngle / hold Snap).
+  // Petal stage 2 — the base follows the cursor (no button held) until the
+  // next click locks it in, angle-snapping the tip->base axis the same way
+  // the Line tool snaps (S.snapAngle / hold Snap).
   if (S.tool === 'petal' && S.petalPhase === 'axis' && m) {
     const local = toMandalaLocal(m, pos.x, pos.y);
     let dx = local.x - S.petalTip.x, dy = local.y - S.petalTip.y;
@@ -4122,7 +4161,8 @@ function onMouseMove(e) {
     return;
   }
 
-  // Petal drag 2 — curvature is the signed perpendicular distance of the
+  // Petal stage 3 — curvature follows the cursor until the next click
+  // finalizes the shape; it's the signed perpendicular distance of the
   // cursor from the tip->base axis, as a fraction of that axis's length.
   if (S.tool === 'petal' && S.petalPhase === 'curve' && m) {
     const local = toMandalaLocal(m, pos.x, pos.y);
@@ -4202,54 +4242,9 @@ function onMouseUp(e) {
     return;
   }
 
-  // Petal placement — end of drag 1 (lock the axis, wait for drag 2) or
-  // end of drag 2 (finalize the shape).
-  if (S.tool === 'petal' && S.petalPhase === 'axis') {
-    const axisLen = Math.hypot(S.petalBase.x - S.petalTip.x, S.petalBase.y - S.petalTip.y);
-    if (axisLen < 3) {
-      S.petalPhase = null; S.petalTip = null; S.petalBase = null;
-    } else {
-      S.petalPhase = 'axisDone';
-      S.petalCurve = 0.35;
-    }
-    return;
-  }
-  if (S.tool === 'petal' && S.petalPhase === 'curve') {
-    const m = getActiveMandala();
-    if (m) {
-      historySnapshot();
-      const shape = {
-        id: uid(), type: 'petal',
-        x: S.petalTip.x, y: S.petalTip.y,
-        petalDx: S.petalBase.x - S.petalTip.x,
-        petalDy: S.petalBase.y - S.petalTip.y,
-        petalCurve: S.petalCurve,
-        r: 0,
-        color: S.color,
-        thickness: S.thickness,
-        opacity: S.opacity,
-        fill: S.shapeFill,
-        lineCap: S.shapeLineCap,
-        lineJoin: 'miter', // keeps the tip/base corners sharp regardless of the shared Join dropdown default
-        dash: [...S.shapeDash],
-        gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
-        rotation: 0, orbit: 0,
-        anim: {},
-        params: {},
-        axes: m.axes,
-        axisRotation: m.axisRotation,
-        mirror: m.mirror,
-      };
-      if (!m.shapes) m.shapes = [];
-      m.shapes.push(shape);
-      S.selectedShapeId = shape.id;
-      updateShapeProps();
-      updateLayersList();
-      setTool('select');
-    }
-    S.petalPhase = null; S.petalTip = null; S.petalBase = null;
-    return;
-  }
+  // Petal placement is fully click-driven (handled in onMouseDown) — every
+  // stage transition happens on mousedown, so mouseup has nothing to do.
+  if (S.tool === 'petal') return;
 
   if (!S.drawing) return;
   S.drawing = false;
