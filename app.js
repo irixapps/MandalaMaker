@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.30';
+const VERSION = '3.31';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -45,6 +45,12 @@ const S = {
   // scene
   mandalas: [],
   activeIdx: 0,
+
+  // Global post-process effects stack — see "EFFECT-MODULE" comments
+  // (search that tag to find every place a new effect module needs to hook
+  // in) starting around EFFECT_TYPES below.
+  effects: [],
+  effectsCollapsed: false,
 
   // tool
   tool: 'brush',
@@ -411,7 +417,10 @@ function hasAnyAnimation() {
   if (S.mandalas.some(m => m.strokes.some(s => s.trailAnim?.enabled))) return true;
   if (S.mandalas.some(m => m.strokes.some(s => s.anim?.orbit?.enabled))) return true;
   if (S.mandalas.some(m => (m.shapes || []).some(s => s.trailAnim?.enabled))) return true;
-  return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
+  if (S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0))) return true;
+  // EFFECT-MODULE: animation-detection — generic over every effect's
+  // animatable controls, no per-type code needed here.
+  return S.effects.some(effectHasAnimation);
 }
 
 // True if `pts` forms a closed loop (its start and end points coincide) —
@@ -714,6 +723,484 @@ const SHAPE_ANIM_PRESETS = {
     { label: 'Shimmer',    kfs: [{t:0,v:-20,e:'ease'},{t:0.25,v:20,e:'ease'},{t:0.5,v:-20,e:'ease'},{t:0.75,v:20,e:'ease'},{t:1,v:-20,e:'ease'}], dur: 1.5 },
   ],
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// EFFECT-MODULE: registry — global post-process effects stack.
+//
+// This is the ONLY place a new effect module needs a manual entry. Search
+// the tag "EFFECT-MODULE" across app.js to find every other spot effects
+// hook into (apply pipeline, animation-detection, save/load) — none of
+// those need edits when adding a module; they all read this registry.
+//
+// To add a new effect type "foo":
+//   1. Add a `foo: { ... }` entry below, shaped exactly like `bloom`.
+//   2. `defaults()` returns the instance's static param values (plain
+//      numbers, one key per control).
+//   3. `controls` lists the sliders shown in the Inspector, in order.
+//      Set `animatable: true` on any control that should get the
+//      Animate (∿) button + keyframe timeline curve editor — this reuses
+//      the exact same component shapes/sprites already use (getAnimValue,
+//      animValueAtT, drawTimelineOn), just pointed at the effect instance
+//      instead of a shape. Add a `presets: [...]` array (same {label,kfs,dur}
+//      shape as SHAPE_ANIM_PRESETS) if you want quick-pick curve presets
+//      for that control — optional.
+//   4. `apply(ctx, canvas, resolved)` does the actual rendering. `resolved`
+//      is a plain object with one key per control, already resolved to its
+//      current (possibly animated) value — never read `effect` directly
+//      here, so the module doesn't need to know about animation at all.
+//   5. That's it. The stack UI (add/remove/reorder/enable/collapse), the
+//      param sliders, the curve editor, save/load, and export all pick the
+//      new type up automatically because they iterate this object and
+//      each instance's own `type`.
+// ═══════════════════════════════════════════════════════════════════════
+const EFFECT_TYPES = {
+  bloom: {
+    label: 'Bloom',
+    defaults: () => ({ amount: 50, threshold: 60, radius: 12 }),
+    controls: [
+      { key: 'amount',    label: 'Amount',    min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'threshold', label: 'Threshold', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
+      { key: 'radius',    label: 'Blur Radius', min: 1, max: 60, step: 1, format: v => Math.round(v) + 'px', animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Pulse',       kfs: [{t:0,v:20,e:'ease'},{t:0.5,v:90,e:'ease'},{t:1,v:20,e:'ease'}], dur: 2 },
+        { label: 'Fade In/Out', kfs: [{t:0,v:0,e:'ease'},{t:0.5,v:100,e:'ease'},{t:1,v:0,e:'ease'}], dur: 3 },
+        { label: 'Flicker',     kfs: [{t:0,v:80,e:'linear'},{t:0.45,v:80,e:'linear'},{t:0.5,v:20,e:'linear'},{t:0.55,v:80,e:'linear'},{t:1,v:80,e:'linear'}], dur: 1.5 },
+      ],
+    },
+    // Cheap canvas-2D approximation of bloom: no per-pixel readback (that'd
+    // be far too slow for GIF/WebP export's per-frame loop), so "threshold"
+    // is faked by cranking contrast/brightness before blurring rather than
+    // a true luminance cutoff — bright areas survive, midtones get crushed
+    // toward black, then the blurred result is screened back on top.
+    apply(ctx, canvas, { amount, threshold, radius }) {
+      if (amount <= 0 || radius <= 0) return;
+      _ensureBloomOffscreen(canvas.width, canvas.height);
+      _bloomCtx.clearRect(0, 0, canvas.width, canvas.height);
+      const contrastPct = 100 + threshold * 3;
+      _bloomCtx.filter = `contrast(${contrastPct}%) brightness(130%) blur(${radius}px)`;
+      _bloomCtx.drawImage(canvas, 0, 0);
+      _bloomCtx.filter = 'none';
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.min(1, amount / 100);
+      ctx.drawImage(_bloomCanvas, 0, 0);
+      ctx.restore();
+    },
+  },
+  // Add new modules here.
+};
+
+let _bloomCanvas = null, _bloomCtx = null;
+function _ensureBloomOffscreen(W, H) {
+  if (!_bloomCanvas || _bloomCanvas.width !== W || _bloomCanvas.height !== H) {
+    _bloomCanvas = document.createElement('canvas');
+    _bloomCanvas.width = W; _bloomCanvas.height = H;
+    _bloomCtx = _bloomCanvas.getContext('2d');
+  }
+}
+
+// EFFECT-MODULE: core — instance creation, per-frame resolve+apply, and the
+// generic animation-detection helper. None of this needs to change when a
+// new module is added to EFFECT_TYPES above.
+function createEffect(type) {
+  const def = EFFECT_TYPES[type];
+  if (!def) return null;
+  const instance = { id: uid(), type, enabled: true, anim: {}, _expanded: true, ...def.defaults() };
+  for (const ctrl of def.controls) if (ctrl.animatable) instance.anim[ctrl.key] = null;
+  return instance;
+}
+
+// True if any of this effect instance's animatable controls has an enabled
+// keyframe curve — used by hasAnyAnimation() to keep the render loop ticking.
+function effectHasAnimation(effect) {
+  const def = EFFECT_TYPES[effect.type];
+  if (!def) return false;
+  return def.controls.some(c => c.animatable && effect.anim?.[c.key]?.enabled);
+}
+
+// Runs the whole enabled effects stack, in order, against whatever's
+// currently on `canvas` — called once per frame after all mandala content
+// is drawn (see EFFECT-MODULE: render-hook) and once per exported frame
+// (see EFFECT-MODULE: export-hook).
+function applyEffectsChain(ctx, canvas) {
+  if (!S.effects.length) return;
+  const clk = S.animClock;
+  for (const effect of S.effects) {
+    if (!effect.enabled) continue;
+    const def = EFFECT_TYPES[effect.type];
+    if (!def) continue;
+    const resolved = {};
+    for (const ctrl of def.controls) {
+      resolved[ctrl.key] = (ctrl.animatable ? getAnimValue(effect, ctrl.key, clk) : null) ?? effect[ctrl.key];
+    }
+    def.apply(ctx, canvas, resolved);
+  }
+}
+
+// EFFECT-MODULE: ui — dynamic stack list, per-instance param controls, and
+// keyframe curve editor. Everything here reads EFFECT_TYPES/S.effects
+// generically; a new module needs zero changes in this section.
+const ETL = { dragging: null, selectedKf: null }; // effect timeline interaction state, keyed by {effect,key}
+let _effectTimelineRefs = []; // [{canvasEl, effect, ctrl}] — repopulated each updateEffectsList()
+
+function updateEffectsList() {
+  const list = document.getElementById('effects-list');
+  if (!list) return;
+  list.innerHTML = '';
+  _effectTimelineRefs = [];
+  if (S.effects.length === 0) {
+    list.innerHTML = '<div style="padding:6px 10px;font-size:10px;opacity:.35">No effects yet</div>';
+    return;
+  }
+  S.effects.forEach((effect, idx) => {
+    const def = EFFECT_TYPES[effect.type];
+    if (!def) return;
+    const row = document.createElement('div');
+    row.className = 'effect-item' + (effect.enabled ? '' : ' disabled');
+
+    const header = document.createElement('div');
+    header.className = 'effect-item-header';
+    const animated = effectHasAnimation(effect);
+    header.innerHTML =
+      `<span class="effect-item-name">${effect._expanded ? '▾' : '▸'} ${def.label}</span>` +
+      (animated ? `<span class="effect-anim-badge" title="This effect is animated">∿</span>` : '') +
+      `<button class="effect-reorder-btn" data-dir="up" ${idx === 0 ? 'disabled' : ''} title="Move up">▲</button>` +
+      `<button class="effect-reorder-btn" data-dir="down" ${idx === S.effects.length - 1 ? 'disabled' : ''} title="Move down">▼</button>` +
+      `<button class="effect-toggle-btn" title="Enable/disable">${effect.enabled ? '👁' : '🚫'}</button>` +
+      `<button class="effect-delete-btn" title="Remove effect">🗑</button>`;
+
+    header.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      effect._expanded = !effect._expanded;
+      updateEffectsList();
+    });
+    header.querySelectorAll('.effect-reorder-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const dir = btn.dataset.dir === 'up' ? -1 : 1;
+        const j = idx + dir;
+        if (j < 0 || j >= S.effects.length) return;
+        [S.effects[idx], S.effects[j]] = [S.effects[j], S.effects[idx]];
+        historySnapshot(); markRenderDirty();
+        updateEffectsList();
+      });
+    });
+    header.querySelector('.effect-toggle-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      effect.enabled = !effect.enabled;
+      historySnapshot(); markRenderDirty(); flushHasAnimCache();
+      updateEffectsList();
+    });
+    header.querySelector('.effect-delete-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!confirm(`Remove this ${def.label} effect?`)) return;
+      S.effects.splice(idx, 1);
+      historySnapshot(); markRenderDirty(); flushHasAnimCache();
+      updateEffectsList();
+    });
+    row.appendChild(header);
+
+    if (effect._expanded) {
+      const body = document.createElement('div');
+      body.className = 'effect-item-body';
+      def.controls.forEach(ctrl => body.appendChild(buildEffectControlRow(effect, def, ctrl)));
+      row.appendChild(body);
+    }
+    list.appendChild(row);
+  });
+}
+
+// One control's UI: a slider row, plus — only when ctrl.animatable — the
+// same Animate-button + duration + timeline-curve + easing-row component
+// shapes/sprites use, wired against this specific effect instance.
+function buildEffectControlRow(effect, def, ctrl) {
+  const wrap = document.createElement('div');
+
+  const row = document.createElement('div');
+  row.className = 'prop-row';
+  const label = document.createElement('label');
+  label.className = 'prop-label';
+  label.textContent = ctrl.label;
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = ctrl.min; input.max = ctrl.max; input.step = ctrl.step ?? 1;
+  input.value = effect[ctrl.key];
+  const val = document.createElement('span');
+  val.className = 'prop-val';
+  val.textContent = ctrl.format(effect[ctrl.key]);
+  input.addEventListener('input', e => {
+    effect[ctrl.key] = parseFloat(e.target.value);
+    val.textContent = ctrl.format(effect[ctrl.key]);
+    markRenderDirty();
+  });
+  input.addEventListener('change', () => historySnapshot());
+  row.appendChild(label); row.appendChild(input); row.appendChild(val);
+
+  if (!ctrl.animatable) { wrap.appendChild(row); return wrap; }
+
+  const animBtn = document.createElement('button');
+  animBtn.className = 'anim-btn';
+  animBtn.title = 'Animate ' + ctrl.label;
+  animBtn.textContent = '∿';
+  const hasAnim = !!effect.anim[ctrl.key]?.enabled;
+  animBtn.classList.toggle('active', hasAnim);
+  row.appendChild(animBtn);
+  wrap.appendChild(row);
+
+  const panel = document.createElement('div');
+  panel.className = 'anim-panel';
+  panel.style.display = hasAnim ? '' : 'none';
+
+  const controlsRow = document.createElement('div');
+  controlsRow.className = 'anim-panel-controls';
+  const durLabel = document.createElement('span'); durLabel.className = 'anim-label'; durLabel.textContent = 'Dur';
+  const durInput = document.createElement('input');
+  durInput.type = 'number'; durInput.min = 0.1; durInput.max = 60; durInput.step = 0.1;
+  durInput.value = effect.anim[ctrl.key]?.duration ?? 2;
+  const sLabel = document.createElement('span'); sLabel.className = 'anim-label'; sLabel.textContent = 's';
+  controlsRow.appendChild(durLabel); controlsRow.appendChild(durInput); controlsRow.appendChild(sLabel);
+
+  let presetSel = null;
+  if (def.presets?.[ctrl.key]?.length) {
+    presetSel = document.createElement('select');
+    presetSel.className = 'anim-preset-sel';
+    presetSel.innerHTML = '<option value="">Presets…</option>' +
+      def.presets[ctrl.key].map((p, i) => `<option value="${i}">${p.label}</option>`).join('');
+    controlsRow.appendChild(presetSel);
+  }
+  panel.appendChild(controlsRow);
+
+  const tlCanvas = document.createElement('canvas');
+  tlCanvas.width = 196; tlCanvas.height = 72;
+  panel.appendChild(tlCanvas);
+
+  const kfRow = document.createElement('div');
+  kfRow.className = 'anim-kf-row';
+  kfRow.style.display = 'none';
+  const easeLabel = document.createElement('span'); easeLabel.className = 'anim-label'; easeLabel.textContent = 'Easing';
+  const easeSel = document.createElement('select');
+  easeSel.className = 'anim-ease-sel';
+  easeSel.innerHTML = Object.keys(EASINGS).map(k => `<option>${k}</option>`).join('');
+  const kfDel = document.createElement('button');
+  kfDel.className = 'anim-kf-del'; kfDel.title = 'Delete keyframe'; kfDel.textContent = '🗑';
+  kfDel.style.display = 'none';
+  kfRow.appendChild(easeLabel); kfRow.appendChild(easeSel); kfRow.appendChild(kfDel);
+  panel.appendChild(kfRow);
+  wrap.appendChild(panel);
+
+  function ensureAnim() {
+    if (!effect.anim[ctrl.key]) {
+      effect.anim[ctrl.key] = { enabled: false, duration: 2, keyframes: [
+        { t: 0, value: effect[ctrl.key], easing: 'ease' },
+        { t: 1, value: effect[ctrl.key], easing: 'ease' },
+      ] };
+    }
+    return effect.anim[ctrl.key];
+  }
+
+  function redraw() {
+    const ap = effect.anim[ctrl.key];
+    if (!ap) return;
+    const sel = ETL.selectedKf;
+    const selKf = (sel && sel.effect === effect && sel.key === ctrl.key) ? sel : null;
+    drawTimelineOn(tlCanvas, ctrl, ap, selKf);
+  }
+
+  function syncEasingRow() {
+    const sel = ETL.selectedKf;
+    const isThis = sel && sel.effect === effect && sel.key === ctrl.key;
+    kfRow.style.display = isThis ? '' : 'none';
+    if (isThis) {
+      const ap = effect.anim[ctrl.key];
+      const kf = ap?.keyframes[sel.kfIdx];
+      if (kf) {
+        easeSel.value = kf.easing;
+        kfDel.style.display = ap.keyframes.length > 2 ? '' : 'none';
+      }
+    }
+  }
+
+  animBtn.addEventListener('click', () => {
+    const ap = ensureAnim();
+    ap.enabled = !ap.enabled;
+    animBtn.classList.toggle('active', ap.enabled);
+    panel.style.display = ap.enabled ? '' : 'none';
+    historySnapshot(); markRenderDirty(); flushHasAnimCache();
+    if (ap.enabled && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+    redraw();
+  });
+  durInput.addEventListener('input', () => {
+    const ap = effect.anim[ctrl.key]; if (!ap) return;
+    const v = parseFloat(durInput.value);
+    ap.duration = v > 0 ? v : 0.1;
+    markRenderDirty();
+  });
+  durInput.addEventListener('change', () => historySnapshot());
+
+  if (presetSel) {
+    presetSel.addEventListener('change', () => {
+      if (presetSel.value === '') return;
+      const preset = def.presets[ctrl.key][parseInt(presetSel.value)];
+      effect.anim[ctrl.key] = { enabled: true, duration: preset.dur, keyframes: preset.kfs.map(k => ({ t: k.t, value: k.v, easing: k.e })) };
+      animBtn.classList.add('active');
+      panel.style.display = '';
+      durInput.value = preset.dur;
+      ETL.selectedKf = null; syncEasingRow();
+      historySnapshot(); markRenderDirty(); flushHasAnimCache();
+      if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+      redraw();
+      presetSel.value = '';
+    });
+  }
+
+  easeSel.addEventListener('change', () => {
+    const sel = ETL.selectedKf;
+    if (!sel || sel.effect !== effect || sel.key !== ctrl.key) return;
+    const ap = effect.anim[ctrl.key];
+    const kf = ap.keyframes[sel.kfIdx];
+    if (kf) { kf.easing = easeSel.value; historySnapshot(); markRenderDirty(); redraw(); }
+  });
+  kfDel.addEventListener('click', () => {
+    const sel = ETL.selectedKf;
+    if (!sel || sel.effect !== effect || sel.key !== ctrl.key) return;
+    const ap = effect.anim[ctrl.key];
+    if (ap.keyframes.length > 2) {
+      ap.keyframes.splice(sel.kfIdx, 1);
+      ETL.selectedKf = null;
+      syncEasingRow(); historySnapshot(); markRenderDirty(); redraw();
+    }
+  });
+
+  wireEffectTimelineCanvas(tlCanvas, effect, ctrl, redraw, syncEasingRow);
+  _effectTimelineRefs.push({ canvasEl: tlCanvas, effect, ctrl });
+  redraw();
+  syncEasingRow();
+
+  return wrap;
+}
+
+function effectTlCoords(canvasEl, ctrl) {
+  const W = canvasEl.width, H = canvasEl.height;
+  const PAD = { l: 6, r: 6, t: 8, b: 8 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+  return {
+    tx: t => PAD.l + t * iW,
+    vy: v => PAD.t + (1 - (v - ctrl.min) / (ctrl.max - ctrl.min)) * iH,
+    tv: px => Math.max(0, Math.min(1, (px - PAD.l) / iW)),
+    yv: py => ctrl.min + (1 - (py - PAD.t) / iH) * (ctrl.max - ctrl.min),
+  };
+}
+
+function effectNearestKf(canvasEl, ctrl, ap, px, py) {
+  const { tx, vy } = effectTlCoords(canvasEl, ctrl);
+  let best = -1, bestD = 64; // ~8px hit radius, squared
+  ap.keyframes.forEach((kf, i) => {
+    const dx = tx(kf.t) - px, dy = vy(kf.value) - py;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+function wireEffectTimelineCanvas(canvasEl, effect, ctrl, redraw, syncEasingRow) {
+  const key = ctrl.key;
+  canvasEl.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const ap = effect.anim[key]; if (!ap) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const scaleX = canvasEl.width / rect.width, scaleY = canvasEl.height / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    if (e.button === 2) {
+      const idx = effectNearestKf(canvasEl, ctrl, ap, px, py);
+      if (idx >= 0 && ap.keyframes.length > 2) { ap.keyframes.splice(idx, 1); historySnapshot(); redraw(); }
+      return;
+    }
+    const kfIdx = effectNearestKf(canvasEl, ctrl, ap, px, py);
+    if (kfIdx >= 0) {
+      ETL.dragging = { effect, key, kfIdx };
+      ETL.selectedKf = { effect, key, kfIdx };
+      syncEasingRow(); redraw();
+      return;
+    }
+    ETL.selectedKf = null; syncEasingRow();
+    const { tv, yv } = effectTlCoords(canvasEl, ctrl);
+    const t = tv(px), v = Math.max(ctrl.min, Math.min(ctrl.max, yv(py)));
+    const prevKf = ap.keyframes.filter(k => k.t < t).pop();
+    ap.keyframes.push({ t, value: v, easing: prevKf?.easing ?? 'linear' });
+    ap.keyframes.sort((a, b) => a.t - b.t);
+    historySnapshot(); redraw();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!ETL.dragging || ETL.dragging.effect !== effect || ETL.dragging.key !== key) return;
+    const ap = effect.anim[key]; if (!ap) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const scaleX = canvasEl.width / rect.width, scaleY = canvasEl.height / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    const { tv, yv } = effectTlCoords(canvasEl, ctrl);
+    const kf = ap.keyframes[ETL.dragging.kfIdx];
+    if (!kf) return;
+    kf.t = Math.max(0, Math.min(1, tv(px)));
+    kf.value = Math.max(ctrl.min, Math.min(ctrl.max, yv(py)));
+    ap.keyframes.sort((a, b) => a.t - b.t);
+    ETL.dragging.kfIdx = ap.keyframes.indexOf(kf);
+    ETL.selectedKf.kfIdx = ETL.dragging.kfIdx;
+    redraw();
+  });
+  window.addEventListener('mouseup', () => {
+    if (ETL.dragging && ETL.dragging.effect === effect && ETL.dragging.key === key) {
+      ETL.dragging = null;
+      historySnapshot();
+      syncEasingRow();
+    }
+  });
+  canvasEl.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function refreshAllEffectTimelines() {
+  for (const { canvasEl, effect, ctrl } of _effectTimelineRefs) {
+    const ap = effect.anim[ctrl.key];
+    if (!ap) continue;
+    const sel = ETL.selectedKf;
+    const selKf = (sel && sel.effect === effect && sel.key === ctrl.key) ? sel : null;
+    drawTimelineOn(canvasEl, ctrl, ap, selKf);
+  }
+}
+
+function wireEffectsPanel() {
+  const addSel = document.getElementById('effect-add-select');
+  for (const key of Object.keys(EFFECT_TYPES)) {
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = EFFECT_TYPES[key].label;
+    addSel.appendChild(opt);
+  }
+  addSel.addEventListener('change', () => {
+    if (!addSel.value) return;
+    const effect = createEffect(addSel.value);
+    if (effect) {
+      S.effects.push(effect);
+      historySnapshot(); markRenderDirty(); flushHasAnimCache();
+      updateEffectsList();
+    }
+    addSel.value = '';
+  });
+
+  const header = document.getElementById('effects-header');
+  const title = document.getElementById('effects-title');
+  const list = document.getElementById('effects-list');
+  header.addEventListener('click', e => {
+    if (e.target.closest('select')) return;
+    S.effectsCollapsed = !S.effectsCollapsed;
+    list.style.display = S.effectsCollapsed ? 'none' : '';
+    title.textContent = 'Effects ' + (S.effectsCollapsed ? '▸' : '▾');
+  });
+
+  updateEffectsList();
+}
 
 const STL = { dragging: null, selectedKf: null };  // shape timeline interaction state
 
@@ -1433,7 +1920,7 @@ function initColorPopover() {
 
 // ── History ─────────────────────────────────────────────
 function historySnapshot() {
-  const snap = JSON.stringify(S.mandalas);
+  const snap = JSON.stringify({ mandalas: S.mandalas, effects: S.effects }); // EFFECT-MODULE: undo/redo
   S.history.push(snap);
   S.redoStack = [];
   if (S.history.length > MAX_HISTORY) S.history.shift();
@@ -1443,23 +1930,26 @@ function historySnapshot() {
 }
 
 function restoreSnapshot(snap) {
-  S.mandalas = JSON.parse(snap);
+  const data = JSON.parse(snap);
+  S.mandalas = data.mandalas;
+  S.effects = data.effects || []; // EFFECT-MODULE: undo/redo
   S.selectedSpriteId = null;
   invalidateStrokeCache();
   updateMandalaList();
   updateSpriteProps();
+  updateEffectsList();
 }
 
 function undo() {
   if (!S.history.length) return;
-  S.redoStack.push(JSON.stringify(S.mandalas));
+  S.redoStack.push(JSON.stringify({ mandalas: S.mandalas, effects: S.effects }));
   restoreSnapshot(S.history.pop());
   updateUndoButtons();
 }
 
 function redo() {
   if (!S.redoStack.length) return;
-  S.history.push(JSON.stringify(S.mandalas));
+  S.history.push(JSON.stringify({ mandalas: S.mandalas, effects: S.effects }));
   restoreSnapshot(S.redoStack.pop());
   updateUndoButtons();
 }
@@ -1908,6 +2398,10 @@ function render(timestamp) {
     if (document.getElementById('dpa-panel-orbit')?.offsetParent !== null) {
       refreshDrawingOrbitTimeline();
     }
+    // EFFECT-MODULE: render-hook (timeline playhead refresh)
+    if (document.getElementById('effects-list')?.offsetParent !== null) {
+      refreshAllEffectTimelines();
+    }
   }
 
   // Composite cached solid strokes (rebuilds if dirty)
@@ -1923,6 +2417,11 @@ function render(timestamp) {
     if (!m.visible) continue;
     renderMandalaLive(m);
   }
+
+  // EFFECT-MODULE: render-hook — post-process the finished artwork before
+  // any tool previews/guides/selection handles draw on top, so effects
+  // never touch UI chrome, only the actual mandala content.
+  applyEffectsChain(ctx, canvas);
 
   // Current stroke preview
   if (S.drawing && S.pts.length > 1) {
@@ -6075,6 +6574,7 @@ function saveProject() {
     canvasH: S.canvasH,
     bgColor: S.bgColor,
     mandalas: S.mandalas,
+    effects: S.effects, // EFFECT-MODULE: persistence
     palette: S.palette.map(p => ({
       id: p.id, name: p.name, dataUrl: p.dataUrl, isGif: p.isGif, isWebP: p.isWebP,
       transparentColor: p.transparentColor, tolerance: p.tolerance,
@@ -6098,6 +6598,10 @@ function loadProject(json) {
     S.canvasH = data.canvasH || 900;
     resizeCanvas(S.canvasW, S.canvasH);
     S.mandalas = data.mandalas || [];
+    S.effects = data.effects || []; // EFFECT-MODULE: persistence
+    S.effects.forEach(e => { if (e._expanded == null) e._expanded = false; });
+    flushHasAnimCache();
+    updateEffectsList();
     invalidateStrokeCache();
     S.palette = [];
     S.selectedSpriteId = null;
@@ -6139,6 +6643,7 @@ function exportPNG() {
   ctx.fillStyle = S.bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+  applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
   const a = document.createElement('a');
   a.href = canvas.toDataURL('image/png');
@@ -6368,6 +6873,7 @@ async function doExportWebP() {
       ctx.fillStyle = S.bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
       offCtx.clearRect(0, 0, expW, expH);
       offCtx.drawImage(canvas, 0, 0, expW, expH);
@@ -6469,6 +6975,7 @@ async function doExportGIF() {
       ctx.fillStyle = S.bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
       // Scale down to export size
       offCtx.clearRect(0, 0, expW, expH);
@@ -6655,6 +7162,7 @@ async function doExportVideo() {
       ctx.fillStyle = S.bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
       offCtx.fillStyle = S.bgColor;
       offCtx.fillRect(0, 0, expW, expH);
@@ -7285,6 +7793,9 @@ function wireEvents() {
   wireShapeAnimProps();
   wireStrokeProps();
   wireSnapUI();
+
+  // EFFECT-MODULE: ui init
+  wireEffectsPanel();
 }
 
 // ── Gradient UI ──────────────────────────────────────────

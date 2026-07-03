@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.30">
+<link rel="stylesheet" href="style.css?v=3.31">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -130,6 +130,21 @@ body.theater-mode #theater-hint {
 .layer-hidden .layer-eye{opacity:.6}
 .layer-delete{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:11px;opacity:.35;padding:0 2px;line-height:1;color:inherit}
 .layer-delete:hover{opacity:1;color:var(--danger-hover)}
+
+/* Effects panel — see EFFECT-MODULE comments in app.js */
+#effects-list{overflow-x:hidden;overflow-y:auto;max-height:260px}
+.effect-item{border:1px solid var(--border);border-radius:5px;margin:3px 4px;background:var(--bg);overflow:hidden}
+.effect-item-header{display:flex;align-items:center;gap:4px;padding:5px 8px;cursor:pointer;user-select:none}
+.effect-item-header:hover{background:var(--btn)}
+.effect-item-name{flex:1;font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.effect-item.disabled .effect-item-name{opacity:.4;text-decoration:line-through}
+.effect-anim-badge{font-size:11px;flex-shrink:0;color:var(--accent);opacity:.85;line-height:1}
+.effect-reorder-btn,.effect-toggle-btn,.effect-delete-btn{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:10px;opacity:.45;padding:0 2px;line-height:1;color:inherit}
+.effect-reorder-btn:hover,.effect-toggle-btn:hover{opacity:1}
+.effect-delete-btn:hover{opacity:1;color:var(--danger-hover)}
+.effect-reorder-btn:disabled{opacity:.15;cursor:default}
+.effect-item-body{padding:8px;border-top:1px solid var(--border)}
+#effects-header{user-select:none}
 
 #help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 #help-overlay.visible{display:flex}
@@ -366,6 +381,18 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
     </div>
 
     <aside id="right-panel">
+      <!-- Effects — global post-process stack, applied after everything else
+           renders. See "EFFECT-MODULE" comments in app.js for the module
+           contract used to add new effect types. -->
+      <div class="panel-header" id="effects-header" style="justify-content:space-between;cursor:pointer">
+        <span id="effects-title">Effects ▾</span>
+        <select id="effect-add-select" title="Add an effect" onclick="event.stopPropagation()" style="font-size:10px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:1px 3px">
+          <option value="">+ Add…</option>
+        </select>
+      </div>
+      <div id="effects-list" class="layers-list"></div>
+      <div class="panel-sep"></div>
+
       <!-- Layers (moved to top — the primary at-a-glance view of everything in the mandala) -->
       <div class="panel-header" style="justify-content:space-between">
         <span>Layers</span>
@@ -1288,6 +1315,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.30"></script>
+<script src="app.js?v=3.31"></script>
 </body>
 </html>
