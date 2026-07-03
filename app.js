@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.36';
+const VERSION = '3.37';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -432,8 +432,10 @@ function isClosedLoop(pts) {
   return Math.hypot(dx, dy) < 0.5;
 }
 
-// Computes the visible trail window as arc-length fractions of the path —
-// { tailFrac, headFrac, fadeAtStart, wrap }. Two families:
+// Computes the visible trail window(s) as arc-length fractions of the path —
+// an array of { tailFrac, headFrac, fadeAtStart, wrap } (almost always one
+// entry; continuous mode on an open path can return two — see below). Two
+// families:
 // - Pulse (default, trailAnim.continuous falsy): grow-then-recede-then-loop.
 //   Draw phase: head sweeps 0 -> 1 while tail trails `visibleFrac` behind it.
 //   Recede phase: head holds at 1 while tail sweeps up to close the window,
@@ -444,11 +446,13 @@ function isClosedLoop(pts) {
 //   Closed loops wrap the window seamlessly through the 1.0/0.0 seam
 //   forever, like a comet orbiting endlessly (tailFrac can go negative —
 //   renderTrailWindowInContext wraps it via `wrap`). Open paths have no
-//   seamless wrap point, so the head sweeps 0 -> 1 with the tail trailing
-//   `visibleFrac` behind it, then cuts straight back to a fresh trail at 0
-//   the instant it reaches the end — a one-directional chase, not a
-//   back-and-forth ping-pong.
-function trailWindowFrac(trailAnim, clock, isClosed) {
+//   seamless wrap point, so instead a fresh trail's head starts sweeping
+//   0 -> 1 every `duration`, while the previous trail's head holds at 1 and
+//   its tail keeps sweeping onward to 1 (finishing its fade-out) — the two
+//   overlap for the `visibleFrac` tail of the cycle, so a follow-on trail is
+//   always already underway by the time the old one fully exits. At most
+//   two are ever alive at once since visibleFrac <= 1.
+function trailWindows(trailAnim, clock, isClosed) {
   const duration = trailAnim.duration > 0 ? trailAnim.duration : 0.1;
   const visibleFrac = Math.max(0.02, Math.min(1, (trailAnim.lengthPct ?? 40) / 100));
 
@@ -459,22 +463,34 @@ function trailWindowFrac(trailAnim, clock, isClosed) {
     const recedeStart = Math.max(0, 1 - visibleFrac);
     if (t < drawPhaseFrac) {
       const headFrac = t / drawPhaseFrac;
-      return { tailFrac: Math.max(0, headFrac - visibleFrac), headFrac, fadeAtStart: true, wrap: false };
+      return [{ tailFrac: Math.max(0, headFrac - visibleFrac), headFrac, fadeAtStart: true, wrap: false }];
     }
     const recedeT = (t - drawPhaseFrac) / (1 - drawPhaseFrac);
-    return { tailFrac: recedeStart + recedeT * (1 - recedeStart), headFrac: 1, fadeAtStart: true, wrap: false };
+    return [{ tailFrac: recedeStart + recedeT * (1 - recedeStart), headFrac: 1, fadeAtStart: true, wrap: false }];
   }
 
   if (isClosed) {
     const headFrac = (clock % duration) / duration;
-    return { tailFrac: headFrac - visibleFrac, headFrac, fadeAtStart: true, wrap: true };
+    return [{ tailFrac: headFrac - visibleFrac, headFrac, fadeAtStart: true, wrap: true }];
   }
 
-  const headFrac = (clock % duration) / duration;
-  return { tailFrac: Math.max(0, headFrac - visibleFrac), headFrac, fadeAtStart: true, wrap: false };
+  // Open path, continuous: up to two overlapping trails, `duration` apart,
+  // each running its own 0 -> (1 + visibleFrac) progress (in units of a
+  // cycle) with its head clamped to 1 once it arrives.
+  const windows = [];
+  const cycle = Math.floor(clock / duration);
+  for (const k of [cycle, cycle - 1]) {
+    const p = (clock - k * duration) / duration; // this trail's raw progress, 0 at its start
+    if (p < 0 || p >= 1 + visibleFrac) continue; // not yet started, or fully exited
+    const headFrac = Math.min(1, p);
+    const tailFrac = Math.max(0, p - visibleFrac);
+    if (headFrac <= tailFrac) continue;
+    windows.push({ tailFrac, headFrac, fadeAtStart: true, wrap: false });
+  }
+  return windows;
 }
 
-// Draws the trail `window` (see trailWindowFrac) of `pts` — already in
+// Draws one trail `window` (see trailWindows) of `pts` — already in
 // whatever local frame the caller has already transformed `ctx` into — with
 // a 25%-of-window fade at whichever end trails the direction of travel
 // (fadeAtStart) and, for wrap:true, seamless wraparound through the path's
@@ -555,8 +571,8 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
 // trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
 function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, trailAnim, gradient) {
   if (pts.length < 2) return;
-  const window = trailWindowFrac(trailAnim, S.animClock, isClosedLoop(pts));
-  if (window.headFrac <= window.tailFrac) return;
+  const windows = trailWindows(trailAnim, S.animClock, isClosedLoop(pts));
+  if (!windows.length) return;
   const n = axes != null ? axes : m.axes;
   const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
@@ -572,7 +588,7 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
       ctx.translate(m.cx, m.cy);
       ctx.rotate(rotRad + segAngle * i);
       if (flip === 1) ctx.scale(1, -1);
-      renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, window);
+      for (const window of windows) renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, window);
       ctx.restore();
     }
   }
@@ -4387,8 +4403,8 @@ function renderShapeTrailSymmetric(tCtx, m, shape) {
   const { effShape, effRotRad, effOrbitRad, effX, effY } = computeShapeRenderParams(shape);
   const pts = getShapePoints(effShape);
   if (pts.length < 2) return;
-  const window = trailWindowFrac(shape.trailAnim, S.animClock, isClosedLoop(pts));
-  if (window.headFrac <= window.tailFrac) return;
+  const windows = trailWindows(shape.trailAnim, S.animClock, isClosedLoop(pts));
+  if (!windows.length) return;
 
   const n = shape.axes != null ? shape.axes : m.axes;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
@@ -4407,7 +4423,7 @@ function renderShapeTrailSymmetric(tCtx, m, shape) {
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
       applyShapeLocalRotation(tCtx, shape, effRotRad);
-      renderTrailWindowInContext(tCtx, pts, effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, window);
+      for (const window of windows) renderTrailWindowInContext(tCtx, pts, effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, window);
       tCtx.restore();
     }
   }
