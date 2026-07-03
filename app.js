@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.19';
+const VERSION = '3.20';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -80,6 +80,13 @@ const S = {
   shapeHandleDrag: null,
   shapeHandleStart: null,
   shapeDragOrigin: null,
+
+  // petal tool transient — two-drag creation: null -> 'axis' (drag 1: tip to
+  // base) -> 'axisDone' (idle, between drags) -> 'curve' (drag 2: curvature) -> null
+  petalPhase: null,
+  petalTip: null,
+  petalBase: null,
+  petalCurve: 0.35,
 
   // drawing transient
   drawing: false,
@@ -1893,6 +1900,30 @@ function render(timestamp) {
     }
   }
 
+  // Petal preview — live shape (both drag stages) plus construction guides
+  // (tip->base axis line, endpoint markers, and the curvature handle once
+  // that stage starts).
+  if (S.tool === 'petal' && S.petalPhase && S.petalTip && S.petalBase) {
+    const m = getActiveMandala();
+    if (m) {
+      const previewShape = {
+        id: '_petal_preview', type: 'petal',
+        x: S.petalTip.x, y: S.petalTip.y,
+        petalDx: S.petalBase.x - S.petalTip.x,
+        petalDy: S.petalBase.y - S.petalTip.y,
+        petalCurve: S.petalCurve,
+        r: 0, color: S.color, thickness: S.thickness, opacity: S.opacity,
+        fill: S.shapeFill, lineCap: S.shapeLineCap, lineJoin: 'miter', dash: [],
+        gradient: null, rotation: 0, orbit: 0, anim: {}, params: {},
+        axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror,
+      };
+      ctx.save(); ctx.globalAlpha = 0.7;
+      renderShapeSymmetric(ctx, m, previewShape);
+      ctx.restore();
+      renderPetalGuides(m, S.petalTip, S.petalBase, S.petalPhase === 'curve' ? S.petalCurve : null);
+    }
+  }
+
   // Stamp placement preview
   if (S.tool === 'place' && S.mousePos) {
     const m = getActiveMandala();
@@ -2024,6 +2055,27 @@ function shapeAnimatedWorldCenter(m, shape) {
   return {
     x: m.cx + Math.cos(angle) * ox - Math.sin(angle) * oy,
     y: m.cy + Math.sin(angle) * ox + Math.cos(angle) * oy,
+  };
+}
+
+// World position of a petal's tip->base midpoint (its "grab anywhere to
+// move" handle) — like shapeAnimatedWorldCenter but for an offset point
+// rather than the anchor itself, so it also accounts for the shape's own
+// rotation (which rotates the tip->base axis around the tip).
+function petalAnimatedWorldMid(m, shape) {
+  const clk = S.animClock;
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const orbit = (getAnimValue(shape, 'orbit', clk) ?? (shape.orbit || 0)) * Math.PI / 180;
+  const animRot = (getAnimValue(shape, 'rotation', clk) ?? (shape.rotation || 0)) * Math.PI / 180;
+  const { x: ox, y: oy } = shapeRadialTangentialOffset(shape, clk);
+  const dx = (shape.petalDx || 0) / 2, dy = (shape.petalDy || 0) / 2;
+  const rdx = Math.cos(animRot) * dx - Math.sin(animRot) * dy;
+  const rdy = Math.sin(animRot) * dx + Math.cos(animRot) * dy;
+  const lx = ox + rdx, ly = oy + rdy;
+  const angle = rotRad + orbit;
+  return {
+    x: m.cx + Math.cos(angle) * lx - Math.sin(angle) * ly,
+    y: m.cy + Math.sin(angle) * lx + Math.cos(angle) * ly,
   };
 }
 
@@ -2434,6 +2486,48 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
     }
     ctx.restore();
     } // end flip
+  }
+
+  ctx.restore();
+}
+
+// Construction guides shown only while creating a petal: a dashed line from
+// tip to base (drag 1), then the curvature handle once drag 2 starts.
+// Drawn once in the mandala's own local frame (not repeated per axis copy)
+// since it's an editing aid, not part of the artwork.
+function renderPetalGuides(m, tip, base, curveVal) {
+  const rotRad = ((m.axisRotation) || 0) * Math.PI / 180;
+  ctx.save();
+  ctx.translate(m.cx, m.cy);
+  ctx.rotate(rotRad);
+
+  ctx.strokeStyle = 'rgba(124,106,240,0.8)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(tip.x, tip.y);
+  ctx.lineTo(base.x, base.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(base.x, base.y, 4, 0, Math.PI * 2); ctx.fill();
+
+  if (curveVal != null) {
+    const dx = base.x - tip.x, dy = base.y - tip.y;
+    const axisLen = Math.hypot(dx, dy) || 1;
+    const ux = dx / axisLen, uy = dy / axisLen;
+    const px = -uy, py = ux;
+    const midX = (tip.x + base.x) / 2, midY = (tip.y + base.y) / 2;
+    const bulge = curveVal * axisLen;
+    const hx = midX + px * bulge, hy = midY + py * bulge;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(midX, midY); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ff6b9d';
+    ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
   }
 
   ctx.restore();
@@ -2903,6 +2997,44 @@ function getShapePoints(shape) {
       const a = (i % sides) * Math.PI * 2 / sides - Math.PI / 2;
       pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
     }
+  } else if (shape.type === 'petal') {
+    // One continuous loop: tip -> base along one curve, base -> tip back
+    // along the mirrored curve. Equal point counts on both halves (they're
+    // geometric mirrors) is what keeps a gradient's arc-length sampling
+    // symmetric — see renderShapeInContext's gradient path for why that matters.
+    for (const p of petalOutlinePoints(shape)) pts.push(p);
+  }
+  return pts;
+}
+
+// Shared petal geometry: tip is always local (0,0) since rendering has
+// already translated to the shape's anchor by the time this runs.
+function petalControlPoints(shape) {
+  const dx = shape.petalDx || 0, dy = shape.petalDy || 0;
+  const axisLen = Math.max(1, Math.hypot(dx, dy));
+  const bulge = (shape.petalCurve ?? 0.35) * axisLen;
+  const ux = dx / axisLen, uy = dy / axisLen;
+  const px = -uy, py = ux; // perpendicular unit vector
+  const midX = dx / 2, midY = dy / 2;
+  return {
+    dx, dy,
+    cA: { x: midX + px * bulge, y: midY + py * bulge },
+    cB: { x: midX - px * bulge, y: midY - py * bulge },
+  };
+}
+
+function petalOutlinePoints(shape) {
+  const { dx, dy, cA, cB } = petalControlPoints(shape);
+  const axisLen = Math.max(1, Math.hypot(dx, dy));
+  const N = Math.max(16, Math.round(axisLen * 0.15));
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, u = 1 - t;
+    pts.push({ x: u * u * 0 + 2 * u * t * cA.x + t * t * dx, y: u * u * 0 + 2 * u * t * cA.y + t * t * dy });
+  }
+  for (let i = 1; i <= N; i++) {
+    const t = i / N, u = 1 - t;
+    pts.push({ x: u * u * dx + 2 * u * t * cB.x + t * t * 0, y: u * u * dy + 2 * u * t * cB.y + t * t * 0 });
   }
   return pts;
 }
@@ -2915,8 +3047,11 @@ function getShapePath2D(shape) {
   const r   = Math.max(1, shape.r);
   const p0  = shape.params?.points ?? shape.params?.sides ?? 0;
   const p1  = shape.params?.innerRatio ?? 0;
+  // Petals have no r/params — key their cache entry on the geometry that
+  // actually varies for them instead.
+  const p2  = shape.type === 'petal' ? `${shape.petalDx || 0},${shape.petalDy || 0},${shape.petalCurve ?? 0.35}` : '';
   const cached = _path2DCache.get(shape.id);
-  if (cached && cached.r === r && cached.type === shape.type && cached.p0 === p0 && cached.p1 === p1) {
+  if (cached && cached.r === r && cached.type === shape.type && cached.p0 === p0 && cached.p1 === p1 && cached.p2 === p2) {
     return cached.path;
   }
 
@@ -2941,9 +3076,18 @@ function getShapePath2D(shape) {
       else         p.lineTo(Math.cos(a)*r, Math.sin(a)*r);
     }
     p.closePath();
+  } else if (shape.type === 'petal') {
+    // Two mirrored quadratic curves from tip (0,0) to base (dx,dy) — they
+    // meet at both endpoints with different tangent directions, which is
+    // exactly what gives the tip a sharp, unrounded point when stroked.
+    const { dx, dy, cA, cB } = petalControlPoints(shape);
+    p.moveTo(0, 0);
+    p.quadraticCurveTo(cA.x, cA.y, dx, dy);
+    p.quadraticCurveTo(cB.x, cB.y, 0, 0);
+    p.closePath();
   }
 
-  _path2DCache.set(shape.id, { r, type: shape.type, p0, p1, path: p });
+  _path2DCache.set(shape.id, { r, type: shape.type, p0, p1, p2, path: p });
   return p;
 }
 
@@ -3039,6 +3183,9 @@ function renderShapeSymmetric(tCtx, m, shape) {
   _shapeProxy.dash      = shape.dash;
   _shapeProxy.gradient  = shape.gradient;
   _shapeProxy.params    = shape.params;
+  _shapeProxy.petalDx   = shape.petalDx;
+  _shapeProxy.petalDy   = shape.petalDy;
+  _shapeProxy.petalCurve = shape.petalCurve;
   const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
@@ -3069,6 +3216,23 @@ function renderShapeSymmetric(tCtx, m, shape) {
   tCtx.restore();
 }
 
+// Petals aren't radius-based, so their approximate hit-circle (same
+// "close enough" style as the other shapes below) is centred on the
+// tip->base midpoint instead of the anchor, with the axis half-length as
+// its radius. Ignores shape.rotation, same simplification the other shape
+// types already accept here.
+function shapeHitCircle(shape) {
+  if (shape.type === 'petal') {
+    const dx = shape.petalDx || 0, dy = shape.petalDy || 0;
+    return {
+      cx: shape.x + dx / 2,
+      cy: shape.y + dy / 2,
+      r: Math.hypot(dx, dy) / 2 + (shape.thickness || 2) / 2 + 8,
+    };
+  }
+  return { cx: shape.x, cy: shape.y, r: shape.r + (shape.thickness || 2) / 2 + 8 };
+}
+
 function shapeContainsPoint(m, shape, wx, wy) {
   const n = shape.axes != null ? shape.axes : m.axes;
   const doMirror = shape.mirror !== false;
@@ -3076,7 +3240,7 @@ function shapeContainsPoint(m, shape, wx, wy) {
   const effectiveMirror = n === 0 ? false : doMirror;
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
-  const hitR = shape.r + (shape.thickness || 2) / 2 + 8;
+  const { cx: hitCx, cy: hitCy, r: hitR } = shapeHitCircle(shape);
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
       const ang = rotRad + segAngle * i;
@@ -3085,7 +3249,7 @@ function shapeContainsPoint(m, shape, wx, wy) {
       let lx = cos * dx - sin * dy;
       let ly = sin * dx + cos * dy;
       if (flip === 1) ly = -ly;
-      if (Math.hypot(lx - shape.x, ly - shape.y) <= hitR) return true;
+      if (Math.hypot(lx - hitCx, ly - hitCy) <= hitR) return true;
     }
   }
   return false;
@@ -3157,6 +3321,14 @@ function getShapeHandleAtPoint(wx, wy) {
   if (!found) return null;
   const { shape, mandala: m } = found;
   const clk = S.animClock;
+  if (shape.type === 'petal') {
+    // Petals have no scale handle (curvature/size are Inspector-only) —
+    // just a single move handle at the tip->base midpoint.
+    const { x: mx, y: my } = petalAnimatedWorldMid(m, shape);
+    const axisLen = Math.hypot(shape.petalDx || 0, shape.petalDy || 0);
+    if (Math.hypot(wx - mx, wy - my) < axisLen / 2 + (shape.thickness || 2) / 2 + 8) return 'shape-move';
+    return null;
+  }
   const animR = getAnimValue(shape, 'radius', clk) ?? shape.r;
   const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
   const scaleHx = cx + animR + shape.thickness / 2 + 4;
@@ -3170,6 +3342,25 @@ function renderShapeSelectionHandles() {
   if (!found) return;
   const { shape, mandala: m } = found;
   const clk = S.animClock;
+  if (shape.type === 'petal') {
+    const { x: mx, y: my } = petalAnimatedWorldMid(m, shape);
+    const axisLen = Math.hypot(shape.petalDx || 0, shape.petalDy || 0);
+    ctx.save();
+    ctx.strokeStyle = '#7c6af0';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(mx, my, axisLen / 2 + (shape.thickness || 2) / 2 + 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#7c6af0';
+    ctx.beginPath();
+    ctx.arc(mx, my, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
   const animR = getAnimValue(shape, 'radius', clk) ?? shape.r;
   const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
   ctx.save();
@@ -3270,6 +3461,19 @@ function updateShapeProps() {
   if (shape.type === 'polygon' && shape.params) {
     document.getElementById('sp-sides').value = shape.params.sides || 6;
   }
+
+  // Radius doesn't apply to petals (sized by tip/base/curvature instead);
+  // Curvature only applies to petals.
+  const isPetal = shape.type === 'petal';
+  const radiusBlock = document.getElementById('sp-radius-block');
+  const petalRow = document.getElementById('sp-petal-row');
+  if (radiusBlock) radiusBlock.style.display = isPetal ? 'none' : '';
+  if (petalRow) petalRow.style.display = isPetal ? '' : 'none';
+  if (isPetal) {
+    const pct = Math.round((shape.petalCurve ?? 0.35) * 100);
+    document.getElementById('sp-petal-curve').value = pct;
+    document.getElementById('sp-petal-curve-val').textContent = pct + '%';
+  }
 }
 
 function wireShapeProps() {
@@ -3334,6 +3538,10 @@ function wireShapeProps() {
     const toolSidesInput = document.getElementById('shapep-sides');
     if (toolSidesInput) toolSidesInput.value = sides;
     try { localStorage.setItem('mandala-polygon-sides', String(sides)); } catch {}
+  });
+  document.getElementById('sp-petal-curve').addEventListener('input', e => {
+    forShape(s => { s.petalCurve = parseInt(e.target.value) / 100; });
+    document.getElementById('sp-petal-curve-val').textContent = e.target.value + '%';
   });
   document.getElementById('sp-delete').addEventListener('click', () => {
     const found = findSelectedShape();
@@ -3846,6 +4054,22 @@ function onMouseDown(e) {
     return;
   }
 
+  // Petal tool — two separate drags: drag 1 (tip -> base) sets the axis,
+  // drag 2 (anywhere) sets curvature by how far the cursor strays from
+  // that axis. Between drags we sit in 'axisDone' waiting for drag 2 to start.
+  if (S.tool === 'petal') {
+    if (!m) return;
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    if (S.petalPhase === null) {
+      S.petalTip = local;
+      S.petalBase = local;
+      S.petalPhase = 'axis';
+    } else if (S.petalPhase === 'axisDone') {
+      S.petalPhase = 'curve';
+    }
+    return;
+  }
+
   // Brush / line / erase drawing
   if (!m) return;
   const local = toMandalaLocal(m, pos.x, pos.y);
@@ -3885,6 +4109,30 @@ function onMouseMove(e) {
     const dx = pos.x - S.shapePreview._startX;
     const dy = pos.y - S.shapePreview._startY;
     S.shapePreview.r = Math.max(1, Math.hypot(dx, dy));
+    return;
+  }
+
+  // Petal drag 1 — position the base, angle-snapping the tip->base axis
+  // the same way the Line tool snaps (S.snapAngle / hold Snap).
+  if (S.tool === 'petal' && S.petalPhase === 'axis' && m) {
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    let dx = local.x - S.petalTip.x, dy = local.y - S.petalTip.y;
+    if (S.snapAngle) { const snap = snapAngle(dx, dy); dx = snap.dx; dy = snap.dy; }
+    S.petalBase = { x: S.petalTip.x + dx, y: S.petalTip.y + dy };
+    return;
+  }
+
+  // Petal drag 2 — curvature is the signed perpendicular distance of the
+  // cursor from the tip->base axis, as a fraction of that axis's length.
+  if (S.tool === 'petal' && S.petalPhase === 'curve' && m) {
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    const axisDx = S.petalBase.x - S.petalTip.x, axisDy = S.petalBase.y - S.petalTip.y;
+    const axisLen = Math.max(1, Math.hypot(axisDx, axisDy));
+    const ux = axisDx / axisLen, uy = axisDy / axisLen;
+    const px = -uy, py = ux;
+    const relX = local.x - S.petalTip.x, relY = local.y - S.petalTip.y;
+    const perpDist = relX * px + relY * py;
+    S.petalCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
     return;
   }
 
@@ -3951,6 +4199,55 @@ function onMouseUp(e) {
       setTool('select');
     }
     S.shapePreview = null;
+    return;
+  }
+
+  // Petal placement — end of drag 1 (lock the axis, wait for drag 2) or
+  // end of drag 2 (finalize the shape).
+  if (S.tool === 'petal' && S.petalPhase === 'axis') {
+    const axisLen = Math.hypot(S.petalBase.x - S.petalTip.x, S.petalBase.y - S.petalTip.y);
+    if (axisLen < 3) {
+      S.petalPhase = null; S.petalTip = null; S.petalBase = null;
+    } else {
+      S.petalPhase = 'axisDone';
+      S.petalCurve = 0.35;
+    }
+    return;
+  }
+  if (S.tool === 'petal' && S.petalPhase === 'curve') {
+    const m = getActiveMandala();
+    if (m) {
+      historySnapshot();
+      const shape = {
+        id: uid(), type: 'petal',
+        x: S.petalTip.x, y: S.petalTip.y,
+        petalDx: S.petalBase.x - S.petalTip.x,
+        petalDy: S.petalBase.y - S.petalTip.y,
+        petalCurve: S.petalCurve,
+        r: 0,
+        color: S.color,
+        thickness: S.thickness,
+        opacity: S.opacity,
+        fill: S.shapeFill,
+        lineCap: S.shapeLineCap,
+        lineJoin: 'miter', // keeps the tip/base corners sharp regardless of the shared Join dropdown default
+        dash: [...S.shapeDash],
+        gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+        rotation: 0, orbit: 0,
+        anim: {},
+        params: {},
+        axes: m.axes,
+        axisRotation: m.axisRotation,
+        mirror: m.mirror,
+      };
+      if (!m.shapes) m.shapes = [];
+      m.shapes.push(shape);
+      S.selectedShapeId = shape.id;
+      updateShapeProps();
+      updateLayersList();
+      setTool('select');
+    }
+    S.petalPhase = null; S.petalTip = null; S.petalBase = null;
     return;
   }
 
@@ -4526,6 +4823,13 @@ function setTool(tool) {
     S.selectedShapeId = null;
     updateSpriteProps();
     updateShapeProps();
+  }
+  if (tool !== 'petal') {
+    // Abandon an in-progress petal (mid tip->base or mid curvature drag) if
+    // the user switches tools before finishing it, so it doesn't get stuck.
+    S.petalPhase = null;
+    S.petalTip = null;
+    S.petalBase = null;
   }
   updateShapePanel();
   updateGradientPanelVisibility();
@@ -6120,7 +6424,7 @@ function wireEvents() {
       if (S.lastStampedId) { S.selectedSpriteId = S.lastStampedId; updateSpriteProps(); }
       return;
     }
-    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon' };
+    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
     if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {

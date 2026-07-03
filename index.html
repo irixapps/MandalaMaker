@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.19">
+<link rel="stylesheet" href="style.css?v=3.20">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -329,6 +329,11 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           <polygon points="11,3.5 18.5,7.75 18.5,14.25 11,18.5 3.5,14.25 3.5,7.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
         </svg>
       </button>
+      <button class="tool-btn" data-tool="petal" title="Petal — drag to set tip→base, drag again to set curvature (V)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11,3 Q4,11 11,19 Q18,11 11,3 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="miter"/>
+        </svg>
+      </button>
       <div class="panel-sep" style="width:44px;margin:6px 0"></div>
       <div class="panel-label" style="font-size:9px;margin-bottom:4px">MANDALAS</div>
       <div id="mandala-list"></div>
@@ -504,25 +509,36 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
       <div id="shape-props" style="display:none">
         <div class="panel-label">Shape Inspector — <span id="sp-type-label">Circle</span></div>
 
-        <!-- Radius -->
-        <div class="prop-row">
-          <label class="prop-label">Radius</label>
-          <input type="range" id="sp-radius" min="2" max="600" value="50">
-          <span class="prop-val" id="sp-radius-val">50px</span>
-          <button class="anim-btn" id="sa-btn-radius" title="Animate Radius">∿</button>
-        </div>
-        <div class="anim-panel" id="sa-panel-radius" style="display:none">
-          <div class="anim-panel-controls">
-            <span class="anim-label">Dur</span>
-            <input type="number" id="sa-dur-radius" value="2" min="0.1" max="60" step="0.1">
-            <span class="anim-label">s</span>
-            <select id="sa-preset-radius" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Breathe</option><option>Shrink</option></select>
+        <!-- Radius (circle/star/polygon only — petals size themselves via tip/base/curvature) -->
+        <div id="sp-radius-block">
+          <div class="prop-row">
+            <label class="prop-label">Radius</label>
+            <input type="range" id="sp-radius" min="2" max="600" value="50">
+            <span class="prop-val" id="sp-radius-val">50px</span>
+            <button class="anim-btn" id="sa-btn-radius" title="Animate Radius">∿</button>
           </div>
-          <canvas id="sa-tl-radius" width="196" height="72"></canvas>
-          <div class="anim-kf-row" id="sa-kf-row-radius" style="display:none">
-            <span class="anim-label">Easing</span>
-            <select id="sa-ease-sel-radius" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
-            <button class="anim-kf-del" id="sa-kf-del-radius" title="Delete keyframe" style="display:none">🗑</button>
+          <div class="anim-panel" id="sa-panel-radius" style="display:none">
+            <div class="anim-panel-controls">
+              <span class="anim-label">Dur</span>
+              <input type="number" id="sa-dur-radius" value="2" min="0.1" max="60" step="0.1">
+              <span class="anim-label">s</span>
+              <select id="sa-preset-radius" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse</option><option>Breathe</option><option>Shrink</option></select>
+            </div>
+            <canvas id="sa-tl-radius" width="196" height="72"></canvas>
+            <div class="anim-kf-row" id="sa-kf-row-radius" style="display:none">
+              <span class="anim-label">Easing</span>
+              <select id="sa-ease-sel-radius" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
+              <button class="anim-kf-del" id="sa-kf-del-radius" title="Delete keyframe" style="display:none">🗑</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Curvature — petal only -->
+        <div id="sp-petal-row" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Curvature</label>
+            <input type="range" id="sp-petal-curve" min="-120" max="120" value="35">
+            <span class="prop-val" id="sp-petal-curve-val">35%</span>
           </div>
         </div>
 
@@ -1208,6 +1224,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.19"></script>
+<script src="app.js?v=3.20"></script>
 </body>
 </html>
