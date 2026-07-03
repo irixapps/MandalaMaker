@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.44';
+const VERSION = '3.45';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -791,7 +791,7 @@ const EFFECT_TYPES = {
     label: 'Bloom',
     defaults: () => ({ amount: 50, threshold: 60, radius: 12 }),
     controls: [
-      { key: 'amount',    label: 'Amount',    min: 0, max: 200, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'amount',    label: 'Amount',    min: 0, max: 400, step: 1, format: v => Math.round(v) + '%', animatable: true },
       { key: 'threshold', label: 'Threshold', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
       { key: 'radius',    label: 'Blur Radius', min: 1, max: 60, step: 1, format: v => Math.round(v) + 'px', animatable: false },
     ],
@@ -820,17 +820,16 @@ const EFFECT_TYPES = {
       _bloomCtx.drawImage(canvas, 0, 0);
       _bloomCtx.filter = 'none';
 
-      // 0-100 draws the glow layer once, at up to full alpha, exactly as
-      // before. A single 'lighter' pass at alpha 1 is already as bright as
-      // one copy of the glow layer can get, so past 100 the range instead
-      // draws a second additive pass — 100-200 fades that second copy in,
-      // doubling the maximum possible bloom brightness at 200%.
+      // A single 'lighter' pass at alpha 1 is already as bright as one copy
+      // of the glow layer can get, so 0-100 draws it once at up to full
+      // alpha exactly as before, and every further 100 draws another full
+      // additive pass — up to 4 at the 400% max — with whatever's left
+      // over fading in the final one. Each full pass roughly doubles the
+      // achievable brightness on top of the last.
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = Math.min(1, amount / 100);
-      ctx.drawImage(_bloomCanvas, 0, 0);
-      if (amount > 100) {
-        ctx.globalAlpha = Math.min(1, (amount - 100) / 100);
+      for (let remaining = amount; remaining > 0; remaining -= 100) {
+        ctx.globalAlpha = Math.min(1, remaining / 100);
         ctx.drawImage(_bloomCanvas, 0, 0);
       }
       ctx.restore();
@@ -1203,6 +1202,14 @@ function _ensureBloomThresholdFilter() {
   svg.style.pointerEvents = 'none';
   const filter = document.createElementNS(NS, 'filter');
   filter.setAttribute('id', 'bloom-threshold-filter');
+  // SVG filters default to operating in linearRGB, silently gamma-decoding
+  // pixels before the transfer function and re-encoding after — the linear
+  // slope/intercept math below is written for raw sRGB byte values (a plain
+  // 0-255 cutoff), so left at the default this crushes far more than
+  // intended: a sRGB pixel at ~30% brightness is only ~6.5% in linear
+  // light, so even a small 10% threshold wipes out most midtones. Forcing
+  // sRGB here makes the transfer function operate on the values as written.
+  filter.setAttribute('color-interpolation-filters', 'sRGB');
   const transfer = document.createElementNS(NS, 'feComponentTransfer');
   const funcs = {};
   for (const ch of ['R', 'G', 'B']) {
