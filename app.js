@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.24';
+const VERSION = '3.25';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -89,14 +89,14 @@ const S = {
   petalBase: null,
   petalCurve: 0.35,
 
-  // swoosh tool transient — an open (unfilled) single curve, same
+  // bezier tool transient — an open (unfilled) single curve, same
   // three-click creation as petal (tip -> end -> curvature). The end's
   // tangent handle (its second Bezier control point) is edit-only — it
   // defaults to mirroring the curvature handle until independently dragged.
-  swooshPhase: null,
-  swooshTip: null,
-  swooshEnd: null,
-  swooshCurve: 0.35,
+  bezierPhase: null,
+  bezierTip: null,
+  bezierEnd: null,
+  bezierCurve: 0.35,
 
   // drawing transient
   drawing: false,
@@ -1934,18 +1934,18 @@ function render(timestamp) {
     }
   }
 
-  // Swoosh preview — identical construction guides to Petal, just an open
+  // Bezier preview — identical construction guides to Petal, just an open
   // unfilled curve instead of a closed loop.
-  if (S.tool === 'swoosh' && S.swooshPhase && S.swooshTip && S.swooshEnd) {
+  if (S.tool === 'bezier' && S.bezierPhase && S.bezierTip && S.bezierEnd) {
     const m = getActiveMandala();
     if (m) {
       const previewShape = {
-        id: '_swoosh_preview', type: 'swoosh',
-        x: S.swooshTip.x, y: S.swooshTip.y,
-        swooshDx: S.swooshEnd.x - S.swooshTip.x,
-        swooshDy: S.swooshEnd.y - S.swooshTip.y,
-        swooshCurve: S.swooshCurve,
-        swooshC2x: null, swooshC2y: null,
+        id: '_bezier_preview', type: 'bezier',
+        x: S.bezierTip.x, y: S.bezierTip.y,
+        bezierDx: S.bezierEnd.x - S.bezierTip.x,
+        bezierDy: S.bezierEnd.y - S.bezierTip.y,
+        bezierCurve: S.bezierCurve,
+        bezierC2x: null, bezierC2y: null,
         r: 0, color: S.color, thickness: S.thickness, opacity: S.opacity,
         fill: null, lineCap: 'butt', lineJoin: S.shapeLineJoin, dash: [],
         gradient: null, rotation: 0, orbit: 0, anim: {}, params: {},
@@ -1954,7 +1954,7 @@ function render(timestamp) {
       ctx.save(); ctx.globalAlpha = 0.7;
       renderShapeSymmetric(ctx, m, previewShape);
       ctx.restore();
-      renderPetalGuides(m, S.swooshTip, S.swooshEnd, S.swooshPhase === 'curve' ? S.swooshCurve : null);
+      renderPetalGuides(m, S.bezierTip, S.bezierEnd, S.bezierPhase === 'curve' ? S.bezierCurve : null);
     }
   }
 
@@ -2097,7 +2097,7 @@ function shapeAnimatedWorldCenter(m, shape) {
 // but for an offset point rather than the anchor itself, so it also accounts
 // for the shape's own rotation (which rotates the tip->base axis around the
 // tip). Used for the move/base/curvature edit handles alike.
-// Shared by Petal and Swoosh — both store x/y as the tip rather than the
+// Shared by Petal and Bezier — both store x/y as the tip rather than the
 // center, and both rotate around the tip->end midpoint (see
 // renderShapeSymmetric), so an arbitrary local point (lx,ly) needs rotating
 // relative to that pivot, not the local origin, to track the rendered shape.
@@ -2129,12 +2129,12 @@ function petalAnimatedWorldMid(m, shape) {
   return petalAnimatedWorldPoint(m, shape, (shape.petalDx || 0) / 2, (shape.petalDy || 0) / 2);
 }
 
-function swooshAnimatedWorldPoint(m, shape, lx, ly) {
-  return openCurveAnimatedWorldPoint(m, shape, 'swooshDx', 'swooshDy', lx, ly);
+function bezierAnimatedWorldPoint(m, shape, lx, ly) {
+  return openCurveAnimatedWorldPoint(m, shape, 'bezierDx', 'bezierDy', lx, ly);
 }
 
-function swooshAnimatedWorldMid(m, shape) {
-  return swooshAnimatedWorldPoint(m, shape, (shape.swooshDx || 0) / 2, (shape.swooshDy || 0) / 2);
+function bezierAnimatedWorldMid(m, shape) {
+  return bezierAnimatedWorldPoint(m, shape, (shape.bezierDx || 0) / 2, (shape.bezierDy || 0) / 2);
 }
 
 function isSpriteOffCanvas(spr, m) {
@@ -3061,8 +3061,8 @@ function getShapePoints(shape) {
     // geometric mirrors) is what keeps a gradient's arc-length sampling
     // symmetric — see renderShapeInContext's gradient path for why that matters.
     for (const p of petalOutlinePoints(shape)) pts.push(p);
-  } else if (shape.type === 'swoosh') {
-    for (const p of swooshOutlinePoints(shape)) pts.push(p);
+  } else if (shape.type === 'bezier') {
+    for (const p of bezierOutlinePoints(shape)) pts.push(p);
   }
   return pts;
 }
@@ -3099,28 +3099,30 @@ function petalOutlinePoints(shape) {
   return pts;
 }
 
-// Shared swoosh geometry: an open single cubic Bezier from tip (0,0) to end
-// (dx,dy). C1 (near the tip) is driven by swooshCurve, same bulge formula
-// as petal's cA. C2 (near the end) defaults to mirroring it (petal's cB
-// formula) until the end-tangent handle is dragged, at which point an
-// explicit swooshC2x/y overrides it — see the "petal-curve"/"petal-base"
-// handle precedent in handleShapeDragFn.
-function swooshControlPoints(shape) {
-  const dx = shape.swooshDx || 0, dy = shape.swooshDy || 0;
-  const axisLen = Math.max(1, Math.hypot(dx, dy));
-  const bulge = (shape.swooshCurve ?? 0.35) * axisLen;
-  const ux = dx / axisLen, uy = dy / axisLen;
-  const px = -uy, py = ux;
-  const midX = dx / 2, midY = dy / 2;
-  const cA = { x: midX + px * bulge, y: midY + py * bulge };
-  const cB = (shape.swooshC2x != null && shape.swooshC2y != null)
-    ? { x: shape.swooshC2x, y: shape.swooshC2y }
-    : { x: midX - px * bulge, y: midY - py * bulge };
+// Shared bezier geometry: an open single cubic Bezier from tip (0,0) to end
+// (dx,dy), with two fully independent, freely-draggable control points —
+// C1 near the tip, C2 near the end. Finalized shapes always have both set
+// explicitly (see the Bezier tool's 3rd-click finalize); the fallback bulge
+// formula here only covers the transient preview shape shown mid-creation,
+// which is driven by a single S.bezierCurve scalar until it's finalized.
+function bezierControlPoints(shape) {
+  const dx = shape.bezierDx || 0, dy = shape.bezierDy || 0;
+  let cA = (shape.bezierC1x != null && shape.bezierC1y != null) ? { x: shape.bezierC1x, y: shape.bezierC1y } : null;
+  let cB = (shape.bezierC2x != null && shape.bezierC2y != null) ? { x: shape.bezierC2x, y: shape.bezierC2y } : null;
+  if (!cA || !cB) {
+    const axisLen = Math.max(1, Math.hypot(dx, dy));
+    const bulge = (shape.bezierCurve ?? 0.35) * axisLen;
+    const ux = dx / axisLen, uy = dy / axisLen;
+    const px = -uy, py = ux;
+    const midX = dx / 2, midY = dy / 2;
+    if (!cA) cA = { x: midX + px * bulge, y: midY + py * bulge };
+    if (!cB) cB = { x: midX - px * bulge, y: midY - py * bulge };
+  }
   return { dx, dy, cA, cB };
 }
 
-function swooshOutlinePoints(shape) {
-  const { dx, dy, cA, cB } = swooshControlPoints(shape);
+function bezierOutlinePoints(shape) {
+  const { dx, dy, cA, cB } = bezierControlPoints(shape);
   const axisLen = Math.max(1, Math.hypot(dx, dy));
   const N = Math.max(16, Math.round(axisLen * 0.15));
   const pts = [];
@@ -3146,7 +3148,7 @@ function getShapePath2D(shape) {
   // Petals have no r/params — key their cache entry on the geometry that
   // actually varies for them instead.
   const p2  = shape.type === 'petal' ? `${shape.petalDx || 0},${shape.petalDy || 0},${shape.petalCurve ?? 0.35}`
-    : shape.type === 'swoosh' ? `${shape.swooshDx || 0},${shape.swooshDy || 0},${shape.swooshCurve ?? 0.35},${shape.swooshC2x ?? ''},${shape.swooshC2y ?? ''}`
+    : shape.type === 'bezier' ? `${shape.bezierDx || 0},${shape.bezierDy || 0},${shape.bezierCurve ?? ''},${shape.bezierC1x ?? ''},${shape.bezierC1y ?? ''},${shape.bezierC2x ?? ''},${shape.bezierC2y ?? ''}`
     : '';
   const cached = _path2DCache.get(shape.id);
   if (cached && cached.r === r && cached.type === shape.type && cached.p0 === p0 && cached.p1 === p1 && cached.p2 === p2) {
@@ -3183,10 +3185,10 @@ function getShapePath2D(shape) {
     p.quadraticCurveTo(cA.x, cA.y, dx, dy);
     p.quadraticCurveTo(cB.x, cB.y, 0, 0);
     p.closePath();
-  } else if (shape.type === 'swoosh') {
+  } else if (shape.type === 'bezier') {
     // Single open cubic Bezier, tip to end — never closed, since this is
     // meant to read as one brush-like stroke, not an enclosed area.
-    const { dx, dy, cA, cB } = swooshControlPoints(shape);
+    const { dx, dy, cA, cB } = bezierControlPoints(shape);
     p.moveTo(0, 0);
     p.bezierCurveTo(cA.x, cA.y, cB.x, cB.y, dx, dy);
   }
@@ -3195,45 +3197,18 @@ function getShapePath2D(shape) {
   return p;
 }
 
-// Swooshes are open strokes, so only one end (the tip) touches a curve at
-// all — there's no second curve to meet it and form a cusp the way Petal
-// gets its sharp point for free. Fake the same effect: a small filled
-// triangle from the true tip out to a point just inside the stroke, at
-// full stroke width, oriented along the curve's starting tangent.
-function drawSwooshTipTaper(tCtx, shape) {
-  const { cA, dx, dy } = swooshControlPoints(shape);
-  const t = shape.thickness || 2;
-  const halfT = t / 2;
-  const tipLen = Math.max(4, t * 1.2);
-  let tanX = cA.x, tanY = cA.y, tanLen = Math.hypot(tanX, tanY);
-  if (tanLen < 0.001) { tanX = dx; tanY = dy; tanLen = Math.hypot(tanX, tanY) || 1; }
-  const ux = tanX / tanLen, uy = tanY / tanLen;
-  const px = -uy, py = ux;
-  const inX = ux * tipLen, inY = uy * tipLen;
-  tCtx.save();
-  tCtx.globalAlpha = shape.opacity || 1;
-  tCtx.fillStyle = shape.color;
-  tCtx.beginPath();
-  tCtx.moveTo(0, 0);
-  tCtx.lineTo(inX + px * halfT, inY + py * halfT);
-  tCtx.lineTo(inX - px * halfT, inY - py * halfT);
-  tCtx.closePath();
-  tCtx.fill();
-  tCtx.restore();
-}
-
 function renderShapeInContext(tCtx, shape) {
   const path = getShapePath2D(shape);
   tCtx.save();
   tCtx.globalAlpha = shape.opacity || 1;
-  tCtx.lineCap = shape.type === 'swoosh' ? 'butt' : (shape.lineCap || 'round');
+  tCtx.lineCap = shape.lineCap || 'round';
   tCtx.lineJoin = shape.lineJoin || 'round';
   // Scale dash pattern relative to line thickness so it stays proportional
   const t = shape.thickness || 1;
   tCtx.setLineDash((shape.dash || []).map(v => v * t));
 
-  // Fill (always use Path2D) — swooshes are always open/unfilled.
-  if (shape.fill && shape.type !== 'swoosh') { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
+  // Fill (always use Path2D) — bezieres are always open/unfilled.
+  if (shape.fill && shape.type !== 'bezier') { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
 
   // Stroke
   if (shape.gradient && tCtx === ctx) {
@@ -3289,7 +3264,6 @@ function renderShapeInContext(tCtx, shape) {
     tCtx.lineWidth = shape.thickness;
     tCtx.stroke(path);
   }
-  if (shape.type === 'swoosh') drawSwooshTipTaper(tCtx, shape);
   tCtx.restore();
 }
 
@@ -3318,11 +3292,13 @@ function renderShapeSymmetric(tCtx, m, shape) {
   _shapeProxy.petalDx   = shape.petalDx;
   _shapeProxy.petalDy   = shape.petalDy;
   _shapeProxy.petalCurve = shape.petalCurve;
-  _shapeProxy.swooshDx  = shape.swooshDx;
-  _shapeProxy.swooshDy  = shape.swooshDy;
-  _shapeProxy.swooshCurve = shape.swooshCurve;
-  _shapeProxy.swooshC2x = shape.swooshC2x;
-  _shapeProxy.swooshC2y = shape.swooshC2y;
+  _shapeProxy.bezierDx  = shape.bezierDx;
+  _shapeProxy.bezierDy  = shape.bezierDy;
+  _shapeProxy.bezierCurve = shape.bezierCurve;
+  _shapeProxy.bezierC1x = shape.bezierC1x;
+  _shapeProxy.bezierC1y = shape.bezierC1y;
+  _shapeProxy.bezierC2x = shape.bezierC2x;
+  _shapeProxy.bezierC2y = shape.bezierC2y;
   const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
@@ -3346,12 +3322,12 @@ function renderShapeSymmetric(tCtx, m, shape) {
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
       if (effRotRad) {
-        if (shape.type === 'petal' || shape.type === 'swoosh') {
-          // Petal/Swoosh store x/y as the tip, not the center, so rotate
+        if (shape.type === 'petal' || shape.type === 'bezier') {
+          // Petal/Bezier store x/y as the tip, not the center, so rotate
           // around the tip->end midpoint instead of the default local
           // origin — otherwise "Rotation" swings the whole shape around its tip.
-          const rawDx = shape.type === 'petal' ? shape.petalDx : shape.swooshDx;
-          const rawDy = shape.type === 'petal' ? shape.petalDy : shape.swooshDy;
+          const rawDx = shape.type === 'petal' ? shape.petalDx : shape.bezierDx;
+          const rawDy = shape.type === 'petal' ? shape.petalDy : shape.bezierDy;
           const pvx = (rawDx || 0) / 2, pvy = (rawDy || 0) / 2;
           tCtx.translate(pvx, pvy);
           tCtx.rotate(effRotRad);
@@ -3373,9 +3349,9 @@ function renderShapeSymmetric(tCtx, m, shape) {
 // its radius. Ignores shape.rotation, same simplification the other shape
 // types already accept here.
 function shapeHitCircle(shape) {
-  if (shape.type === 'petal' || shape.type === 'swoosh') {
-    const dx = shape.type === 'petal' ? (shape.petalDx || 0) : (shape.swooshDx || 0);
-    const dy = shape.type === 'petal' ? (shape.petalDy || 0) : (shape.swooshDy || 0);
+  if (shape.type === 'petal' || shape.type === 'bezier') {
+    const dx = shape.type === 'petal' ? (shape.petalDx || 0) : (shape.bezierDx || 0);
+    const dy = shape.type === 'petal' ? (shape.petalDy || 0) : (shape.bezierDy || 0);
     return {
       cx: shape.x + dx / 2,
       cy: shape.y + dy / 2,
@@ -3488,19 +3464,19 @@ function getShapeHandleAtPoint(wx, wy) {
     if (Math.hypot(wx - mx, wy - my) < axisLen / 2 + (shape.thickness || 2) / 2 + 8) return 'shape-move';
     return null;
   }
-  if (shape.type === 'swoosh') {
-    // Swooshes get a fourth handle Petal doesn't: an independent end-tangent
-    // handle (near the end point) for shaping the curve's approach into it,
-    // separately from the curvature handle that shapes it near the tip.
-    const { cA, cB } = swooshControlPoints(shape);
-    const { x: bx, y: by } = swooshAnimatedWorldPoint(m, shape, shape.swooshDx || 0, shape.swooshDy || 0);
-    if (Math.hypot(wx - bx, wy - by) < HANDLE_RADIUS + 4) return 'swoosh-base';
-    const { x: cvx, y: cvy } = swooshAnimatedWorldPoint(m, shape, cA.x, cA.y);
-    if (Math.hypot(wx - cvx, wy - cvy) < HANDLE_RADIUS + 4) return 'swoosh-curve';
-    const { x: etx, y: ety } = swooshAnimatedWorldPoint(m, shape, cB.x, cB.y);
-    if (Math.hypot(wx - etx, wy - ety) < HANDLE_RADIUS + 4) return 'swoosh-endtangent';
-    const { x: mx, y: my } = swooshAnimatedWorldMid(m, shape);
-    const axisLen = Math.hypot(shape.swooshDx || 0, shape.swooshDy || 0);
+  if (shape.type === 'bezier') {
+    // A true 2-control-point cubic Bezier: four handles total — move,
+    // the end point, and two fully independent control-point handles (one
+    // near the tip, one near the end), symmetric with each other.
+    const { cA, cB } = bezierControlPoints(shape);
+    const { x: ex, y: ey } = bezierAnimatedWorldPoint(m, shape, shape.bezierDx || 0, shape.bezierDy || 0);
+    if (Math.hypot(wx - ex, wy - ey) < HANDLE_RADIUS + 4) return 'bezier-end';
+    const { x: c1x, y: c1y } = bezierAnimatedWorldPoint(m, shape, cA.x, cA.y);
+    if (Math.hypot(wx - c1x, wy - c1y) < HANDLE_RADIUS + 4) return 'bezier-c1';
+    const { x: c2x, y: c2y } = bezierAnimatedWorldPoint(m, shape, cB.x, cB.y);
+    if (Math.hypot(wx - c2x, wy - c2y) < HANDLE_RADIUS + 4) return 'bezier-c2';
+    const { x: mx, y: my } = bezierAnimatedWorldMid(m, shape);
+    const axisLen = Math.hypot(shape.bezierDx || 0, shape.bezierDy || 0);
     if (Math.hypot(wx - mx, wy - my) < axisLen / 2 + (shape.thickness || 2) / 2 + 8) return 'shape-move';
     return null;
   }
@@ -3559,13 +3535,14 @@ function renderShapeSelectionHandles() {
     ctx.restore();
     return;
   }
-  if (shape.type === 'swoosh') {
-    const { x: mx, y: my } = swooshAnimatedWorldMid(m, shape);
-    const axisLen = Math.hypot(shape.swooshDx || 0, shape.swooshDy || 0);
-    const { cA, cB } = swooshControlPoints(shape);
-    const { x: bx, y: by } = swooshAnimatedWorldPoint(m, shape, shape.swooshDx || 0, shape.swooshDy || 0);
-    const { x: cvx, y: cvy } = swooshAnimatedWorldPoint(m, shape, cA.x, cA.y);
-    const { x: etx, y: ety } = swooshAnimatedWorldPoint(m, shape, cB.x, cB.y);
+  if (shape.type === 'bezier') {
+    const { x: mx, y: my } = bezierAnimatedWorldMid(m, shape);
+    const axisLen = Math.hypot(shape.bezierDx || 0, shape.bezierDy || 0);
+    const { cA, cB } = bezierControlPoints(shape);
+    const { x: tx, y: ty } = bezierAnimatedWorldPoint(m, shape, 0, 0);
+    const { x: ex, y: ey } = bezierAnimatedWorldPoint(m, shape, shape.bezierDx || 0, shape.bezierDy || 0);
+    const { x: c1x, y: c1y } = bezierAnimatedWorldPoint(m, shape, cA.x, cA.y);
+    const { x: c2x, y: c2y } = bezierAnimatedWorldPoint(m, shape, cB.x, cB.y);
     ctx.save();
     ctx.strokeStyle = '#7c6af0';
     ctx.lineWidth = 1.5;
@@ -3574,15 +3551,14 @@ function renderShapeSelectionHandles() {
     ctx.beginPath();
     ctx.arc(mx, my, axisLen / 2 + (shape.thickness || 2) / 2 + 4, 0, Math.PI * 2);
     ctx.stroke();
-    // Construction lines, matching the creation-time guides — one from the
-    // move handle to the curvature handle, one to the end-tangent handle.
+    // Classic Bezier handle lines: tip->C1 and end->C2.
     ctx.beginPath();
-    ctx.moveTo(mx, my);
-    ctx.lineTo(cvx, cvy);
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(c1x, c1y);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(bx, by);
-    ctx.lineTo(etx, ety);
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(c2x, c2y);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = '#7c6af0';
@@ -3594,19 +3570,20 @@ function renderShapeSelectionHandles() {
     ctx.strokeStyle = '#7c6af0';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(bx, by, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(ex, ey, HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    // Curvature handle (pink, matches the curvature dot shown while drawing).
+    // C1 handle, near the tip (pink, matches Petal's curvature dot).
     ctx.fillStyle = '#ff6b9d';
     ctx.beginPath();
-    ctx.arc(cvx, cvy, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(c1x, c1y, HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    // End-tangent handle (edit-only — no equivalent while drawing).
+    // C2 handle, near the end (teal) — independent of C1, unlike Petal's
+    // single shared curvature.
     ctx.fillStyle = '#6affc4';
     ctx.beginPath();
-    ctx.arc(etx, ety, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(c2x, c2y, HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -3678,39 +3655,34 @@ function handleShapeDragFn(pos) {
     const midX = axisDx / 2, midY = axisDy / 2;
     const perpDist = (hx - midX) * px + (hy - midY) * py;
     shape.petalCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
-  } else if (S.shapeHandleDrag === 'swoosh-base') {
-    // Same as petal-base — re-aim/resize the tip->end axis.
+  } else if (S.shapeHandleDrag === 'bezier-end') {
+    // Same as petal-base — re-aim/resize the tip->end axis. Note this
+    // leaves C1/C2 fixed in local space, so they don't automatically
+    // follow — same tradeoff a vector editor's anchor drag has when handles
+    // aren't explicitly re-linked.
     const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
     const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
     const ldx = cos * dx - sin * dy, ldy = sin * dx + cos * dy;
-    let nx = (orig.swooshDx || 0) + ldx, ny = (orig.swooshDy || 0) + ldy;
+    let nx = (orig.bezierDx || 0) + ldx, ny = (orig.bezierDy || 0) + ldy;
     if (S.snapAngle) { const snap = snapAngle(nx, ny); nx = snap.dx; ny = snap.dy; }
-    shape.swooshDx = nx;
-    shape.swooshDy = ny;
-  } else if (S.shapeHandleDrag === 'swoosh-curve') {
-    // Same as petal-curve — re-bulge near the tip.
+    shape.bezierDx = nx;
+    shape.bezierDy = ny;
+  } else if (S.shapeHandleDrag === 'bezier-c1' || S.shapeHandleDrag === 'bezier-c2') {
+    // Both control points are fully independent free 2D handles — no
+    // scalar curvature concept, no mirroring. Whichever one is grabbed
+    // just moves by the same rotation-corrected delta as every other
+    // shape handle (see 'shape-move').
     const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
     const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
     const ldx = cos * dx - sin * dy, ldy = sin * dx + cos * dy;
-    const { cA } = swooshControlPoints(orig);
-    const hx = cA.x + ldx, hy = cA.y + ldy;
-    const axisDx = orig.swooshDx || 0, axisDy = orig.swooshDy || 0;
-    const axisLen = Math.max(1, Math.hypot(axisDx, axisDy));
-    const ux = axisDx / axisLen, uy = axisDy / axisLen;
-    const px = -uy, py = ux;
-    const midX = axisDx / 2, midY = axisDy / 2;
-    const perpDist = (hx - midX) * px + (hy - midY) * py;
-    shape.swooshCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
-  } else if (S.shapeHandleDrag === 'swoosh-endtangent') {
-    // Independent end-tangent handle — a free 2D control point, not a
-    // scalar like curvature, so it's stored explicitly once touched
-    // instead of derived from a single bulge value.
-    const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
-    const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
-    const ldx = cos * dx - sin * dy, ldy = sin * dx + cos * dy;
-    const { cB } = swooshControlPoints(orig);
-    shape.swooshC2x = cB.x + ldx;
-    shape.swooshC2y = cB.y + ldy;
+    const { cA, cB } = bezierControlPoints(orig);
+    if (S.shapeHandleDrag === 'bezier-c1') {
+      shape.bezierC1x = cA.x + ldx;
+      shape.bezierC1y = cA.y + ldy;
+    } else {
+      shape.bezierC2x = cB.x + ldx;
+      shape.bezierC2y = cB.y + ldy;
+    }
   }
   updateShapeProps();
 }
@@ -3772,32 +3744,25 @@ function updateShapeProps() {
     document.getElementById('sp-sides').value = shape.params.sides || 6;
   }
 
-  // Radius doesn't apply to petals/swooshes (sized by tip/end/curvature
-  // instead); Curvature only applies to one or the other.
+  // Radius doesn't apply to petals/bezieres (sized by tip/end/curvature
+  // instead); Petal's Curvature slider doesn't apply to Bezier — both its
+  // control points are freeform handles now, with no single scalar to show.
   const isPetal = shape.type === 'petal';
-  const isSwoosh = shape.type === 'swoosh';
+  const isBezier = shape.type === 'bezier';
   const radiusBlock = document.getElementById('sp-radius-block');
   const petalRow = document.getElementById('sp-petal-row');
-  const swooshRow = document.getElementById('sp-swoosh-row');
-  if (radiusBlock) radiusBlock.style.display = (isPetal || isSwoosh) ? 'none' : '';
+  if (radiusBlock) radiusBlock.style.display = (isPetal || isBezier) ? 'none' : '';
   if (petalRow) petalRow.style.display = isPetal ? '' : 'none';
-  if (swooshRow) swooshRow.style.display = isSwoosh ? '' : 'none';
   if (isPetal) {
     const pct = Math.round((shape.petalCurve ?? 0.35) * 100);
     document.getElementById('sp-petal-curve').value = pct;
     document.getElementById('sp-petal-curve-val').textContent = pct + '%';
   }
-  if (isSwoosh) {
-    const pct = Math.round((shape.swooshCurve ?? 0.35) * 100);
-    document.getElementById('sp-swoosh-curve').value = pct;
-    document.getElementById('sp-swoosh-curve-val').textContent = pct + '%';
-  }
-  // Swooshes are always unfilled with a forced flat/tip cap, so those
-  // controls don't apply — hide them rather than let them silently do nothing.
+  // Bezieres are always unfilled — Fill doesn't apply, hide it rather than
+  // let it silently do nothing. Cap DOES apply (both ends are plain,
+  // configurable stroke ends, unlike the old forced-sharp-tip design).
   const fillRow = document.getElementById('sp-fill-row');
-  const capRow = document.getElementById('sp-cap-row');
-  if (fillRow) fillRow.style.display = isSwoosh ? 'none' : '';
-  if (capRow) capRow.style.display = isSwoosh ? 'none' : '';
+  if (fillRow) fillRow.style.display = isBezier ? 'none' : '';
 }
 
 function wireShapeProps() {
@@ -3866,10 +3831,6 @@ function wireShapeProps() {
   document.getElementById('sp-petal-curve').addEventListener('input', e => {
     forShape(s => { s.petalCurve = parseInt(e.target.value) / 100; });
     document.getElementById('sp-petal-curve-val').textContent = e.target.value + '%';
-  });
-  document.getElementById('sp-swoosh-curve').addEventListener('input', e => {
-    forShape(s => { s.swooshCurve = parseInt(e.target.value) / 100; });
-    document.getElementById('sp-swoosh-curve-val').textContent = e.target.value + '%';
   });
   document.getElementById('sp-delete').addEventListener('click', () => {
     const found = findSelectedShape();
@@ -4435,38 +4396,47 @@ function onMouseDown(e) {
     return;
   }
 
-  // Swoosh tool — same three-click flow as Petal (tip, end, curvature), but
+  // Bezier tool — same three-click flow as Petal (tip, end, curvature), but
   // finalizes into an open, unfilled single curve instead of a closed loop.
-  if (S.tool === 'swoosh') {
+  if (S.tool === 'bezier') {
     if (!m) return;
     const local = toMandalaLocal(m, pos.x, pos.y);
-    if (S.swooshPhase === null) {
-      S.swooshTip = local;
-      S.swooshEnd = local;
-      S.swooshPhase = 'axis';
-    } else if (S.swooshPhase === 'axis') {
-      const axisLen = Math.hypot(S.swooshEnd.x - S.swooshTip.x, S.swooshEnd.y - S.swooshTip.y);
+    if (S.bezierPhase === null) {
+      S.bezierTip = local;
+      S.bezierEnd = local;
+      S.bezierPhase = 'axis';
+    } else if (S.bezierPhase === 'axis') {
+      const axisLen = Math.hypot(S.bezierEnd.x - S.bezierTip.x, S.bezierEnd.y - S.bezierTip.y);
       if (axisLen < 3) {
-        S.swooshPhase = null; S.swooshTip = null; S.swooshEnd = null;
+        S.bezierPhase = null; S.bezierTip = null; S.bezierEnd = null;
       } else {
-        S.swooshPhase = 'curve';
-        S.swooshCurve = 0.35;
+        S.bezierPhase = 'curve';
+        S.bezierCurve = 0.35;
       }
-    } else if (S.swooshPhase === 'curve') {
+    } else if (S.bezierPhase === 'curve') {
       historySnapshot();
+      const dx = S.bezierEnd.x - S.bezierTip.x, dy = S.bezierEnd.y - S.bezierTip.y;
+      // Both control points start as mirror images of each other (the same
+      // bulge the 3rd click just dragged out), giving a natural-looking
+      // curve immediately — but each is stored explicitly and independently
+      // draggable from here on, unlike Petal's single shared curvature.
+      const axisLen = Math.max(1, Math.hypot(dx, dy));
+      const bulge = S.bezierCurve * axisLen;
+      const ux = dx / axisLen, uy = dy / axisLen;
+      const px = -uy, py = ux;
+      const midX = dx / 2, midY = dy / 2;
       const shape = {
-        id: uid(), type: 'swoosh',
-        x: S.swooshTip.x, y: S.swooshTip.y,
-        swooshDx: S.swooshEnd.x - S.swooshTip.x,
-        swooshDy: S.swooshEnd.y - S.swooshTip.y,
-        swooshCurve: S.swooshCurve,
-        swooshC2x: null, swooshC2y: null, // end-tangent handle — unset until edited, mirrors swooshCurve by default
+        id: uid(), type: 'bezier',
+        x: S.bezierTip.x, y: S.bezierTip.y,
+        bezierDx: dx, bezierDy: dy,
+        bezierC1x: midX + px * bulge, bezierC1y: midY + py * bulge,
+        bezierC2x: midX - px * bulge, bezierC2y: midY - py * bulge,
         r: 0,
         color: S.color,
         thickness: S.thickness,
         opacity: S.opacity,
         fill: null, // always an open stroke, never filled
-        lineCap: 'butt', // paired with the tip taper triangle for a genuinely sharp tip
+        lineCap: S.shapeLineCap,
         lineJoin: S.shapeLineJoin,
         dash: [...S.shapeDash],
         gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
@@ -4483,7 +4453,7 @@ function onMouseDown(e) {
       updateShapeProps();
       updateLayersList();
       setTool('select');
-      S.swooshPhase = null; S.swooshTip = null; S.swooshEnd = null;
+      S.bezierPhase = null; S.bezierTip = null; S.bezierEnd = null;
     }
     return;
   }
@@ -4556,25 +4526,25 @@ function onMouseMove(e) {
     return;
   }
 
-  // Swoosh stage 2 — same axis tracking as Petal.
-  if (S.tool === 'swoosh' && S.swooshPhase === 'axis' && m) {
+  // Bezier stage 2 — same axis tracking as Petal.
+  if (S.tool === 'bezier' && S.bezierPhase === 'axis' && m) {
     const local = toMandalaLocal(m, pos.x, pos.y);
-    let dx = local.x - S.swooshTip.x, dy = local.y - S.swooshTip.y;
+    let dx = local.x - S.bezierTip.x, dy = local.y - S.bezierTip.y;
     if (S.snapAngle) { const snap = snapAngle(dx, dy); dx = snap.dx; dy = snap.dy; }
-    S.swooshEnd = { x: S.swooshTip.x + dx, y: S.swooshTip.y + dy };
+    S.bezierEnd = { x: S.bezierTip.x + dx, y: S.bezierTip.y + dy };
     return;
   }
 
-  // Swoosh stage 3 — same curvature tracking as Petal.
-  if (S.tool === 'swoosh' && S.swooshPhase === 'curve' && m) {
+  // Bezier stage 3 — same curvature tracking as Petal.
+  if (S.tool === 'bezier' && S.bezierPhase === 'curve' && m) {
     const local = toMandalaLocal(m, pos.x, pos.y);
-    const axisDx = S.swooshEnd.x - S.swooshTip.x, axisDy = S.swooshEnd.y - S.swooshTip.y;
+    const axisDx = S.bezierEnd.x - S.bezierTip.x, axisDy = S.bezierEnd.y - S.bezierTip.y;
     const axisLen = Math.max(1, Math.hypot(axisDx, axisDy));
     const ux = axisDx / axisLen, uy = axisDy / axisLen;
     const px = -uy, py = ux;
-    const relX = local.x - S.swooshTip.x, relY = local.y - S.swooshTip.y;
+    const relX = local.x - S.bezierTip.x, relY = local.y - S.bezierTip.y;
     const perpDist = relX * px + relY * py;
-    S.swooshCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
+    S.bezierCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
     return;
   }
 
@@ -4644,9 +4614,9 @@ function onMouseUp(e) {
     return;
   }
 
-  // Petal/Swoosh placement is fully click-driven (handled in onMouseDown) —
+  // Petal/Bezier placement is fully click-driven (handled in onMouseDown) —
   // every stage transition happens on mousedown, so mouseup has nothing to do.
-  if (S.tool === 'petal' || S.tool === 'swoosh') return;
+  if (S.tool === 'petal' || S.tool === 'bezier') return;
 
   if (!S.drawing) return;
   S.drawing = false;
@@ -5228,10 +5198,10 @@ function setTool(tool) {
     S.petalTip = null;
     S.petalBase = null;
   }
-  if (tool !== 'swoosh') {
-    S.swooshPhase = null;
-    S.swooshTip = null;
-    S.swooshEnd = null;
+  if (tool !== 'bezier') {
+    S.bezierPhase = null;
+    S.bezierTip = null;
+    S.bezierEnd = null;
   }
   updateShapePanel();
   updateGradientPanelVisibility();
@@ -6826,7 +6796,7 @@ function wireEvents() {
       if (S.lastStampedId) { S.selectedSpriteId = S.lastStampedId; updateSpriteProps(); }
       return;
     }
-    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', w:'swoosh' };
+    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
     if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {
