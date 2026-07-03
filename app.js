@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.25';
+const VERSION = '3.26';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -97,6 +97,15 @@ const S = {
   bezierTip: null,
   bezierEnd: null,
   bezierCurve: 0.35,
+
+  // wing tool transient — identical three-click creation to Bezier. On
+  // finalize it becomes a 'wing' shape: Bezier's primary curve plus a
+  // second arm that's a live mirror of it across the axis captured at
+  // that moment (see wingCurves in the shape-geometry section).
+  wingPhase: null,
+  wingTip: null,
+  wingEnd: null,
+  wingCurve: 0.35,
 
   // drawing transient
   drawing: false,
@@ -1945,9 +1954,9 @@ function render(timestamp) {
         bezierDx: S.bezierEnd.x - S.bezierTip.x,
         bezierDy: S.bezierEnd.y - S.bezierTip.y,
         bezierCurve: S.bezierCurve,
-        bezierC2x: null, bezierC2y: null,
+        bezierC1x: null, bezierC1y: null, bezierC2x: null, bezierC2y: null,
         r: 0, color: S.color, thickness: S.thickness, opacity: S.opacity,
-        fill: null, lineCap: 'butt', lineJoin: S.shapeLineJoin, dash: [],
+        fill: null, lineCap: S.shapeLineCap, lineJoin: S.shapeLineJoin, dash: [],
         gradient: null, rotation: 0, orbit: 0, anim: {}, params: {},
         axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror,
       };
@@ -1955,6 +1964,32 @@ function render(timestamp) {
       renderShapeSymmetric(ctx, m, previewShape);
       ctx.restore();
       renderPetalGuides(m, S.bezierTip, S.bezierEnd, S.bezierPhase === 'curve' ? S.bezierCurve : null);
+    }
+  }
+
+  // Wing preview — same construction guides as Bezier/Petal, but the
+  // live-previewed shape mirrors itself as you draw (mirrorAngle tracks the
+  // current tip->end axis until the shape is finalized and it freezes).
+  if (S.tool === 'wing' && S.wingPhase && S.wingTip && S.wingEnd) {
+    const m = getActiveMandala();
+    if (m) {
+      const dx = S.wingEnd.x - S.wingTip.x, dy = S.wingEnd.y - S.wingTip.y;
+      const previewShape = {
+        id: '_wing_preview', type: 'wing',
+        x: S.wingTip.x, y: S.wingTip.y,
+        bezierDx: dx, bezierDy: dy,
+        bezierCurve: S.wingCurve,
+        bezierC1x: null, bezierC1y: null, bezierC2x: null, bezierC2y: null,
+        wingMirrorAngle: Math.atan2(dy, dx),
+        r: 0, color: S.color, thickness: S.thickness, opacity: S.opacity,
+        fill: null, lineCap: S.shapeLineCap, lineJoin: S.shapeLineJoin, dash: [],
+        gradient: null, rotation: 0, orbit: 0, anim: {}, params: {},
+        axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror,
+      };
+      ctx.save(); ctx.globalAlpha = 0.7;
+      renderShapeSymmetric(ctx, m, previewShape);
+      ctx.restore();
+      renderPetalGuides(m, S.wingTip, S.wingEnd, S.wingPhase === 'curve' ? S.wingCurve : null);
     }
   }
 
@@ -3063,6 +3098,8 @@ function getShapePoints(shape) {
     for (const p of petalOutlinePoints(shape)) pts.push(p);
   } else if (shape.type === 'bezier') {
     for (const p of bezierOutlinePoints(shape)) pts.push(p);
+  } else if (shape.type === 'wing') {
+    for (const p of wingOutlinePoints(shape)) pts.push(p);
   }
   return pts;
 }
@@ -3121,8 +3158,9 @@ function bezierControlPoints(shape) {
   return { dx, dy, cA, cB };
 }
 
-function bezierOutlinePoints(shape) {
-  const { dx, dy, cA, cB } = bezierControlPoints(shape);
+// Samples a single cubic Bezier from (0,0) to (dx,dy) via control points
+// cA, cB into N+1 points — shared by Bezier (one curve) and Wing (two).
+function sampleCubicBezier(dx, dy, cA, cB) {
   const axisLen = Math.max(1, Math.hypot(dx, dy));
   const N = Math.max(16, Math.round(axisLen * 0.15));
   const pts = [];
@@ -3137,6 +3175,44 @@ function bezierOutlinePoints(shape) {
   return pts;
 }
 
+function bezierOutlinePoints(shape) {
+  const { dx, dy, cA, cB } = bezierControlPoints(shape);
+  return sampleCubicBezier(dx, dy, cA, cB);
+}
+
+// Reflects a point across the line through the origin at the given angle —
+// used to derive Wing's second arm as a live mirror of its first.
+function mirrorAcrossAxis(p, angle) {
+  const ux = Math.cos(angle), uy = Math.sin(angle);
+  const dot = p.x * ux + p.y * uy;
+  return { x: 2 * dot * ux - p.x, y: 2 * dot * uy - p.y };
+}
+
+// Wing: Bezier's primary curve (tip -> bezierDx/Dy via bezierC1/C2, exactly
+// like Bezier — same fields, same edit handles) plus a second arm that's a
+// live mirror of it across a fixed axis captured at creation
+// (shape.wingMirrorAngle). Because that axis is fixed while the primary
+// curve's own end/control points stay freely draggable, the two arms only
+// stay joined at the base for as long as the primary curve's end happens to
+// sit on that axis — drag it off and the shape opens up, hence "Wing"
+// rather than a forced-closed Petal.
+function wingCurves(shape) {
+  const primary = bezierControlPoints(shape);
+  const angle = shape.wingMirrorAngle || 0;
+  const dx2 = mirrorAcrossAxis({ x: primary.dx, y: primary.dy }, angle);
+  const cA2 = mirrorAcrossAxis(primary.cA, angle);
+  const cB2 = mirrorAcrossAxis(primary.cB, angle);
+  return { primary, mirrored: { dx: dx2.x, dy: dx2.y, cA: cA2, cB: cB2 } };
+}
+
+function wingOutlinePoints(shape) {
+  const { primary, mirrored } = wingCurves(shape);
+  return [
+    ...sampleCubicBezier(primary.dx, primary.dy, primary.cA, primary.cB),
+    ...sampleCubicBezier(mirrored.dx, mirrored.dy, mirrored.cA, mirrored.cB),
+  ];
+}
+
 // Cache Path2D objects per shape — rebuilds only when geometry changes.
 const _path2DCache = new Map(); // shapeId → {r, type, p0, p1, path}
 function evictPath2DCache(shapeId) { _path2DCache.delete(shapeId); }
@@ -3148,7 +3224,7 @@ function getShapePath2D(shape) {
   // Petals have no r/params — key their cache entry on the geometry that
   // actually varies for them instead.
   const p2  = shape.type === 'petal' ? `${shape.petalDx || 0},${shape.petalDy || 0},${shape.petalCurve ?? 0.35}`
-    : shape.type === 'bezier' ? `${shape.bezierDx || 0},${shape.bezierDy || 0},${shape.bezierCurve ?? ''},${shape.bezierC1x ?? ''},${shape.bezierC1y ?? ''},${shape.bezierC2x ?? ''},${shape.bezierC2y ?? ''}`
+    : (shape.type === 'bezier' || shape.type === 'wing') ? `${shape.bezierDx || 0},${shape.bezierDy || 0},${shape.bezierCurve ?? ''},${shape.bezierC1x ?? ''},${shape.bezierC1y ?? ''},${shape.bezierC2x ?? ''},${shape.bezierC2y ?? ''},${shape.wingMirrorAngle ?? ''}`
     : '';
   const cached = _path2DCache.get(shape.id);
   if (cached && cached.r === r && cached.type === shape.type && cached.p0 === p0 && cached.p1 === p1 && cached.p2 === p2) {
@@ -3191,6 +3267,15 @@ function getShapePath2D(shape) {
     const { dx, dy, cA, cB } = bezierControlPoints(shape);
     p.moveTo(0, 0);
     p.bezierCurveTo(cA.x, cA.y, cB.x, cB.y, dx, dy);
+  } else if (shape.type === 'wing') {
+    // Two open subpaths sharing only the start (0,0) — Bezier's primary
+    // curve, plus its live mirror across the fixed creation-time axis. Two
+    // separate moveTo calls, not one closed loop, so they can drift apart.
+    const { primary, mirrored } = wingCurves(shape);
+    p.moveTo(0, 0);
+    p.bezierCurveTo(primary.cA.x, primary.cA.y, primary.cB.x, primary.cB.y, primary.dx, primary.dy);
+    p.moveTo(0, 0);
+    p.bezierCurveTo(mirrored.cA.x, mirrored.cA.y, mirrored.cB.x, mirrored.cB.y, mirrored.dx, mirrored.dy);
   }
 
   _path2DCache.set(shape.id, { r, type: shape.type, p0, p1, p2, path: p });
@@ -3207,8 +3292,9 @@ function renderShapeInContext(tCtx, shape) {
   const t = shape.thickness || 1;
   tCtx.setLineDash((shape.dash || []).map(v => v * t));
 
-  // Fill (always use Path2D) — bezieres are always open/unfilled.
-  if (shape.fill && shape.type !== 'bezier') { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
+  // Fill (always use Path2D) — bezier/wing are always open/unfilled.
+  const isOpenCurve = shape.type === 'bezier' || shape.type === 'wing';
+  if (shape.fill && !isOpenCurve) { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
 
   // Stroke
   if (shape.gradient && tCtx === ctx) {
@@ -3216,7 +3302,12 @@ function renderShapeInContext(tCtx, shape) {
     const scaledDash = (shape.dash && shape.dash.length) ? shape.dash.map(v => v * t) : null;
     const lineCap    = shape.lineCap  || 'round';
     const lineJoin   = shape.lineJoin || 'round';
-    const needsComposite = lineJoin !== 'round' || (lineCap !== 'round' && scaledDash);
+    // Wing's two arms are disconnected subpaths, but its point array (used
+    // for the arc-length gradient walk below) has to jump between them —
+    // force the masked/composite path so that phantom jump never renders as
+    // a visible bridge; the mask comes from the real two-subpath Path2D,
+    // which has no ink in the gap.
+    const needsComposite = lineJoin !== 'round' || (lineCap !== 'round' && scaledDash) || shape.type === 'wing';
 
     if (pts.length > 1) {
       if (needsComposite) {
@@ -3299,6 +3390,7 @@ function renderShapeSymmetric(tCtx, m, shape) {
   _shapeProxy.bezierC1y = shape.bezierC1y;
   _shapeProxy.bezierC2x = shape.bezierC2x;
   _shapeProxy.bezierC2y = shape.bezierC2y;
+  _shapeProxy.wingMirrorAngle = shape.wingMirrorAngle;
   const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
@@ -3322,10 +3414,12 @@ function renderShapeSymmetric(tCtx, m, shape) {
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
       if (effRotRad) {
-        if (shape.type === 'petal' || shape.type === 'bezier') {
-          // Petal/Bezier store x/y as the tip, not the center, so rotate
-          // around the tip->end midpoint instead of the default local
-          // origin — otherwise "Rotation" swings the whole shape around its tip.
+        if (shape.type === 'petal' || shape.type === 'bezier' || shape.type === 'wing') {
+          // Petal/Bezier/Wing store x/y as the tip, not the center, so
+          // rotate around the tip->end midpoint instead of the default
+          // local origin — otherwise "Rotation" swings the whole shape
+          // around its tip. Wing reuses Bezier's primary-curve fields, so
+          // its pivot is the same midpoint as Bezier's.
           const rawDx = shape.type === 'petal' ? shape.petalDx : shape.bezierDx;
           const rawDy = shape.type === 'petal' ? shape.petalDy : shape.bezierDy;
           const pvx = (rawDx || 0) / 2, pvy = (rawDy || 0) / 2;
@@ -3349,7 +3443,7 @@ function renderShapeSymmetric(tCtx, m, shape) {
 // its radius. Ignores shape.rotation, same simplification the other shape
 // types already accept here.
 function shapeHitCircle(shape) {
-  if (shape.type === 'petal' || shape.type === 'bezier') {
+  if (shape.type === 'petal' || shape.type === 'bezier' || shape.type === 'wing') {
     const dx = shape.type === 'petal' ? (shape.petalDx || 0) : (shape.bezierDx || 0);
     const dy = shape.type === 'petal' ? (shape.petalDy || 0) : (shape.bezierDy || 0);
     return {
@@ -3464,10 +3558,12 @@ function getShapeHandleAtPoint(wx, wy) {
     if (Math.hypot(wx - mx, wy - my) < axisLen / 2 + (shape.thickness || 2) / 2 + 8) return 'shape-move';
     return null;
   }
-  if (shape.type === 'bezier') {
+  if (shape.type === 'bezier' || shape.type === 'wing') {
     // A true 2-control-point cubic Bezier: four handles total — move,
     // the end point, and two fully independent control-point handles (one
-    // near the tip, one near the end), symmetric with each other.
+    // near the tip, one near the end), symmetric with each other. Wing
+    // reuses these same four (its second arm is a live, non-interactive
+    // mirror — see wingCurves).
     const { cA, cB } = bezierControlPoints(shape);
     const { x: ex, y: ey } = bezierAnimatedWorldPoint(m, shape, shape.bezierDx || 0, shape.bezierDy || 0);
     if (Math.hypot(wx - ex, wy - ey) < HANDLE_RADIUS + 4) return 'bezier-end';
@@ -3535,7 +3631,7 @@ function renderShapeSelectionHandles() {
     ctx.restore();
     return;
   }
-  if (shape.type === 'bezier') {
+  if (shape.type === 'bezier' || shape.type === 'wing') {
     const { x: mx, y: my } = bezierAnimatedWorldMid(m, shape);
     const axisLen = Math.hypot(shape.bezierDx || 0, shape.bezierDy || 0);
     const { cA, cB } = bezierControlPoints(shape);
@@ -3744,11 +3840,11 @@ function updateShapeProps() {
     document.getElementById('sp-sides').value = shape.params.sides || 6;
   }
 
-  // Radius doesn't apply to petals/bezieres (sized by tip/end/curvature
-  // instead); Petal's Curvature slider doesn't apply to Bezier — both its
-  // control points are freeform handles now, with no single scalar to show.
+  // Radius doesn't apply to petal/bezier/wing (sized by tip/end/curvature
+  // instead); Petal's Curvature slider doesn't apply to Bezier or Wing —
+  // both use freeform control-point handles, with no single scalar to show.
   const isPetal = shape.type === 'petal';
-  const isBezier = shape.type === 'bezier';
+  const isBezier = shape.type === 'bezier' || shape.type === 'wing';
   const radiusBlock = document.getElementById('sp-radius-block');
   const petalRow = document.getElementById('sp-petal-row');
   if (radiusBlock) radiusBlock.style.display = (isPetal || isBezier) ? 'none' : '';
@@ -3758,9 +3854,9 @@ function updateShapeProps() {
     document.getElementById('sp-petal-curve').value = pct;
     document.getElementById('sp-petal-curve-val').textContent = pct + '%';
   }
-  // Bezieres are always unfilled — Fill doesn't apply, hide it rather than
-  // let it silently do nothing. Cap DOES apply (both ends are plain,
-  // configurable stroke ends, unlike the old forced-sharp-tip design).
+  // Bezier/Wing are always unfilled — Fill doesn't apply, hide it rather
+  // than let it silently do nothing. Cap DOES apply (both ends are plain,
+  // configurable stroke ends).
   const fillRow = document.getElementById('sp-fill-row');
   if (fillRow) fillRow.style.display = isBezier ? 'none' : '';
 }
@@ -4458,6 +4554,67 @@ function onMouseDown(e) {
     return;
   }
 
+  // Wing tool — identical three-click flow to Bezier. On finalize, also
+  // freezes wingMirrorAngle from the tip->end axis at this exact moment —
+  // the second arm is a live mirror of the primary curve across that fixed
+  // axis from here on (see wingCurves), not an independently stored curve.
+  if (S.tool === 'wing') {
+    if (!m) return;
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    if (S.wingPhase === null) {
+      S.wingTip = local;
+      S.wingEnd = local;
+      S.wingPhase = 'axis';
+    } else if (S.wingPhase === 'axis') {
+      const axisLen = Math.hypot(S.wingEnd.x - S.wingTip.x, S.wingEnd.y - S.wingTip.y);
+      if (axisLen < 3) {
+        S.wingPhase = null; S.wingTip = null; S.wingEnd = null;
+      } else {
+        S.wingPhase = 'curve';
+        S.wingCurve = 0.35;
+      }
+    } else if (S.wingPhase === 'curve') {
+      historySnapshot();
+      const dx = S.wingEnd.x - S.wingTip.x, dy = S.wingEnd.y - S.wingTip.y;
+      const axisLen = Math.max(1, Math.hypot(dx, dy));
+      const bulge = S.wingCurve * axisLen;
+      const ux = dx / axisLen, uy = dy / axisLen;
+      const px = -uy, py = ux;
+      const midX = dx / 2, midY = dy / 2;
+      const shape = {
+        id: uid(), type: 'wing',
+        x: S.wingTip.x, y: S.wingTip.y,
+        bezierDx: dx, bezierDy: dy,
+        bezierC1x: midX + px * bulge, bezierC1y: midY + py * bulge,
+        bezierC2x: midX - px * bulge, bezierC2y: midY - py * bulge,
+        wingMirrorAngle: Math.atan2(dy, dx),
+        r: 0,
+        color: S.color,
+        thickness: S.thickness,
+        opacity: S.opacity,
+        fill: null, // always an open pair of strokes, never filled
+        lineCap: S.shapeLineCap,
+        lineJoin: S.shapeLineJoin,
+        dash: [...S.shapeDash],
+        gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+        rotation: 0, orbit: 0,
+        anim: {},
+        params: {},
+        axes: m.axes,
+        axisRotation: m.axisRotation,
+        mirror: m.mirror,
+      };
+      if (!m.shapes) m.shapes = [];
+      m.shapes.push(shape);
+      S.selectedShapeId = shape.id;
+      updateShapeProps();
+      updateLayersList();
+      setTool('select');
+      S.wingPhase = null; S.wingTip = null; S.wingEnd = null;
+    }
+    return;
+  }
+
   // Brush / line / erase drawing
   if (!m) return;
   const local = toMandalaLocal(m, pos.x, pos.y);
@@ -4548,6 +4705,28 @@ function onMouseMove(e) {
     return;
   }
 
+  // Wing stage 2 — same axis tracking as Bezier/Petal.
+  if (S.tool === 'wing' && S.wingPhase === 'axis' && m) {
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    let dx = local.x - S.wingTip.x, dy = local.y - S.wingTip.y;
+    if (S.snapAngle) { const snap = snapAngle(dx, dy); dx = snap.dx; dy = snap.dy; }
+    S.wingEnd = { x: S.wingTip.x + dx, y: S.wingTip.y + dy };
+    return;
+  }
+
+  // Wing stage 3 — same curvature tracking as Bezier/Petal.
+  if (S.tool === 'wing' && S.wingPhase === 'curve' && m) {
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    const axisDx = S.wingEnd.x - S.wingTip.x, axisDy = S.wingEnd.y - S.wingTip.y;
+    const axisLen = Math.max(1, Math.hypot(axisDx, axisDy));
+    const ux = axisDx / axisLen, uy = axisDy / axisLen;
+    const px = -uy, py = ux;
+    const relX = local.x - S.wingTip.x, relY = local.y - S.wingTip.y;
+    const perpDist = relX * px + relY * py;
+    S.wingCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
+    return;
+  }
+
   // Update cursor in select mode
   if (S.tool === 'select' && !S.dragHandle && !S.shapeHandleDrag) {
     const handle = getHandleAtPoint(pos.x, pos.y);
@@ -4616,7 +4795,7 @@ function onMouseUp(e) {
 
   // Petal/Bezier placement is fully click-driven (handled in onMouseDown) —
   // every stage transition happens on mousedown, so mouseup has nothing to do.
-  if (S.tool === 'petal' || S.tool === 'bezier') return;
+  if (S.tool === 'petal' || S.tool === 'bezier' || S.tool === 'wing') return;
 
   if (!S.drawing) return;
   S.drawing = false;
@@ -5202,6 +5381,11 @@ function setTool(tool) {
     S.bezierPhase = null;
     S.bezierTip = null;
     S.bezierEnd = null;
+  }
+  if (tool !== 'wing') {
+    S.wingPhase = null;
+    S.wingTip = null;
+    S.wingEnd = null;
   }
   updateShapePanel();
   updateGradientPanelVisibility();
@@ -6796,7 +6980,7 @@ function wireEvents() {
       if (S.lastStampedId) { S.selectedSpriteId = S.lastStampedId; updateSpriteProps(); }
       return;
     }
-    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier' };
+    const map = { b:'brush', l:'line', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
     if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {
