@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.31';
+const VERSION = '3.32';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -744,11 +744,22 @@ const SHAPE_ANIM_PRESETS = {
 //      instead of a shape. Add a `presets: [...]` array (same {label,kfs,dur}
 //      shape as SHAPE_ANIM_PRESETS) if you want quick-pick curve presets
 //      for that control — optional.
-//   4. `apply(ctx, canvas, resolved)` does the actual rendering. `resolved`
-//      is a plain object with one key per control, already resolved to its
-//      current (possibly animated) value — never read `effect` directly
-//      here, so the module doesn't need to know about animation at all.
-//   5. That's it. The stack UI (add/remove/reorder/enable/collapse), the
+//   4. `apply(ctx, canvas, resolved, effectId)` does the actual rendering.
+//      `resolved` is a plain object with one key per control, already
+//      resolved to its current (possibly animated) value — never read
+//      `effect` directly for params, so the module doesn't need to know
+//      about animation at all. `effectId` is provided ONLY as a stable key
+//      for modules that need private per-instance runtime state across
+//      frames (e.g. Echo's persistent trail buffer) — stash it in a
+//      module-level Map keyed by effectId, never on the effect object
+//      itself (that gets JSON-serialized on save). Stateless modules like
+//      Bloom just ignore the 4th argument.
+//   5. If your module allocates per-instance runtime state, also define
+//      `resetState(effectId)` to free/clear it — called when that instance
+//      is deleted, and on every export (so exports always start from a
+//      clean slate instead of whatever the live-preview buffer happened to
+//      contain). Stateless modules can omit it.
+//   6. That's it. The stack UI (add/remove/reorder/enable/collapse), the
 //      param sliders, the curve editor, save/load, and export all pick the
 //      new type up automatically because they iterate this object and
 //      each instance's own `type`.
@@ -790,8 +801,82 @@ const EFFECT_TYPES = {
       ctx.restore();
     },
   },
+  echo: {
+    label: 'Echo',
+    defaults: () => ({ amount: 60 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+    ],
+    presets: {
+      amount: [
+        { label: 'Ghost Trail', kfs: [{t:0,v:60,e:'linear'},{t:1,v:60,e:'linear'}], dur: 2 },
+        { label: 'Pulse',       kfs: [{t:0,v:0,e:'ease'},{t:0.5,v:90,e:'ease'},{t:1,v:0,e:'ease'}], dur: 3 },
+      ],
+    },
+    // A persistent accumulation buffer, not a stateless per-frame filter like
+    // Bloom — each frame it (1) fades the buffer's existing content toward
+    // the background colour by a small amount, then (2) stamps the fully-
+    // rendered current frame on top, then (3) writes the buffer back as the
+    // canvas's final content.
+    //
+    // The stamp step uses 'lighten' compositing (keep the brighter of the
+    // two, per channel) rather than a plain opaque overwrite — the current
+    // frame is a fully opaque bitmap (background colour included), so
+    // stamping it with normal source-over would paint over and instantly
+    // erase the fading trail everywhere, every frame, leaving no trail at
+    // all. 'lighten' means the current frame's background (dark) can't
+    // stamp over a brighter trail pixel underneath it, so old bright
+    // content keeps decaying visibly instead of being wiped each frame —
+    // this assumes a dark background with brighter foreground content
+    // (this app's default aesthetic); it won't read correctly as a trail
+    // on a light background. `amount` controls how slow the fade is
+    // (higher = longer-lived trail).
+    apply(ctx, canvas, { amount }, effectId) {
+      const buf = _ensureEchoBuffer(effectId, canvas.width, canvas.height);
+      const fadeAlpha = 1 - Math.min(0.98, amount / 100);
+      buf.ctx.globalCompositeOperation = 'source-over';
+      buf.ctx.globalAlpha = fadeAlpha;
+      buf.ctx.fillStyle = S.bgColor;
+      buf.ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      buf.ctx.globalCompositeOperation = 'lighten';
+      buf.ctx.globalAlpha = 1;
+      buf.ctx.drawImage(canvas, 0, 0);
+      buf.ctx.globalCompositeOperation = 'source-over';
+
+      if (amount > 0) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(buf.canvas, 0, 0);
+      }
+    },
+    resetState(effectId) { _echoBuffers.delete(effectId); },
+  },
   // Add new modules here.
 };
+
+let _echoBuffers = new Map(); // effectId -> { canvas, ctx } — see the Echo module above
+function _ensureEchoBuffer(id, W, H) {
+  let buf = _echoBuffers.get(id);
+  if (!buf || buf.canvas.width !== W || buf.canvas.height !== H) {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    buf = { canvas: c, ctx: c.getContext('2d') };
+    buf.ctx.fillStyle = S.bgColor;
+    buf.ctx.fillRect(0, 0, W, H);
+    _echoBuffers.set(id, buf);
+  }
+  return buf;
+}
+
+// EFFECT-MODULE: reset-hook — clears every effect's private runtime state
+// (only Echo currently has any). Called at the start of every export so
+// exports always start from a clean trail instead of whatever the live
+// preview session happened to accumulate.
+function resetAllEffectsRuntimeState() {
+  for (const effect of S.effects) {
+    EFFECT_TYPES[effect.type]?.resetState?.(effect.id);
+  }
+}
 
 let _bloomCanvas = null, _bloomCtx = null;
 function _ensureBloomOffscreen(W, H) {
@@ -836,7 +921,7 @@ function applyEffectsChain(ctx, canvas) {
     for (const ctrl of def.controls) {
       resolved[ctrl.key] = (ctrl.animatable ? getAnimValue(effect, ctrl.key, clk) : null) ?? effect[ctrl.key];
     }
-    def.apply(ctx, canvas, resolved);
+    def.apply(ctx, canvas, resolved, effect.id);
   }
 }
 
@@ -897,6 +982,7 @@ function updateEffectsList() {
     header.querySelector('.effect-delete-btn').addEventListener('click', e => {
       e.stopPropagation();
       if (!confirm(`Remove this ${def.label} effect?`)) return;
+      def.resetState?.(effect.id);
       S.effects.splice(idx, 1);
       historySnapshot(); markRenderDirty(); flushHasAnimCache();
       updateEffectsList();
@@ -6851,6 +6937,7 @@ async function doExportWebP() {
 
   const webpFrames = [];
 
+  resetAllEffectsRuntimeState(); // EFFECT-MODULE: export-hook — start every export from a clean trail
   try {
     for (let i = 0; i < frames; i++) {
       S.animClock = i / stepFpsW; // use actual fps after ms rounding, not nominal fps
@@ -6947,6 +7034,7 @@ async function doExportGIF() {
   const { GIFEncoder, quantize, applyPalette } = gifenc;
   const enc = GIFEncoder();
 
+  resetAllEffectsRuntimeState(); // EFFECT-MODULE: export-hook — start every export from a clean trail
   try {
     for (let i = 0; i < frames; i++) {
       const tSec = i / stepFps;
@@ -7139,6 +7227,7 @@ async function doExportVideo() {
   const cancelHandler = () => { cancelled = true; };
   el('video-cancel-btn').addEventListener('click', cancelHandler, { once: true });
 
+  resetAllEffectsRuntimeState(); // EFFECT-MODULE: export-hook — start every export from a clean trail
   try {
     for (let i = 0; i < totalFrames && !cancelled; i++) {
       const tSec = i / fps;
