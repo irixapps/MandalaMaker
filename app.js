@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.18';
+const VERSION = '3.19';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1018,6 +1018,7 @@ function wireStrokeOrbitAnim() {
       invalidateStrokeCache();
       if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
     }
+    updateLayersList();
   });
 
   document.getElementById('dpa-dur-orbit').addEventListener('change', e => {
@@ -3566,6 +3567,7 @@ function wireShapeAnimProps() {
         if (durEl) durEl.value = shape.anim[key].duration;
         drawShapeTimeline(key, shape);
       }
+      updateLayersList();
     });
 
     const durEl = document.getElementById('sa-dur-' + key);
@@ -4122,6 +4124,17 @@ const _STROKE_ICON = '✏';
 // Which canvas item is being hovered in the layers panel (for highlight ring).
 let _layersHoverItem = null;
 
+// True if this layer has any active animation — keyframes on any property,
+// an animated gradient, a fading trail, or (strokes only) orbit — so the
+// Layers list can flag it without the user having to open the Inspector.
+function layerHasAnimation(type, item) {
+  if (item.gradient?.speed > 0) return true;
+  if (type === 'stroke') {
+    return !!(item.anim?.orbit?.enabled || item.trailAnim?.enabled);
+  }
+  return !!(item.anim && Object.values(item.anim).some(ap => ap.enabled));
+}
+
 function updateLayersList() {
   const list = document.getElementById('layers-list');
   if (!list) return;
@@ -4164,10 +4177,12 @@ function updateLayersList() {
 
     const tagLabel = type === 'shape' ? item.type : type === 'stroke' ? 'stroke' : 'gif/img';
     const deleteTitle = type === 'stroke' ? 'Delete this drawing' : type === 'shape' ? 'Delete this shape' : 'Delete this sprite';
+    const animated = layerHasAnimation(type, item);
 
     row.innerHTML =
       `<span class="layer-icon">${icon}</span>` +
       `<span class="layer-name">${name}</span>` +
+      (animated ? `<span class="layer-anim-badge" title="This layer is animated">∿</span>` : '') +
       `<span class="layer-type-tag">${tagLabel}</span>` +
       `<button class="layer-delete" title="${deleteTitle}">🗑</button>` +
       `<button class="layer-eye" title="Toggle visibility">${isVisible ? '👁' : '🚫'}</button>`;
@@ -5987,6 +6002,7 @@ function wireEvents() {
         if (durEl) durEl.value = spr.anim[key].duration;
         drawTimeline(key, spr);
       }
+      updateLayersList();
       historySnapshot();
     });
     if (durEl) durEl.addEventListener('input', e => {

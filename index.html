@@ -62,11 +62,11 @@
 </script>
 <!-- ── /SEO ── -->
 
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230d0d1a'/%3E%3Cg stroke='%23ff6b9d' stroke-width='1.5' fill='none'%3E%3Ccircle cx='32' cy='32' r='28' stroke-opacity='.3'/%3E%3Ccircle cx='32' cy='32' r='18' stroke-opacity='.5'/%3E%3C/g%3E%3Cg fill='%23ff6b9d'%3E%3Ccircle cx='32' cy='4' r='3'/%3E%3Ccircle cx='54.6' cy='18' r='3'/%3E%3Ccircle cx='54.6' cy='46' r='3'/%3E%3Ccircle cx='32' cy='60' r='3'/%3E%3Ccircle cx='9.4' cy='46' r='3'/%3E%3Ccircle cx='9.4' cy='18' r='3'/%3E%3C/g%3E%3Cg fill='%237c6af0'%3E%3Ccircle cx='32' cy='14' r='2'/%3E%3Ccircle cx='46.4' cy='23' r='2'/%3E%3Ccircle cx='46.4' cy='41' r='2'/%3E%3Ccircle cx='32' cy='50' r='2'/%3E%3Ccircle cx='17.6' cy='41' r='2'/%3E%3Ccircle cx='17.6' cy='23' r='2'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ff6b9d'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%237c6af0'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.18">
+<link rel="stylesheet" href="style.css?v=3.19">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -122,6 +122,8 @@ body.theater-mode #theater-hint {
 .layer-icon{font-size:10px;flex-shrink:0;opacity:.7;width:14px;text-align:center}
 .layer-name{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .layer-type-tag{font-size:9px;opacity:.45;flex-shrink:0}
+.layer-anim-badge{font-size:11px;flex-shrink:0;color:var(--accent);opacity:.85;line-height:1}
+.layer-hidden .layer-anim-badge{opacity:.35}
 .layer-eye{margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;font-size:11px;opacity:.45;padding:0 2px;line-height:1;color:inherit}
 .layer-eye:hover{opacity:1}
 .layer-hidden .layer-name,.layer-hidden .layer-icon,.layer-hidden .layer-type-tag{opacity:.3}
@@ -1206,6 +1208,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.18"></script>
+<script src="app.js?v=3.19"></script>
 </body>
 </html>
