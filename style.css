@@ -709,7 +709,7 @@ select { cursor: pointer; }
 }
 .mandala-item:hover { border-color: var(--border); background: var(--btn); }
 .mandala-item.active { border-color: var(--accent); background: var(--active); }
-.mandala-item-label { font-size: 8px; opacity: .7; }
+.mandala-item-label { font-size: 8px; opacity: .7; padding-bottom: 3px; }
 
 /* ── Sprite sheet grid ── */
 #ss-grid-preview {

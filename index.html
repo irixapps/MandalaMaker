@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.29">
+<link rel="stylesheet" href="style.css?v=3.30">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -312,11 +312,20 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           <path d="M432.081 190.621l53.305-53.304c32.671-32.671 36.702-82.099 4.046-114.754l-.001-.001c-32.655-32.655-82.097-28.608-114.754 4.047l-53.304 53.304L304.16 62.7c-26.726-26.726-67.128 13.679-40.403 40.403l15.277 15.275c-77.89 77.885-93.102 93.088-191.926 191.912-33.533 33.533-27.587 78.622-47.833 112.04-8.719 14.393-17.943 20.481-29.155 31.692-13.352 13.354-13.513 35.043-.354 48.202l.002.001c13.159 13.159 34.848 12.999 48.201-.355 11.353-11.352 15.735-18.791 29.776-27.952 33.317-21.73 79.775-14.854 113.956-49.035 98.982-98.977 113.035-113.039 191.918-191.919l15.272 15.272c26.724 26.725 67.129-13.676 40.403-40.403l-17.213-17.212zM275.284 322.599c-44.743-10.923-96.383 10.319-136.526-35.253l154.623-154.623 85.889 85.89-103.986 103.986z"/>
         </svg>
       </button>
+      <button class="tool-btn" data-tool="bezier" title="Bezier — an open curve with two independent control-point handles. Click to set tip, click to set end, click to set the initial curve (Z)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g transform="rotate(45 11 11)">
+            <path d="M11,2.5 C18,7 4,15 11,19.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="11" cy="2.5" r="1.8" fill="currentColor"/>
+            <circle cx="11" cy="19.5" r="1.8" fill="currentColor"/>
+          </g>
+        </svg>
+      </button>
       <div class="panel-sep" style="width:44px;margin:6px 0"></div>
       <div class="panel-label" style="font-size:9px;margin-bottom:4px">SHAPES</div>
       <button class="tool-btn" data-tool="circle" title="Circle — drag to draw (C)">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="11" cy="11" r="8.5" stroke="currentColor" stroke-width="1.8"/>
         </svg>
       </button>
       <button class="tool-btn" data-tool="star" title="Star — drag to draw (*)">
@@ -326,23 +335,20 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
       </button>
       <button class="tool-btn" data-tool="polygon" title="Polygon — drag to draw (G)">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="11,3.5 18.5,7.75 18.5,14.25 11,18.5 3.5,14.25 3.5,7.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <polygon points="11,2.5 18.36,6.75 18.36,15.25 11,19.5 3.64,15.25 3.64,6.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
         </svg>
       </button>
       <button class="tool-btn" data-tool="petal" title="Petal — click to set tip, click to set base, click to set curvature (V)">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M11,3 Q4,11 11,19 Q18,11 11,3 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="miter"/>
-        </svg>
-      </button>
-      <button class="tool-btn" data-tool="bezier" title="Bezier — an open curve with two independent control-point handles. Click to set tip, click to set end, click to set the initial curve (Z)">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6,18 C6,10 8,5 16,4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M11,2.5 Q3.56,11 11,19.5 Q18.44,11 11,2.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="miter" transform="rotate(45 11 11)"/>
         </svg>
       </button>
       <button class="tool-btn" data-tool="wing" title="Wing — a Bezier curve mirrored from a shared tip, open at the far end (an unclosed Petal). Click to set tip, click to set end, click to set the initial curve (W)">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M11,3 Q4,9 6,19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M11,3 Q18,9 16,19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <g transform="rotate(45 11 11)">
+            <path d="M11,2.5 Q3.56,8.88 5.69,19.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M11,2.5 Q18.44,8.88 16.31,19.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </g>
         </svg>
       </button>
       <div class="panel-sep" style="width:44px;margin:6px 0"></div>
@@ -1282,6 +1288,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.29"></script>
+<script src="app.js?v=3.30"></script>
 </body>
 </html>
