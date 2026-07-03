@@ -3,12 +3,17 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.26';
+const VERSION = '3.27';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
 const HANDLE_RADIUS = 7;
 const MAX_HISTORY = 50;
+// Wing's mirror axis is a fixed vertical line through the tip (local,
+// unrotated space) — not derived from the drag direction — so both bottom
+// points are already distinct and independently visible from the very
+// start of the drag, rather than only diverging once edited afterward.
+const WING_MIRROR_ANGLE = Math.PI / 2;
 
 // ── Gradient presets ───────────────────────────────────
 const GRADIENT_PRESETS = {
@@ -1967,9 +1972,9 @@ function render(timestamp) {
     }
   }
 
-  // Wing preview — same construction guides as Bezier/Petal, but the
-  // live-previewed shape mirrors itself as you draw (mirrorAngle tracks the
-  // current tip->end axis until the shape is finalized and it freezes).
+  // Wing preview — the bottom point is mirrored across the fixed vertical
+  // axis from the very start of the drag (see renderWingGuides), so both
+  // arms are visibly distinct live, not just once edited afterward.
   if (S.tool === 'wing' && S.wingPhase && S.wingTip && S.wingEnd) {
     const m = getActiveMandala();
     if (m) {
@@ -1980,7 +1985,7 @@ function render(timestamp) {
         bezierDx: dx, bezierDy: dy,
         bezierCurve: S.wingCurve,
         bezierC1x: null, bezierC1y: null, bezierC2x: null, bezierC2y: null,
-        wingMirrorAngle: Math.atan2(dy, dx),
+        wingMirrorAngle: WING_MIRROR_ANGLE,
         r: 0, color: S.color, thickness: S.thickness, opacity: S.opacity,
         fill: null, lineCap: S.shapeLineCap, lineJoin: S.shapeLineJoin, dash: [],
         gradient: null, rotation: 0, orbit: 0, anim: {}, params: {},
@@ -1989,7 +1994,7 @@ function render(timestamp) {
       ctx.save(); ctx.globalAlpha = 0.7;
       renderShapeSymmetric(ctx, m, previewShape);
       ctx.restore();
-      renderPetalGuides(m, S.wingTip, S.wingEnd, S.wingPhase === 'curve' ? S.wingCurve : null);
+      renderWingGuides(m, S.wingTip, S.wingEnd, S.wingPhase === 'curve' ? S.wingCurve : null);
     }
   }
 
@@ -2626,6 +2631,53 @@ function renderPetalGuides(m, tip, base, curveVal) {
   ctx.restore();
 }
 
+// Like renderPetalGuides, but also shows the mirrored bottom point (Wing's
+// second arm end) as its own dashed line + dot, live as the primary end
+// point moves — since Wing's two arms are meant to read as distinct from
+// the very start of the drag, not just once edited afterward.
+function renderWingGuides(m, tip, end, curveVal) {
+  const rotRad = ((m.axisRotation) || 0) * Math.PI / 180;
+  const rel = { x: end.x - tip.x, y: end.y - tip.y };
+  const mirroredRel = mirrorAcrossAxis(rel, WING_MIRROR_ANGLE);
+  const mirroredEnd = { x: tip.x + mirroredRel.x, y: tip.y + mirroredRel.y };
+
+  ctx.save();
+  ctx.translate(m.cx, m.cy);
+  ctx.rotate(rotRad);
+
+  ctx.strokeStyle = 'rgba(124,106,240,0.8)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(end.x, end.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(mirroredEnd.x, mirroredEnd.y); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(end.x, end.y, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(mirroredEnd.x, mirroredEnd.y, 4, 0, Math.PI * 2); ctx.fill();
+
+  if (curveVal != null) {
+    // Curvature guide for the primary arm only — the mirrored arm's own
+    // control point is implied automatically (see wingCurves).
+    const dx = end.x - tip.x, dy = end.y - tip.y;
+    const axisLen = Math.hypot(dx, dy) || 1;
+    const ux = dx / axisLen, uy = dy / axisLen;
+    const px = -uy, py = ux;
+    const midX = (tip.x + end.x) / 2, midY = (tip.y + end.y) / 2;
+    const bulge = curveVal * axisLen;
+    const hx = midX + px * bulge, hy = midY + py * bulge;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(midX, midY); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ff6b9d';
+    ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 function renderGuides(m, isActive) {
   if (m.axes === 0) {
     // Free draw mode: just show center dot
@@ -3190,12 +3242,13 @@ function mirrorAcrossAxis(p, angle) {
 
 // Wing: Bezier's primary curve (tip -> bezierDx/Dy via bezierC1/C2, exactly
 // like Bezier — same fields, same edit handles) plus a second arm that's a
-// live mirror of it across a fixed axis captured at creation
-// (shape.wingMirrorAngle). Because that axis is fixed while the primary
-// curve's own end/control points stay freely draggable, the two arms only
-// stay joined at the base for as long as the primary curve's end happens to
-// sit on that axis — drag it off and the shape opens up, hence "Wing"
-// rather than a forced-closed Petal.
+// live mirror of it across a fixed vertical axis through the tip
+// (WING_MIRROR_ANGLE, stored per-shape as wingMirrorAngle so it always
+// renders the same way it did while being drawn). Since the primary curve's
+// end is wherever the cursor was clicked — not constrained to that vertical
+// axis — the two arms read as visibly separate from the very first drag,
+// unlike Petal's forced-closed loop; only a perfectly vertical drag joins
+// them at the bottom.
 function wingCurves(shape) {
   const primary = bezierControlPoints(shape);
   const angle = shape.wingMirrorAngle || 0;
@@ -4554,10 +4607,10 @@ function onMouseDown(e) {
     return;
   }
 
-  // Wing tool — identical three-click flow to Bezier. On finalize, also
-  // freezes wingMirrorAngle from the tip->end axis at this exact moment —
-  // the second arm is a live mirror of the primary curve across that fixed
-  // axis from here on (see wingCurves), not an independently stored curve.
+  // Wing tool — identical three-click flow to Bezier, except the bottom
+  // point is mirrored across a fixed vertical axis through the tip from the
+  // very start of the drag (see onMouseMove's 'axis' phase below), so both
+  // arms are visibly distinct while drawing, not just once edited later.
   if (S.tool === 'wing') {
     if (!m) return;
     const local = toMandalaLocal(m, pos.x, pos.y);
@@ -4587,7 +4640,7 @@ function onMouseDown(e) {
         bezierDx: dx, bezierDy: dy,
         bezierC1x: midX + px * bulge, bezierC1y: midY + py * bulge,
         bezierC2x: midX - px * bulge, bezierC2y: midY - py * bulge,
-        wingMirrorAngle: Math.atan2(dy, dx),
+        wingMirrorAngle: WING_MIRROR_ANGLE,
         r: 0,
         color: S.color,
         thickness: S.thickness,
