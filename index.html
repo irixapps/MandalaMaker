@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.27">
+<link rel="stylesheet" href="style.css?v=3.28">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -754,7 +754,48 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           </div>
         </div>
 
-        <button class="btn btn-danger" id="sp-delete" style="margin-top:6px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Shape</button>
+        <!-- Animated gradient — same editor as the Drawing inspector's, just sp-prefixed. -->
+        <div class="panel-sep" style="margin:8px 0"></div>
+        <div class="prop-row">
+          <label class="checkbox-label"><input type="checkbox" id="sp-gradient-on"> Animated gradient</label>
+        </div>
+        <div id="sp-gradient-options" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Colours</label>
+            <select id="sp-grad-preset" class="dp-grad-preset"></select>
+          </div>
+          <canvas id="sp-grad-preview" height="20" class="dp-grad-preview" title="Click to add a colour stop, click a stop to recolour, drag to move, double-click to remove"></canvas>
+          <div class="prop-row">
+            <label class="prop-label">Spread</label>
+            <input type="range" id="sp-grad-scale" min="20" max="2000" value="400">
+            <span class="prop-val" id="sp-grad-scale-val">400px</span>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Speed</label>
+            <input type="range" id="sp-grad-speed" min="0" max="200" value="30">
+            <span class="prop-val" id="sp-grad-speed-val">0.3×</span>
+          </div>
+        </div>
+
+        <!-- Fading trail — same as the Drawing inspector's, sp-prefixed. -->
+        <div class="panel-sep" style="margin:8px 0"></div>
+        <div class="prop-row">
+          <label class="checkbox-label"><input type="checkbox" id="sp-trail-on"> Fading trail animation</label>
+        </div>
+        <div id="sp-trail-options" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Speed</label>
+            <input type="number" id="sp-trail-speed" min="0.1" max="20" step="0.1" value="2" style="width:56px">
+            <span class="prop-val">s / loop</span>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Length</label>
+            <input type="range" id="sp-trail-length" min="5" max="100" step="1" value="40">
+            <span class="prop-val" id="sp-trail-length-val">40%</span>
+          </div>
+        </div>
+
+        <button class="btn btn-danger" id="sp-delete" style="margin-top:10px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Shape</button>
       </div>
 
       <!-- Drawing (stroke) inspector — shown when a drawn line/stroke layer is selected -->
@@ -1235,6 +1276,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.27"></script>
+<script src="app.js?v=3.28"></script>
 </body>
 </html>

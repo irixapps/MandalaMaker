@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.27';
+const VERSION = '3.28';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -410,6 +410,7 @@ function hasAnyAnimation() {
   if (S.mandalas.some(m => m.strokes.some(s => s.gradient && s.gradient.speed > 0))) return true;
   if (S.mandalas.some(m => m.strokes.some(s => s.trailAnim?.enabled))) return true;
   if (S.mandalas.some(m => m.strokes.some(s => s.anim?.orbit?.enabled))) return true;
+  if (S.mandalas.some(m => (m.shapes || []).some(s => s.trailAnim?.enabled))) return true;
   return S.mandalas.some(m => (m.shapes || []).some(s => s.gradient && s.gradient.speed > 0));
 }
 
@@ -449,15 +450,14 @@ function _trailArcStroke(ctx, ptAtDist, fromD, toD, step) {
   ctx.stroke();
 }
 
-// Renders the visible [tailFrac, headFrac] window of `pts` across all symmetry copies, with the
-// trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
-function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, tailFrac, headFrac, gradient) {
+// Draws the [tailFrac, headFrac] arc-length window of `pts` — already in
+// whatever local frame the caller has already transformed `ctx` into — as
+// one stroked path, with the trailing 25% of that window fading from
+// transparent to full opacity (the actual "fading trail" look). Factored
+// out of renderStrokeTrailSymmetric so shapes can reuse it too, via
+// renderShapeTrailSymmetric, without duplicating the arc-walk/fade math.
+function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, tailFrac, headFrac) {
   if (pts.length < 2 || headFrac <= 0) return;
-  const n = axes != null ? axes : m.axes;
-  const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
-  const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
-  const effectiveMirror = n === 0 ? false : mirror;
-  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
 
   const lens = [0];
   for (let i = 1; i < pts.length; i++) {
@@ -490,11 +490,63 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
   const timeOffset = gradient ? (S.animClock * gradient.speed) % 1 : 0;
   const step = Math.max(1.5, thickness * 0.65); // round-cap smoothing, matches gradient arc-walk
 
-  ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
   ctx.lineWidth = thickness;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+
+  if (gradient) {
+    // Colour shifts continuously along the path, so walk the whole window in small
+    // segments — alpha ramps through the fade zone, full opacity beyond it.
+    let d = tailDist;
+    while (d < headDist) {
+      const dNext = Math.min(d + step, headDist);
+      const midD = (d + dNext) / 2;
+      const alpha = (fadeLen > 0.01 && midD < fadeEndDist)
+        ? Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity
+        : opacity;
+      const { r, g, b } = sampleGradientRGB(gradient.stops, midD / gradient.scale + timeOffset);
+      const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      d = dNext;
+    }
+  } else if (fadeLen <= 0.01) {
+    const { r, g, b } = solidRGB;
+    ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
+    _trailArcStroke(ctx, ptAtDist, tailDist, headDist, step);
+  } else {
+    const { r, g, b } = solidRGB;
+    // Fading tail: alpha ramps 0 -> opacity across [tailDist, fadeEndDist]
+    let d = tailDist;
+    while (d < fadeEndDist) {
+      const dNext = Math.min(d + step, fadeEndDist);
+      const midD = (d + dNext) / 2;
+      const alpha = Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity;
+      const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      d = dNext;
+    }
+    // Solid head: full opacity across [fadeEndDist, headDist]
+    if (fadeEndDist < headDist) {
+      ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
+      _trailArcStroke(ctx, ptAtDist, fadeEndDist, headDist, step);
+    }
+  }
+}
+
+// Renders the visible [tailFrac, headFrac] window of `pts` across all symmetry copies, with the
+// trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
+function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, tailFrac, headFrac, gradient) {
+  if (pts.length < 2 || headFrac <= 0) return;
+  const n = axes != null ? axes : m.axes;
+  const rotRad = ((axisRotation != null ? axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const effectiveN = n === 0 ? 1 : (mirror ? n : n * 2);
+  const effectiveMirror = n === 0 ? false : mirror;
+  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
 
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
@@ -502,46 +554,7 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
       ctx.translate(m.cx, m.cy);
       ctx.rotate(rotRad + segAngle * i);
       if (flip === 1) ctx.scale(1, -1);
-
-      if (gradient) {
-        // Colour shifts continuously along the path, so walk the whole window in small
-        // segments — alpha ramps through the fade zone, full opacity beyond it.
-        let d = tailDist;
-        while (d < headDist) {
-          const dNext = Math.min(d + step, headDist);
-          const midD = (d + dNext) / 2;
-          const alpha = (fadeLen > 0.01 && midD < fadeEndDist)
-            ? Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity
-            : opacity;
-          const { r, g, b } = sampleGradientRGB(gradient.stops, midD / gradient.scale + timeOffset);
-          const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
-          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-          d = dNext;
-        }
-      } else if (fadeLen <= 0.01) {
-        const { r, g, b } = solidRGB;
-        ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
-        _trailArcStroke(ctx, ptAtDist, tailDist, headDist, step);
-      } else {
-        const { r, g, b } = solidRGB;
-        // Fading tail: alpha ramps 0 -> opacity across [tailDist, fadeEndDist]
-        let d = tailDist;
-        while (d < fadeEndDist) {
-          const dNext = Math.min(d + step, fadeEndDist);
-          const midD = (d + dNext) / 2;
-          const alpha = Math.max(0, Math.min(1, (midD - tailDist) / fadeLen)) * opacity;
-          const p0 = ptAtDist(d), p1 = ptAtDist(dNext);
-          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-          d = dNext;
-        }
-        // Solid head: full opacity across [fadeEndDist, headDist]
-        if (fadeEndDist < headDist) {
-          ctx.strokeStyle = `rgba(${r},${g},${b},${opacity})`;
-          _trailArcStroke(ctx, ptAtDist, fadeEndDist, headDist, step);
-        }
-      }
+      renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradient, tailFrac, headFrac);
       ctx.restore();
     }
   }
@@ -2367,7 +2380,15 @@ function renderMandala(m, forExport) {
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
-  for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
+  for (const shape of (m.shapes || [])) {
+    if (shape.visible === false) continue;
+    if (shape.trailAnim?.enabled) {
+      const { tailFrac, headFrac } = trailWindowFrac(shape.trailAnim, S.animClock);
+      renderShapeTrailSymmetric(ctx, m, shape, tailFrac, headFrac);
+    } else {
+      renderShapeSymmetric(ctx, m, shape);
+    }
+  }
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
 }
 
@@ -2387,7 +2408,15 @@ function renderMandalaLive(m) {
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
   }
-  for (const shape of (m.shapes || [])) { if (shape.visible !== false) renderShapeSymmetric(ctx, m, shape); }
+  for (const shape of (m.shapes || [])) {
+    if (shape.visible === false) continue;
+    if (shape.trailAnim?.enabled) {
+      const { tailFrac, headFrac } = trailWindowFrac(shape.trailAnim, S.animClock);
+      renderShapeTrailSymmetric(ctx, m, shape, tailFrac, headFrac);
+    } else {
+      renderShapeSymmetric(ctx, m, shape);
+    }
+  }
   for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
 }
 
@@ -3411,8 +3440,10 @@ function renderShapeInContext(tCtx, shape) {
   tCtx.restore();
 }
 
-function renderShapeSymmetric(tCtx, m, shape) {
-  // Resolve animated property values — no object spread, just local vars.
+// Resolves animated property values onto the reused shape proxy, plus the
+// rotation/offset/axis parameters every per-copy render loop needs — shared
+// by renderShapeSymmetric and renderShapeTrailSymmetric so both stay in sync.
+function computeShapeRenderParams(shape) {
   const clk = S.animClock;
   const animR       = getAnimValue(shape, 'radius',    clk);
   const animThick   = getAnimValue(shape, 'thickness', clk);
@@ -3450,6 +3481,34 @@ function renderShapeSymmetric(tCtx, m, shape) {
   const effOrbitRad = (animOrbit ?? (shape.orbit      || 0)) * Math.PI / 180;
   const { x: effX, y: effY } = shapeRadialTangentialOffset(shape, clk);
 
+  return { effShape, effRotRad, effOrbitRad, effX, effY };
+}
+// axes/axisRotation/mirror fall back to the mandala's own settings when a
+// shape doesn't override them, which needs `m` — resolved inline in each
+// render function below rather than here.
+
+// Rotates around Petal/Bezier/Wing's tip->end midpoint instead of the local
+// origin — those types store x/y as the tip, not the center, so rotating at
+// the origin would swing the whole shape around its tip instead of turning
+// it in place. Wing reuses Bezier's primary-curve fields, so its pivot is
+// the same midpoint as Bezier's. No-op (plain rotate) for every other type.
+function applyShapeLocalRotation(tCtx, shape, effRotRad) {
+  if (!effRotRad) return;
+  if (shape.type === 'petal' || shape.type === 'bezier' || shape.type === 'wing') {
+    const rawDx = shape.type === 'petal' ? shape.petalDx : shape.bezierDx;
+    const rawDy = shape.type === 'petal' ? shape.petalDy : shape.bezierDy;
+    const pvx = (rawDx || 0) / 2, pvy = (rawDy || 0) / 2;
+    tCtx.translate(pvx, pvy);
+    tCtx.rotate(effRotRad);
+    tCtx.translate(-pvx, -pvy);
+  } else {
+    tCtx.rotate(effRotRad);
+  }
+}
+
+function renderShapeSymmetric(tCtx, m, shape) {
+  const { effShape, effRotRad, effOrbitRad, effX, effY } = computeShapeRenderParams(shape);
+
   const n = shape.axes != null ? shape.axes : m.axes;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const doMirror = shape.mirror !== false;
@@ -3466,24 +3525,41 @@ function renderShapeSymmetric(tCtx, m, shape) {
       tCtx.rotate(rotRad + segAngle * i + effOrbitRad);
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
-      if (effRotRad) {
-        if (shape.type === 'petal' || shape.type === 'bezier' || shape.type === 'wing') {
-          // Petal/Bezier/Wing store x/y as the tip, not the center, so
-          // rotate around the tip->end midpoint instead of the default
-          // local origin — otherwise "Rotation" swings the whole shape
-          // around its tip. Wing reuses Bezier's primary-curve fields, so
-          // its pivot is the same midpoint as Bezier's.
-          const rawDx = shape.type === 'petal' ? shape.petalDx : shape.bezierDx;
-          const rawDy = shape.type === 'petal' ? shape.petalDy : shape.bezierDy;
-          const pvx = (rawDx || 0) / 2, pvy = (rawDy || 0) / 2;
-          tCtx.translate(pvx, pvy);
-          tCtx.rotate(effRotRad);
-          tCtx.translate(-pvx, -pvy);
-        } else {
-          tCtx.rotate(effRotRad);
-        }
-      }
+      applyShapeLocalRotation(tCtx, shape, effRotRad);
       renderShapeInContext(tCtx, effShape);
+      tCtx.restore();
+    }
+  }
+  tCtx.restore();
+}
+
+// Fading-trail counterpart to renderShapeSymmetric — same per-copy transform
+// pipeline (including the petal/bezier/wing pivot rotation), but draws the
+// [tailFrac, headFrac] arc-length window of the shape's outline instead of
+// the whole thing, via the same low-level walker strokes use.
+function renderShapeTrailSymmetric(tCtx, m, shape, tailFrac, headFrac) {
+  const { effShape, effRotRad, effOrbitRad, effX, effY } = computeShapeRenderParams(shape);
+  const pts = getShapePoints(effShape);
+  if (pts.length < 2 || headFrac <= 0) return;
+
+  const n = shape.axes != null ? shape.axes : m.axes;
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const doMirror = shape.mirror !== false;
+  const effectiveN = n === 0 ? 1 : (doMirror ? n : n * 2);
+  const effectiveMirror = n === 0 ? false : doMirror;
+  const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
+
+  tCtx.save();
+  tCtx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < effectiveN; i++) {
+    for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
+      tCtx.save();
+      tCtx.translate(m.cx, m.cy);
+      tCtx.rotate(rotRad + segAngle * i + effOrbitRad);
+      if (flip === 1) tCtx.scale(1, -1);
+      tCtx.translate(effX, effY);
+      applyShapeLocalRotation(tCtx, shape, effRotRad);
+      renderTrailWindowInContext(tCtx, pts, effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, tailFrac, headFrac);
       tCtx.restore();
     }
   }
@@ -3837,6 +3913,7 @@ function handleShapeDragFn(pos) {
 }
 
 // ── Shape properties panel (right panel) ─────────────────
+let spGradientEditor = null; // set up in wireShapeProps(), reused across selections
 function updateShapeProps() {
   const panel = document.getElementById('shape-props');
   if (!panel) return;
@@ -3912,6 +3989,21 @@ function updateShapeProps() {
   // configurable stroke ends).
   const fillRow = document.getElementById('sp-fill-row');
   if (fillRow) fillRow.style.display = isBezier ? 'none' : '';
+
+  // Gradient and fading-trail — same controls the Drawing inspector has.
+  const hasGradient = !!shape.gradient;
+  document.getElementById('sp-gradient-on').checked = hasGradient;
+  document.getElementById('sp-gradient-options').style.display = hasGradient ? '' : 'none';
+  if (hasGradient) spGradientEditor?.render();
+
+  const hasTrail = !!shape.trailAnim?.enabled;
+  document.getElementById('sp-trail-on').checked = hasTrail;
+  document.getElementById('sp-trail-options').style.display = hasTrail ? '' : 'none';
+  if (shape.trailAnim) {
+    document.getElementById('sp-trail-speed').value = shape.trailAnim.duration;
+    document.getElementById('sp-trail-length').value = shape.trailAnim.lengthPct;
+    document.getElementById('sp-trail-length-val').textContent = shape.trailAnim.lengthPct + '%';
+  }
 }
 
 function wireShapeProps() {
@@ -3981,6 +4073,100 @@ function wireShapeProps() {
     forShape(s => { s.petalCurve = parseInt(e.target.value) / 100; });
     document.getElementById('sp-petal-curve-val').textContent = e.target.value + '%';
   });
+  spGradientEditor = makeGradientStopEditor({
+    canvas: document.getElementById('sp-grad-preview'),
+    scaleInput: document.getElementById('sp-grad-scale'),
+    scaleVal: document.getElementById('sp-grad-scale-val'),
+    speedInput: document.getElementById('sp-grad-speed'),
+    speedVal: document.getElementById('sp-grad-speed-val'),
+    getGradient: () => findSelectedShape()?.shape.gradient,
+    onChange: () => {
+      forShape(s => {
+        markRenderDirty();
+        flushHasAnimCache();
+        if (s.gradient?.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+      });
+    },
+  });
+
+  const spPresetSel = document.getElementById('sp-grad-preset');
+  for (const name of Object.keys(GRADIENT_PRESETS)) {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    spPresetSel.appendChild(opt);
+  }
+  spPresetSel.addEventListener('change', () => {
+    forShape(s => {
+      if (!s.gradient) return;
+      s.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[spPresetSel.value]));
+      spGradientEditor.resetSelection();
+      spGradientEditor.render();
+      markRenderDirty();
+    });
+  });
+
+  document.getElementById('sp-gradient-on').addEventListener('change', e => {
+    forShape(s => {
+      if (e.target.checked) {
+        // Deep-clone so this shape's stops are independent of the shared
+        // toolbar gradient (and any other shape/stroke).
+        s.gradient = { stops: JSON.parse(JSON.stringify(S.gradient.stops)), scale: S.gradient.scale, speed: S.gradient.speed };
+        spGradientEditor.resetSelection();
+      } else {
+        s.gradient = null;
+      }
+      markRenderDirty();
+      flushHasAnimCache();
+      updateShapeProps();
+      if (s.gradient?.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+    });
+  });
+  document.getElementById('sp-grad-scale').addEventListener('input', e => {
+    forShape(s => {
+      if (!s.gradient) return;
+      s.gradient.scale = parseInt(e.target.value);
+      spGradientEditor.render();
+      markRenderDirty();
+    });
+  });
+  document.getElementById('sp-grad-speed').addEventListener('input', e => {
+    forShape(s => {
+      if (!s.gradient) return;
+      s.gradient.speed = parseInt(e.target.value) / 100;
+      spGradientEditor.render();
+      flushHasAnimCache();
+      if (s.gradient.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+    });
+  });
+
+  document.getElementById('sp-trail-on').addEventListener('change', e => {
+    forShape(s => {
+      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40 };
+      s.trailAnim.enabled = e.target.checked;
+      markRenderDirty();
+      flushHasAnimCache();
+      updateShapeProps();
+      if (s.trailAnim.enabled && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+    });
+  });
+  document.getElementById('sp-trail-speed').addEventListener('input', e => {
+    forShape(s => {
+      if (!s.trailAnim) return;
+      const v = parseFloat(e.target.value);
+      s.trailAnim.duration = (v > 0) ? v : 0.1;
+      markRenderDirty();
+    });
+  });
+  document.getElementById('sp-trail-length').addEventListener('input', e => {
+    forShape(s => {
+      if (!s.trailAnim) return;
+      const v = parseInt(e.target.value);
+      s.trailAnim.lengthPct = v;
+      document.getElementById('sp-trail-length-val').textContent = v + '%';
+      markRenderDirty();
+    });
+  });
+
   document.getElementById('sp-delete').addEventListener('click', () => {
     const found = findSelectedShape();
     if (!found || !confirm('Delete this shape?')) return;
@@ -5025,8 +5211,9 @@ let _layersHoverItem = null;
 // Layers list can flag it without the user having to open the Inspector.
 function layerHasAnimation(type, item) {
   if (item.gradient?.speed > 0) return true;
+  if (item.trailAnim?.enabled) return true;
   if (type === 'stroke') {
-    return !!(item.anim?.orbit?.enabled || item.trailAnim?.enabled);
+    return !!item.anim?.orbit?.enabled;
   }
   return !!(item.anim && Object.values(item.anim).some(ap => ap.enabled));
 }
