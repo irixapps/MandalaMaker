@@ -66,7 +66,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.23">
+<link rel="stylesheet" href="style.css?v=3.24">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -334,6 +334,11 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           <path d="M11,3 Q4,11 11,19 Q18,11 11,3 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="miter"/>
         </svg>
       </button>
+      <button class="tool-btn" data-tool="swoosh" title="Swoosh — an open curve. Click to set tip, click to set end, click to set curvature (W)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6,18 C6,10 8,5 16,4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
       <div class="panel-sep" style="width:44px;margin:6px 0"></div>
       <div class="panel-label" style="font-size:9px;margin-bottom:4px">MANDALAS</div>
       <div id="mandala-list"></div>
@@ -542,14 +547,23 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           </div>
         </div>
 
+        <!-- Curvature — swoosh only (its end-tangent handle is edit-only, no Inspector control) -->
+        <div id="sp-swoosh-row" style="display:none">
+          <div class="prop-row">
+            <label class="prop-label">Curvature</label>
+            <input type="range" id="sp-swoosh-curve" min="-120" max="120" value="35">
+            <span class="prop-val" id="sp-swoosh-curve-val">35%</span>
+          </div>
+        </div>
+
         <!-- Color -->
         <div class="prop-row">
           <label class="prop-label">Color</label>
           <input type="color" id="sp-color" value="#ff6b9d" style="width:32px;height:22px;padding:1px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer">
         </div>
 
-        <!-- Fill -->
-        <div class="prop-row">
+        <!-- Fill (swooshes are always unfilled open strokes) -->
+        <div id="sp-fill-row" class="prop-row">
           <label class="prop-label">Fill</label>
           <input type="checkbox" id="sp-fill-on" style="accent-color:var(--accent)">
           <input type="color" id="sp-fill" value="#7c6af0" style="width:32px;height:22px;padding:1px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer;margin-left:4px">
@@ -705,7 +719,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <option value="1.5,1.5">Short</option>
           </select>
         </div>
-        <div class="prop-row">
+        <div id="sp-cap-row" class="prop-row">
           <label class="prop-label">Cap</label>
           <select id="sp-cap" style="flex:1;font-size:11px;background:var(--btn);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px">
             <option value="round">Round</option>
@@ -1224,6 +1238,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.23"></script>
+<script src="app.js?v=3.24"></script>
 </body>
 </html>
