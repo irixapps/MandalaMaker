@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.35';
+const VERSION = '3.36';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -444,9 +444,10 @@ function isClosedLoop(pts) {
 //   Closed loops wrap the window seamlessly through the 1.0/0.0 seam
 //   forever, like a comet orbiting endlessly (tailFrac can go negative —
 //   renderTrailWindowInContext wraps it via `wrap`). Open paths have no
-//   seamless wrap point, so they ping-pong: the head bounces 0 -> 1 -> 0
-//   forever, with the tail always trailing behind whichever direction
-//   it's currently moving (fadeAtStart flips accordingly).
+//   seamless wrap point, so the head sweeps 0 -> 1 with the tail trailing
+//   `visibleFrac` behind it, then cuts straight back to a fresh trail at 0
+//   the instant it reaches the end — a one-directional chase, not a
+//   back-and-forth ping-pong.
 function trailWindowFrac(trailAnim, clock, isClosed) {
   const duration = trailAnim.duration > 0 ? trailAnim.duration : 0.1;
   const visibleFrac = Math.max(0.02, Math.min(1, (trailAnim.lengthPct ?? 40) / 100));
@@ -469,12 +470,8 @@ function trailWindowFrac(trailAnim, clock, isClosed) {
     return { tailFrac: headFrac - visibleFrac, headFrac, fadeAtStart: true, wrap: true };
   }
 
-  const t = (clock % (duration * 2)) / duration; // 0..2, one full there-and-back per 2x duration
-  const forward = t <= 1;
-  const raw = forward ? t : 2 - t;
-  return forward
-    ? { tailFrac: Math.max(0, raw - visibleFrac), headFrac: raw, fadeAtStart: true, wrap: false }
-    : { tailFrac: raw, headFrac: Math.min(1, raw + visibleFrac), fadeAtStart: false, wrap: false };
+  const headFrac = (clock % duration) / duration;
+  return { tailFrac: Math.max(0, headFrac - visibleFrac), headFrac, fadeAtStart: true, wrap: false };
 }
 
 // Draws the trail `window` (see trailWindowFrac) of `pts` — already in
