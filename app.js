@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.21';
+const VERSION = '3.22';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2059,25 +2059,31 @@ function shapeAnimatedWorldCenter(m, shape) {
   };
 }
 
-// World position of a petal's tip->base midpoint (its "grab anywhere to
-// move" handle) — like shapeAnimatedWorldCenter but for an offset point
-// rather than the anchor itself, so it also accounts for the shape's own
-// rotation (which rotates the tip->base axis around the tip).
-function petalAnimatedWorldMid(m, shape) {
+// World position of an arbitrary point in a petal's local frame (relative
+// to the tip, before the shape's own rotation) — like shapeAnimatedWorldCenter
+// but for an offset point rather than the anchor itself, so it also accounts
+// for the shape's own rotation (which rotates the tip->base axis around the
+// tip). Used for the move/base/curvature edit handles alike.
+function petalAnimatedWorldPoint(m, shape, lx, ly) {
   const clk = S.animClock;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const orbit = (getAnimValue(shape, 'orbit', clk) ?? (shape.orbit || 0)) * Math.PI / 180;
   const animRot = (getAnimValue(shape, 'rotation', clk) ?? (shape.rotation || 0)) * Math.PI / 180;
   const { x: ox, y: oy } = shapeRadialTangentialOffset(shape, clk);
-  const dx = (shape.petalDx || 0) / 2, dy = (shape.petalDy || 0) / 2;
-  const rdx = Math.cos(animRot) * dx - Math.sin(animRot) * dy;
-  const rdy = Math.sin(animRot) * dx + Math.cos(animRot) * dy;
-  const lx = ox + rdx, ly = oy + rdy;
+  const rdx = Math.cos(animRot) * lx - Math.sin(animRot) * ly;
+  const rdy = Math.sin(animRot) * lx + Math.cos(animRot) * ly;
+  const px = ox + rdx, py = oy + rdy;
   const angle = rotRad + orbit;
   return {
-    x: m.cx + Math.cos(angle) * lx - Math.sin(angle) * ly,
-    y: m.cy + Math.sin(angle) * lx + Math.cos(angle) * ly,
+    x: m.cx + Math.cos(angle) * px - Math.sin(angle) * py,
+    y: m.cy + Math.sin(angle) * px + Math.cos(angle) * py,
   };
+}
+
+// World position of a petal's tip->base midpoint (its "grab anywhere to
+// move" handle).
+function petalAnimatedWorldMid(m, shape) {
+  return petalAnimatedWorldPoint(m, shape, (shape.petalDx || 0) / 2, (shape.petalDy || 0) / 2);
 }
 
 function isSpriteOffCanvas(spr, m) {
@@ -3323,8 +3329,15 @@ function getShapeHandleAtPoint(wx, wy) {
   const { shape, mandala: m } = found;
   const clk = S.animClock;
   if (shape.type === 'petal') {
-    // Petals have no scale handle (curvature/size are Inspector-only) —
-    // just a single move handle at the tip->base midpoint.
+    // Petals get three handles: drag the base point to re-aim/resize the
+    // tip->base axis, drag the curvature point to re-bulge it, or grab
+    // anywhere else in the hit circle to move the whole shape. Check the
+    // small point handles first since they sit inside the move area.
+    const { cA } = petalControlPoints(shape);
+    const { x: bx, y: by } = petalAnimatedWorldPoint(m, shape, shape.petalDx || 0, shape.petalDy || 0);
+    if (Math.hypot(wx - bx, wy - by) < HANDLE_RADIUS + 4) return 'petal-base';
+    const { x: cvx, y: cvy } = petalAnimatedWorldPoint(m, shape, cA.x, cA.y);
+    if (Math.hypot(wx - cvx, wy - cvy) < HANDLE_RADIUS + 4) return 'petal-curve';
     const { x: mx, y: my } = petalAnimatedWorldMid(m, shape);
     const axisLen = Math.hypot(shape.petalDx || 0, shape.petalDy || 0);
     if (Math.hypot(wx - mx, wy - my) < axisLen / 2 + (shape.thickness || 2) / 2 + 8) return 'shape-move';
@@ -3346,6 +3359,9 @@ function renderShapeSelectionHandles() {
   if (shape.type === 'petal') {
     const { x: mx, y: my } = petalAnimatedWorldMid(m, shape);
     const axisLen = Math.hypot(shape.petalDx || 0, shape.petalDy || 0);
+    const { cA } = petalControlPoints(shape);
+    const { x: bx, y: by } = petalAnimatedWorldPoint(m, shape, shape.petalDx || 0, shape.petalDy || 0);
+    const { x: cvx, y: cvy } = petalAnimatedWorldPoint(m, shape, cA.x, cA.y);
     ctx.save();
     ctx.strokeStyle = '#7c6af0';
     ctx.lineWidth = 1.5;
@@ -3354,11 +3370,31 @@ function renderShapeSelectionHandles() {
     ctx.beginPath();
     ctx.arc(mx, my, axisLen / 2 + (shape.thickness || 2) / 2 + 4, 0, Math.PI * 2);
     ctx.stroke();
+    // Base/curvature construction line, matching the creation-time guides.
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(cvx, cvy);
+    ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = '#7c6af0';
     ctx.beginPath();
     ctx.arc(mx, my, HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
+    // Base handle (white, matches the tip/base dots shown while drawing).
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#7c6af0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(bx, by, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Curvature handle (pink, matches the curvature dot shown while drawing).
+    ctx.fillStyle = '#ff6b9d';
+    ctx.strokeStyle = '#7c6af0';
+    ctx.beginPath();
+    ctx.arc(cvx, cvy, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
     return;
   }
@@ -3402,6 +3438,32 @@ function handleShapeDragFn(pos) {
     shape.y = orig.y + (sin * dx + cos * dy);
   } else if (S.shapeHandleDrag === 'shape-scale') {
     shape.r = Math.max(2, orig.r + dx);
+  } else if (S.shapeHandleDrag === 'petal-base') {
+    // Re-aim/resize the tip->base axis, same angle-snap as the Line tool
+    // and the petal's own creation drag.
+    const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+    const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
+    const ldx = cos * dx - sin * dy, ldy = sin * dx + cos * dy;
+    let nx = (orig.petalDx || 0) + ldx, ny = (orig.petalDy || 0) + ldy;
+    if (S.snapAngle) { const snap = snapAngle(nx, ny); nx = snap.dx; ny = snap.dy; }
+    shape.petalDx = nx;
+    shape.petalDy = ny;
+  } else if (S.shapeHandleDrag === 'petal-curve') {
+    // Re-bulge the petal — same perpendicular-distance-from-axis math used
+    // to set curvature during creation, just driven by the handle instead
+    // of the raw cursor position.
+    const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+    const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
+    const ldx = cos * dx - sin * dy, ldy = sin * dx + cos * dy;
+    const { cA } = petalControlPoints(orig);
+    const hx = cA.x + ldx, hy = cA.y + ldy;
+    const axisDx = orig.petalDx || 0, axisDy = orig.petalDy || 0;
+    const axisLen = Math.max(1, Math.hypot(axisDx, axisDy));
+    const ux = axisDx / axisLen, uy = axisDy / axisLen;
+    const px = -uy, py = ux;
+    const midX = axisDx / 2, midY = axisDy / 2;
+    const perpDist = (hx - midX) * px + (hy - midY) * py;
+    shape.petalCurve = Math.max(-1.2, Math.min(1.2, perpDist / axisLen));
   }
   updateShapeProps();
 }
