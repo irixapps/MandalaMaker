@@ -138,6 +138,14 @@ body {
 .layers-list::-webkit-scrollbar { width: 4px; }
 .layers-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+/* Deselecting normally just means tapping empty canvas — this button only
+   earns its keep on touch (no hover to preview a hit before committing to a
+   tap) and only once there's actually something to deselect. */
+#btn-clear-selection { display: none; }
+@media (hover: none) {
+  #btn-clear-selection.has-selection { display: block; }
+}
+
 .inspector-panel {
   flex: 1 1 0;
   min-height: 0;

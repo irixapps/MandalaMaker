@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.43';
+const VERSION = '3.44';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4604,6 +4604,17 @@ function clearAllSelections() {
   S.selectedPaletteId = null;
 }
 
+// The Layers panel's "Clear Selection" button is touch-only (gated by an
+// `@media (hover: none)` rule in CSS — desktop already deselects by clicking
+// empty canvas) and should only appear once there's actually a layer
+// selected. Call after any of the three selection IDs might have changed.
+function updateClearSelectionButtonVisibility() {
+  const btn = document.getElementById('btn-clear-selection');
+  if (!btn) return;
+  const hasSelection = !!(S.selectedSpriteId || S.selectedShapeId || S.selectedStrokeId);
+  btn.classList.toggle('has-selection', hasSelection);
+}
+
 // Shows the "nothing selected" placeholder only when all three layer-item
 // Inspector panels are hidden — call after any updateXProps() runs. The
 // Image Inspector lives as its own accordion in the Images panel instead,
@@ -4877,6 +4888,7 @@ let spGradientEditor = null; // set up in wireShapeProps(), reused across select
 function updateShapeProps() {
   const panel = document.getElementById('shape-props');
   if (!panel) return;
+  updateClearSelectionButtonVisibility();
   const found = findSelectedShape();
   if (!found) { panel.style.display = 'none'; updateInspectorEmptyState(); updateLayersList(); return; }
   panel.style.display = '';
@@ -5151,6 +5163,7 @@ let dpGradientEditor = null; // set up in wireStrokeProps(), reused across selec
 function updateStrokeProps() {
   const panel = document.getElementById('stroke-props');
   if (!panel) return;
+  updateClearSelectionButtonVisibility();
   const found = findSelectedStroke();
   if (!found) { panel.style.display = 'none'; updateInspectorEmptyState(); updateLayersList(); return; }
   panel.style.display = '';
@@ -6439,6 +6452,7 @@ function renderLayerHoverHighlight() {
 }
 
 function updateSpriteProps() {
+  updateClearSelectionButtonVisibility();
   const found = S.selectedSpriteId ? findSprite(S.selectedSpriteId) : null;
   const panel = document.getElementById('sprite-props');
   if (!found) { panel.style.display = 'none'; updateInspectorEmptyState(); updateLayersList(); return; }
