@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.34';
+const VERSION = '3.35';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -998,8 +998,87 @@ const EFFECT_TYPES = {
       ctx.drawImage(_hueCanvas, 0, 0);
     },
   },
+  scanlines: {
+    label: 'Scanlines',
+    defaults: () => ({ amount: 40, spacing: 4 }),
+    controls: [
+      { key: 'amount',  label: 'Amount',  min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'spacing', label: 'Spacing', min: 2, max: 20,  step: 1, format: v => Math.round(v) + 'px', animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Flicker', kfs: [{t:0,v:40,e:'linear'},{t:0.45,v:40,e:'linear'},{t:0.5,v:10,e:'linear'},{t:0.55,v:40,e:'linear'},{t:1,v:40,e:'linear'}], dur: 1.5 },
+      ],
+    },
+    // A tiny repeating tile (a black stripe over the top half of one
+    // `spacing`-tall row, transparent below it), filled across the whole
+    // canvas as a CanvasPattern with 'multiply' compositing — multiplying
+    // by black darkens, multiplying by a transparent pixel leaves the
+    // destination untouched (its alpha is 0, so it contributes nothing to
+    // the blend), so only the stripe rows actually darken.
+    apply(ctx, canvas, { amount, spacing }) {
+      if (amount <= 0) return;
+      const tile = _ensureScanlineTile(spacing);
+      const pattern = ctx.createPattern(tile, 'repeat');
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, amount / 100);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    },
+  },
+  invertFlash: {
+    label: 'Invert Flash',
+    defaults: () => ({ amount: 0 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+    ],
+    presets: {
+      amount: [
+        { label: 'Strobe',     kfs: [{t:0,v:0,e:'linear'},{t:0.48,v:0,e:'linear'},{t:0.5,v:100,e:'linear'},{t:0.52,v:0,e:'linear'},{t:1,v:0,e:'linear'}], dur: 2 },
+        { label: 'Flash Pulse',kfs: [{t:0,v:0,e:'ease-out'},{t:0.1,v:100,e:'ease-in'},{t:0.3,v:0,e:'ease'},{t:1,v:0,e:'linear'}], dur: 3 },
+      ],
+    },
+    // Defaults to 0 (off) — on its own a held invert isn't very useful, this
+    // is meant to be driven by a curve for a single strobe/flash beat
+    // (see the presets above) rather than left static.
+    apply(ctx, canvas, { amount }) {
+      if (amount <= 0) return;
+      _ensureInvertOffscreen(canvas.width, canvas.height);
+      _invertCtx.clearRect(0, 0, canvas.width, canvas.height);
+      _invertCtx.filter = `invert(${Math.min(100, amount)}%)`;
+      _invertCtx.drawImage(canvas, 0, 0);
+      _invertCtx.filter = 'none';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(_invertCanvas, 0, 0);
+    },
+  },
   // Add new modules here.
 };
+
+let _scanlineTileCanvas = null, _scanlineTileSpacing = null;
+function _ensureScanlineTile(spacing) {
+  if (_scanlineTileCanvas && _scanlineTileSpacing === spacing) return _scanlineTileCanvas;
+  const c = document.createElement('canvas');
+  c.width = 2;
+  c.height = Math.max(2, Math.round(spacing));
+  const tctx = c.getContext('2d');
+  tctx.fillStyle = '#000';
+  tctx.fillRect(0, 0, 2, Math.max(1, Math.round(spacing / 2)));
+  _scanlineTileCanvas = c;
+  _scanlineTileSpacing = spacing;
+  return c;
+}
+
+let _invertCanvas = null, _invertCtx = null;
+function _ensureInvertOffscreen(W, H) {
+  if (!_invertCanvas || _invertCanvas.width !== W || _invertCanvas.height !== H) {
+    _invertCanvas = document.createElement('canvas');
+    _invertCanvas.width = W; _invertCanvas.height = H;
+    _invertCtx = _invertCanvas.getContext('2d');
+  }
+}
 
 let _chromaCanvas = null, _chromaCtx = null, _chromaMaskCanvas = null, _chromaMaskCtx = null;
 function _ensureChromaOffscreen(W, H) {
