@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.22';
+const VERSION = '3.23';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2070,8 +2070,12 @@ function petalAnimatedWorldPoint(m, shape, lx, ly) {
   const orbit = (getAnimValue(shape, 'orbit', clk) ?? (shape.orbit || 0)) * Math.PI / 180;
   const animRot = (getAnimValue(shape, 'rotation', clk) ?? (shape.rotation || 0)) * Math.PI / 180;
   const { x: ox, y: oy } = shapeRadialTangentialOffset(shape, clk);
-  const rdx = Math.cos(animRot) * lx - Math.sin(animRot) * ly;
-  const rdy = Math.sin(animRot) * lx + Math.cos(animRot) * ly;
+  // Rotation pivots around the tip->base midpoint (see renderShapeSymmetric),
+  // not the local origin, so rotate relative to that pivot too.
+  const pvx = (shape.petalDx || 0) / 2, pvy = (shape.petalDy || 0) / 2;
+  const relX = lx - pvx, relY = ly - pvy;
+  const rdx = Math.cos(animRot) * relX - Math.sin(animRot) * relY + pvx;
+  const rdy = Math.sin(animRot) * relX + Math.cos(animRot) * relY + pvy;
   const px = ox + rdx, py = oy + rdy;
   const angle = rotRad + orbit;
   return {
@@ -3215,7 +3219,19 @@ function renderShapeSymmetric(tCtx, m, shape) {
       tCtx.rotate(rotRad + segAngle * i + effOrbitRad);
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
-      if (effRotRad) tCtx.rotate(effRotRad);
+      if (effRotRad) {
+        if (shape.type === 'petal') {
+          // Petals store x/y as the tip, not the center, so rotate around
+          // the tip->base midpoint instead of the default local origin —
+          // otherwise "Rotation" swings the whole petal around its tip.
+          const pvx = (shape.petalDx || 0) / 2, pvy = (shape.petalDy || 0) / 2;
+          tCtx.translate(pvx, pvy);
+          tCtx.rotate(effRotRad);
+          tCtx.translate(-pvx, -pvy);
+        } else {
+          tCtx.rotate(effRotRad);
+        }
+      }
       renderShapeInContext(tCtx, effShape);
       tCtx.restore();
     }
