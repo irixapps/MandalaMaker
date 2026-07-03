@@ -614,6 +614,13 @@ select { cursor: pointer; }
   transition: opacity 0.1s;
 }
 .palette-item:hover .palette-del-btn { opacity: 1; }
+/* On touch devices there's no hover, so opacity:0 would make this
+   permanently unreachable — the only way to delete an imported image.
+   Keep it dimly visible by default there instead, same as the Layers
+   panel's eye/delete icons. */
+@media (hover: none) {
+  .palette-del-btn { opacity: .55; }
+}
 
 /* ── Properties panel ── */
 #sprite-props, #shape-props, #stroke-props, #palette-item-props {

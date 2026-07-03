@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.41';
+const VERSION = '3.42';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -164,6 +164,7 @@ const S = {
   panning: false,
   panStart: null,       // { x, y, panX, panY }
   spaceDown: false,
+  touchPan: null,       // two-finger pinch/pan gesture state — see wireViewport's touch handlers
 };
 
 // ── DOM refs ────────────────────────────────────────────
@@ -7812,18 +7813,62 @@ function wireEvents() {
   // these route straight into the same onMouseDown/onMouseMove/onMouseUp
   // logic. preventDefault stops the page from scrolling/pinch-zooming while
   // a single-finger gesture is drawing on the canvas.
+  //
+  // Two fingers instead drive the viewport: pinch to zoom and drag to pan,
+  // simultaneously (the standard mobile-map gesture) — there's no native
+  // equivalent here since #overlay-canvas sets touch-action:none (needed so
+  // the browser doesn't also try to scroll/zoom the page while a single
+  // finger draws), so this replaces what the browser would otherwise do.
   overlayCanvas.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) return; // let 2+ finger gestures fall through (e.g. pinch)
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      onMouseUp(e); // cleanly finalize whatever single-finger gesture (if any) was in progress
+      const [t0, t1] = e.touches;
+      S.touchPan = {
+        startDist: Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY),
+        startMidX: (t0.clientX + t1.clientX) / 2,
+        startMidY: (t0.clientY + t1.clientY) / 2,
+        startZoom: S.viewport.zoom,
+        startPanX: S.viewport.panX,
+        startPanY: S.viewport.panY,
+      };
+      return;
+    }
+    if (e.touches.length !== 1) return; // 3+ fingers — ignore
     e.preventDefault();
     onMouseDown(e);
   }, { passive: false });
   overlayCanvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && S.touchPan) {
+      e.preventDefault();
+      const [t0, t1] = e.touches;
+      const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const midX = (t0.clientX + t1.clientX) / 2, midY = (t0.clientY + t1.clientY) / 2;
+      const tp = S.touchPan;
+      const newZoom = Math.max(0.05, Math.min(16, tp.startZoom * (dist / tp.startDist)));
+      const cc = document.getElementById('canvas-container');
+      const rect = cc.getBoundingClientRect();
+      // The point under the gesture's starting midpoint, in unscaled canvas
+      // content coordinates — kept anchored under the (now-moved) midpoint
+      // as zoom changes, so pinch and pan compose into one smooth gesture.
+      const anchorX = tp.startMidX - rect.left, anchorY = tp.startMidY - rect.top;
+      const contentX = (anchorX - tp.startPanX) / tp.startZoom;
+      const contentY = (anchorY - tp.startPanY) / tp.startZoom;
+      S.viewport.zoom = newZoom;
+      S.viewport.panX = anchorX + (midX - tp.startMidX) - contentX * newZoom;
+      S.viewport.panY = anchorY + (midY - tp.startMidY) - contentY * newZoom;
+      applyViewport();
+      return;
+    }
     if (!S.dragHandle && !S.drawing) return;
     e.preventDefault();
     onMouseMove(e);
   }, { passive: false });
-  overlayCanvas.addEventListener('touchend', e => { onMouseUp(e); });
-  overlayCanvas.addEventListener('touchcancel', e => { onMouseUp(e); });
+  overlayCanvas.addEventListener('touchend', e => {
+    if (S.touchPan) { S.touchPan = null; return; } // pinch/pan gesture ending — don't fall through to draw-finalize
+    onMouseUp(e);
+  });
+  overlayCanvas.addEventListener('touchcancel', e => { S.touchPan = null; onMouseUp(e); });
   window.addEventListener('touchmove', e => {
     if (S.dragHandle || S.drawing) { e.preventDefault(); onMouseMove(e); }
   }, { passive: false });
@@ -7885,6 +7930,17 @@ function wireEvents() {
     syncPlayPauseBtns();
     markRenderDirty();
     if (!S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
+  });
+  // Explicit deselect — normally a tap on empty canvas does this, but that
+  // relies on being able to see/reach empty canvas, which isn't guaranteed
+  // on touch (no hover state to preview a hit before committing to a tap).
+  document.getElementById('btn-clear-selection').addEventListener('click', () => {
+    clearAllSelections();
+    updateSpriteProps();
+    updateShapeProps();
+    updateStrokeProps();
+    updatePaletteItemProps();
+    markRenderDirty();
   });
   document.getElementById('gif-cancel-btn').addEventListener('click', () => {
     document.getElementById('gif-modal').style.display = 'none';
