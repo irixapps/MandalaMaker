@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.51';
+const VERSION = '3.52';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -279,8 +279,8 @@ function _ensureGradOffscreen(W, H) {
 function renderGradientSegments(pts, grad, lineWidth, dashArr, capType, targetCtx) {
   if (pts.length < 2) return;
   const tgt = targetCtx || ctx;
-  const { stops, scale, speed } = grad;
-  const timeOffset = (S.animClock * speed) % 1;
+  const { stops, scale, speed, reverse } = grad;
+  const timeOffset = (S.animClock * speed * (reverse ? -1 : 1)) % 1;
 
   // Cumulative arc-lengths
   const lens = [0];
@@ -557,7 +557,7 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
   }
 
   const solidRGB = gradient ? null : hexToRgb(color);
-  const timeOffset = gradient ? (S.animClock * gradient.speed) % 1 : 0;
+  const timeOffset = gradient ? (S.animClock * gradient.speed * (gradient.reverse ? -1 : 1)) % 1 : 0;
   const step = Math.max(1.5, thickness * 0.65); // round-cap smoothing, matches gradient arc-walk
 
   ctx.lineWidth = thickness;
@@ -586,6 +586,11 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
 // trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
 function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, trailAnim, gradient, erase) {
   if (pts.length < 2) return;
+  // Reverse direction of travel: walk the path's points back-to-front
+  // instead of front-to-back. Every trailWindows() fraction/wrap formula
+  // stays untouched — flipping which end is arc-length 0 is enough to make
+  // the same computed progress sweep the opposite physical way.
+  if (trailAnim.reverse) pts = [...pts].reverse();
   const windows = trailWindows(trailAnim, S.animClock, isClosedLoop(pts));
   if (!windows.length) return;
   const n = axes != null ? axes : m.axes;
@@ -4510,7 +4515,11 @@ function renderShapeTrailSymmetric(tCtx, m, shape) {
   // walk jumps straight across the gap between the arms' endpoints (the
   // same phantom-bridge issue the gradient stroke renderer had).
   const isWing = effShape.type === 'wing';
-  const armPtsList = isWing ? wingArmPointLists(effShape) : [getShapePoints(effShape)];
+  let armPtsList = isWing ? wingArmPointLists(effShape) : [getShapePoints(effShape)];
+  // See renderStrokeTrailSymmetric — reversing each arm's own point order
+  // flips its arc-length 0 end, which is enough to reverse its direction of
+  // travel without touching any of the window/fraction math below.
+  if (shape.trailAnim.reverse) armPtsList = armPtsList.map(pts => [...pts].reverse());
   const armWindows = armPtsList.map(pts =>
     pts.length < 2 ? null : trailWindows(shape.trailAnim, S.animClock, isClosedLoop(pts))
   );
@@ -4984,7 +4993,10 @@ function updateShapeProps() {
   const hasGradient = !!shape.gradient;
   document.getElementById('sp-gradient-on').checked = hasGradient;
   document.getElementById('sp-gradient-options').style.display = hasGradient ? '' : 'none';
-  if (hasGradient) spGradientEditor?.render();
+  if (hasGradient) {
+    document.getElementById('sp-grad-reverse').checked = !!shape.gradient.reverse;
+    spGradientEditor?.render();
+  }
 
   const hasTrail = !!shape.trailAnim?.enabled;
   document.getElementById('sp-trail-on').checked = hasTrail;
@@ -4994,6 +5006,7 @@ function updateShapeProps() {
     document.getElementById('sp-trail-length').value = shape.trailAnim.lengthPct;
     document.getElementById('sp-trail-length-val').textContent = shape.trailAnim.lengthPct + '%';
     document.getElementById('sp-trail-continuous').checked = !!shape.trailAnim.continuous;
+    document.getElementById('sp-trail-reverse').checked = !!shape.trailAnim.reverse;
   }
 }
 
@@ -5129,10 +5142,17 @@ function wireShapeProps() {
       if (s.gradient.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
     });
   });
+  document.getElementById('sp-grad-reverse').addEventListener('change', e => {
+    forShape(s => {
+      if (!s.gradient) return;
+      s.gradient.reverse = e.target.checked;
+      markRenderDirty();
+    });
+  });
 
   document.getElementById('sp-trail-on').addEventListener('change', e => {
     forShape(s => {
-      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40, continuous: false };
+      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40, continuous: false, reverse: false };
       s.trailAnim.enabled = e.target.checked;
       markRenderDirty();
       flushHasAnimCache();
@@ -5161,6 +5181,13 @@ function wireShapeProps() {
     forShape(s => {
       if (!s.trailAnim) return;
       s.trailAnim.continuous = e.target.checked;
+      markRenderDirty();
+    });
+  });
+  document.getElementById('sp-trail-reverse').addEventListener('change', e => {
+    forShape(s => {
+      if (!s.trailAnim) return;
+      s.trailAnim.reverse = e.target.checked;
       markRenderDirty();
     });
   });
@@ -5207,6 +5234,7 @@ function updateStrokeProps() {
   document.getElementById('dp-gradient-on').checked = hasGradient;
   document.getElementById('dp-gradient-options').style.display = hasGradient ? '' : 'none';
   if (hasGradient) {
+    document.getElementById('dp-grad-reverse').checked = !!stroke.gradient.reverse;
     dpGradientEditor?.render();
   }
 
@@ -5218,6 +5246,7 @@ function updateStrokeProps() {
     document.getElementById('dp-trail-length').value = stroke.trailAnim.lengthPct;
     document.getElementById('dp-trail-length-val').textContent = stroke.trailAnim.lengthPct + '%';
     document.getElementById('dp-trail-continuous').checked = !!stroke.trailAnim.continuous;
+    document.getElementById('dp-trail-reverse').checked = !!stroke.trailAnim.reverse;
   }
 }
 
@@ -5316,10 +5345,17 @@ function wireStrokeProps() {
       if (s.gradient.speed > 0 && !S.animPaused && !S.rafId) S.rafId = requestAnimationFrame(render);
     });
   });
+  document.getElementById('dp-grad-reverse').addEventListener('change', e => {
+    forStroke(s => {
+      if (!s.gradient) return;
+      s.gradient.reverse = e.target.checked;
+      markRenderDirty();
+    });
+  });
 
   document.getElementById('dp-trail-on').addEventListener('change', e => {
     forStroke(s => {
-      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40, continuous: false };
+      if (!s.trailAnim) s.trailAnim = { enabled: false, duration: 2, lengthPct: 40, continuous: false, reverse: false };
       s.trailAnim.enabled = e.target.checked;
       invalidateStrokeCache();
       flushHasAnimCache();
@@ -5348,6 +5384,13 @@ function wireStrokeProps() {
     forStroke(s => {
       if (!s.trailAnim) return;
       s.trailAnim.continuous = e.target.checked;
+      markRenderDirty();
+    });
+  });
+  document.getElementById('dp-trail-reverse').addEventListener('change', e => {
+    forStroke(s => {
+      if (!s.trailAnim) return;
+      s.trailAnim.reverse = e.target.checked;
       markRenderDirty();
     });
   });
