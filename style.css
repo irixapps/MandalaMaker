@@ -100,14 +100,22 @@ body {
   touch-action: none;
 }
 
-/* Splash logo — shown centred over the canvas on load, faded out by JS a
-   moment later (see init() in app.js). pointer-events:none so it never
-   blocks the very first click/draw even before the fade starts. */
+/* Splash logo — shown over the canvas on load, faded out by JS a moment
+   later (see init() in app.js). pointer-events:none so it never blocks the
+   very first click/draw even before the fade starts.
+   The logo image is icon-plus-wordmark (mandala flower on top, "MANDALIZE /
+   THIS IS THE WAY" text below), so its own visual centre sits below the
+   flower's actual centre — translateY is offset to 39.16% (the flower's
+   measured centre as a fraction of the image's height, not 50%) so the
+   flower lines up with the mandala's own axis centre instead of the whole
+   logo block being centred as one unit. init() calls centerCanvasView()
+   right before showing this, so the canvas's own axis centre coincides
+   with the container's visual centre (50%/50%) at the moment it's shown. */
 #splash-logo {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -39.16%);
   width: min(50%, 360px);
   z-index: 3;
   pointer-events: none;
