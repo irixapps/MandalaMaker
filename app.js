@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.45';
+const VERSION = '3.46';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3344,7 +3344,16 @@ function renderMandalaLive(m) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const isTrail = !!stroke.trailAnim?.enabled;
     const isOrbiting = !!stroke.anim?.orbit?.enabled;
-    if (!stroke.gradient && !isTrail && !isOrbiting) continue; // static — already in cache
+    // Erase strokes are always solid (never gradient/trail/orbit themselves),
+    // so they'd otherwise be skipped here and only exist in the cache — fine
+    // for masking earlier *static* strokes, but a gradient/trail/orbit stroke
+    // drawn earlier still renders live, on top of the whole cache, every
+    // frame, so an erase stroke sitting below it in the cache could never
+    // actually cover it. Redrawing erase strokes here too (harmless
+    // redundancy against already-cached static content, since erasing twice
+    // is idempotent) puts them back in the same original z-order as any
+    // live content they need to mask.
+    if (!stroke.gradient && !isTrail && !isOrbiting && !stroke.erase) continue; // static — already in cache
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (isTrail) {
@@ -6242,7 +6251,7 @@ function ensureLayerName(item, type) {
       base = 'sprite';
     }
   } else if (type === 'stroke') {
-    base = item.gradient ? 'grad-stroke' : 'stroke';
+    base = item.erase ? 'erase' : item.gradient ? 'grad-stroke' : 'stroke';
   } else {
     // shape
     base = item.type || 'shape';
@@ -6310,8 +6319,8 @@ function updateLayersList() {
     row.dataset.type = type;
     row.title = name;
 
-    const tagLabel = type === 'shape' ? item.type : type === 'stroke' ? 'stroke' : 'gif/img';
-    const deleteTitle = type === 'stroke' ? 'Delete this drawing' : type === 'shape' ? 'Delete this shape' : 'Delete this sprite';
+    const tagLabel = type === 'shape' ? item.type : type === 'stroke' ? (item.erase ? 'erase' : 'stroke') : 'gif/img';
+    const deleteTitle = type === 'stroke' ? (item.erase ? 'Delete this erase mark' : 'Delete this drawing') : type === 'shape' ? 'Delete this shape' : 'Delete this sprite';
     const animated = layerHasAnimation(type, item);
 
     row.innerHTML =
