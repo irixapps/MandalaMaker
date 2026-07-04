@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.48';
+const VERSION = '3.49';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4001,23 +4001,6 @@ self.onmessage = function(e) {
 
   oc.translate(cx, cy);
 
-  if (step > 1) {
-    oc.strokeStyle = col;
-    oc.lineWidth   = 0.7;
-    oc.setLineDash([3, 8]);
-    oc.globalAlpha = isActive ? 0.18 : 0.08;
-    oc.beginPath();
-    for (let i = 0; i < totalHalfRays; i++) {
-      if (i % step === 0) continue;
-      const a = rotRad + Math.PI / 2 + angleStep * i;
-      const cos = Math.cos(a), sin = Math.sin(a);
-      oc.moveTo(cos * -maxR, sin * -maxR);
-      oc.lineTo(cos *  maxR, sin *  maxR);
-    }
-    oc.stroke();
-    oc.setLineDash([]);
-  }
-
   oc.fillStyle   = col;
   oc.globalAlpha = isActive ? 0.45 : 0.18;
   oc.beginPath();
@@ -4096,17 +4079,6 @@ function _snapDotSync(m, cacheKey, step, spacing, isActive) {
   const col = SNAP_AXIS_COLOR;
   const DOT_R = isActive ? 2 : 1.5;
   oc.save(); oc.translate(m.cx, m.cy);
-  if (step > 1) {
-    oc.strokeStyle = col; oc.lineWidth = 0.7; oc.setLineDash([3, 8]);
-    oc.globalAlpha = isActive ? 0.18 : 0.08; oc.beginPath();
-    for (let i = 0; i < totalHalfRays; i++) {
-      if (i % step === 0) continue;
-      const a = rotRad + Math.PI / 2 + angleStep * i;
-      const cos = Math.cos(a), sin = Math.sin(a);
-      oc.moveTo(cos * -maxR, sin * -maxR); oc.lineTo(cos * maxR, sin * maxR);
-    }
-    oc.stroke(); oc.setLineDash([]);
-  }
   oc.fillStyle = col; oc.globalAlpha = isActive ? 0.45 : 0.18; oc.beginPath();
   for (let i = 0; i < totalHalfRays; i++) {
     const a = rotRad + Math.PI / 2 + angleStep * i;
