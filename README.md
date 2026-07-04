@@ -8,22 +8,27 @@ No install, no login — just open the link and start drawing.
 
 A free, browser-based animated mandala and kaleidoscope maker. Draw with radial symmetry, stamp images and animated GIFs, draw vector shapes, keyframe-animate anything, add a global stack of post-processing effects, and export as PNG, animated GIF/WebP, or video.
 
-![Mandalize demo](assets/Arcade.webp)
-
 ![Mandalize screenshot](assets/screenshot.png)
 
 ---
 
 ## Videos
 
-| | |
-|---|---|
-| **[Post Effects](videos/PostEffects.mp4)** | A tour of the Effects panel — Bloom, Echo, Chromatic Aberration, Vignette, Zoom Blur, Hue Rotate, Scanlines and Invert Flash, layered and animated. |
-| **[Neon Dreams](videos/NeonDreams.mp4)** | An animated mandala built from gradient strokes, keyframed shapes and sprites. |
-| **[Thomas' Eye](videos/ThomasEye.mp4)** | Vector shapes (Petal/Bezier/Wing) combined with image stamping. |
-| **[Thomas & Orchid](videos/ThomasOrchid.mp4)** | Radial image stamping with orbit and warp animation. |
+[![Neon Dreams](https://img.youtube.com/vi/nM0RFfepLXk/maxresdefault.jpg)](https://www.youtube.com/watch?v=nM0RFfepLXk)
 
-(GitHub doesn't preview local `.mp4` files inline — click through to view/download.)
+**[Neon Dreams](https://www.youtube.com/watch?v=nM0RFfepLXk)** — an animated mandala built from gradient strokes, keyframed shapes and sprites.
+
+[![Post Effects](https://img.youtube.com/vi/XKASeXVm9BA/maxresdefault.jpg)](https://youtu.be/XKASeXVm9BA)
+
+**[Post Effects](https://youtu.be/XKASeXVm9BA)** — a tour of the Effects panel: Bloom, Echo, Chromatic Aberration, Vignette, Zoom Blur, Hue Rotate, Scanlines and Invert Flash, layered and animated.
+
+[![Thomas' Eye](https://img.youtube.com/vi/w2R1Dy4ngrM/maxresdefault.jpg)](https://youtu.be/w2R1Dy4ngrM)
+
+**[Thomas' Eye](https://youtu.be/w2R1Dy4ngrM)** — vector shapes (Petal/Bezier/Wing) combined with image stamping.
+
+[![Thomas & Orchid](https://img.youtube.com/vi/cUYdAhKy-PI/maxresdefault.jpg)](https://youtu.be/cUYdAhKy-PI)
+
+**[Thomas & Orchid](https://youtu.be/cUYdAhKy-PI)** — radial image stamping with orbit and warp animation.
 
 ---
 
