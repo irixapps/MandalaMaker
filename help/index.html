@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mandalize Help — Full Feature Guide for the Animated Mandala Maker</title>
-  <meta name="description" content="Complete guide to Mandalize: symmetry drawing, vector shapes, image and GIF stamping, keyframe animation, trail animation, layers, snapping, canvas controls, and exporting to PNG, GIF, WebP and video.">
+  <meta name="description" content="Complete guide to Mandalize: symmetry drawing, vector shapes, image and GIF stamping, keyframe animation, trail animation, post-processing effects, layers, snapping, and exporting to PNG, GIF, WebP and video.">
   <link rel="canonical" href="https://www.mandalize.net/help/">
-  <link rel="stylesheet" href="../style.css?v=1.6">
+  <link rel="icon" type="image/png" href="../favicon.png">
+  <link rel="stylesheet" href="../style.css?v=3.45">
   <style>
     .help-toc { columns: 2; column-gap: 32px; margin: 18px 0 8px; padding: 0; list-style: none; }
     .help-toc li { margin-bottom: 6px; break-inside: avoid; }
@@ -43,13 +44,14 @@
         <li><a href="#layers">7. Layers Panel</a></li>
         <li><a href="#animation">8. Keyframe Animation</a></li>
         <li><a href="#trail">9. Trail Animation</a></li>
-        <li><a href="#snapping">10. Snapping</a></li>
-        <li><a href="#canvas">11. Canvas &amp; Viewport</a></li>
-        <li><a href="#mandalas">12. Multiple Mandalas</a></li>
-        <li><a href="#theater">13. Theater Mode</a></li>
-        <li><a href="#export">14. Exporting</a></li>
-        <li><a href="#save">15. Saving &amp; Loading Projects</a></li>
-        <li><a href="#shortcuts">16. Keyboard Shortcuts</a></li>
+        <li><a href="#effects">10. Effects</a></li>
+        <li><a href="#snapping">11. Snapping</a></li>
+        <li><a href="#canvas">12. Canvas &amp; Viewport</a></li>
+        <li><a href="#mandalas">13. Multiple Mandalas</a></li>
+        <li><a href="#theater">14. Theater Mode</a></li>
+        <li><a href="#export">15. Exporting</a></li>
+        <li><a href="#save">16. Saving &amp; Loading Projects</a></li>
+        <li><a href="#shortcuts">17. Keyboard Shortcuts</a></li>
       </ul>
     </nav>
 
@@ -84,7 +86,11 @@
     <h2 id="drawing">3. Drawing Tools</h2>
     <ul class="feat-list">
       <li><b>Brush</b> — freehand drawing, smoothed and repeated with radial symmetry.</li>
-      <li><b>Line</b> — straight-line tool; hold the grid-snap modifier while dragging for 15° angle increments.</li>
+      <li><b>Line</b> — click to place the start, move for a live preview, click again to finish; hold the
+        grid-snap modifier for 15° angle increments.</li>
+      <li><b>Line Chain</b> — the same click-to-place/click-to-finish flow as Line, except finishing one
+        segment immediately starts the next one from that same point, so repeated clicks chain a whole
+        connected polyline out of individual straight strokes. Press Escape or switch tools to stop.</li>
       <li><b>Eraser</b> — erases with the same radial symmetry as drawing, so you can clean up any copy and
         every repeated copy updates together.</li>
       <li><b>Size / Colour / Opacity / Smooth</b> — control brush thickness, stroke colour, transparency, and
@@ -102,7 +108,15 @@
       <li><b>Circle, Star, Polygon</b> — drag to draw. Stars have adjustable point count and inner radius
         ratio; polygons have an adjustable side count that's remembered as your default for the next shape you draw
         (both across the session and after closing the browser).</li>
-      <li><b>Fill</b> — optional solid fill colour, independent of the stroke colour.</li>
+      <li><b>Petal</b> — a closed, leaf-shaped loop: click to set the tip, click to set the base, click again
+        to bulge its curvature.</li>
+      <li><b>Bezier</b> — an open curve with two independently draggable control-point handles: click for the
+        tip, click for the end, click to set the initial curve, then fine-tune both control points afterward.</li>
+      <li><b>Wing</b> — the same click flow as Bezier, but automatically mirrors a second arm across the axis
+        running from the tip to the mandala's centre, so the two arms radiate outward together. Gradient
+        colouring on a Wing mirrors too — both arms sample the same colour at the shared tip.</li>
+      <li><b>Fill</b> — optional solid fill colour, independent of the stroke colour (Bezier and Wing are
+        always open strokes, never filled).</li>
       <li><b>Stroke controls</b> — thickness, dash pattern, line cap (round/butt/square) and line join
         (round/miter/bevel), all rendered correctly together, including on dotted and gradient strokes.</li>
       <li><b>Gradient strokes</b> — like brush strokes, shape outlines can use an animated colour gradient
@@ -148,6 +162,9 @@
       <li><b>Trail controls</b> — a ∿ icon on drawing layers opens the trail-animation speed and length
         controls (see below) directly inline.</li>
       <li>Clicking a shape or sprite layer selects it, exactly like clicking it on the canvas.</li>
+      <li><b>Clear Selection</b> — on touch devices, a button below the layer list deselects the current
+        sprite, shape or stroke (on desktop, clicking empty canvas already does this, so the button only
+        appears where it's actually needed).</li>
     </ul>
 
     <h2 id="animation">8. Keyframe Animation</h2>
@@ -186,10 +203,35 @@
     <ul class="feat-list">
       <li><b>Speed</b> — how many seconds one full sweep of the trail takes.</li>
       <li><b>Length</b> — what percentage of the total stroke length is visible in the trail at once.</li>
+      <li><b>Continuous chase</b> — instead of pausing to let the trail catch up before restarting, the trail
+        keeps moving forever. Closed shapes wrap the trail seamlessly through the seam like a comet orbiting
+        endlessly; open paths (drawings and lines) chase in one direction, with a follow-on trail already
+        starting before the previous one finishes fading out.</li>
     </ul>
     <p>Trail-animated strokes keep their full gradient colouring (if any) while animating.</p>
 
-    <h2 id="snapping">10. Snapping</h2>
+    <h2 id="effects">10. Effects</h2>
+    <p>
+      A global stack of post-processing effects, applied to the fully-rendered canvas every frame and during
+      every export. Add as many instances as you like from the Effects panel, reorder them, toggle each on or
+      off, and animate any of their animatable parameters with the same keyframe system as shapes and sprites:
+    </p>
+    <ul class="feat-list">
+      <li><b>Bloom</b> — a glow that blooms outward from bright areas, with Amount (up to 400%), Threshold (a
+        real per-channel brightness cutoff — only content above the threshold contributes to the glow) and
+        Blur Radius controls.</li>
+      <li><b>Echo</b> — a persistent fading trail of the whole canvas, like a long-exposure photograph.</li>
+      <li><b>Chromatic Aberration</b> — splits the red, green and blue channels apart for a lens-glitch look,
+        with adjustable amount and angle.</li>
+      <li><b>Vignette</b> — darkens the canvas edges, with adjustable amount and spread.</li>
+      <li><b>Zoom Blur</b> — a radial motion-blur streaking outward from the centre.</li>
+      <li><b>Hue Rotate</b> — cycles every colour on the canvas around the colour wheel.</li>
+      <li><b>Scanlines</b> — darkens alternating horizontal rows for a CRT/retro look.</li>
+      <li><b>Invert Flash</b> — inverts the whole canvas's colours; combine with a keyframe preset for a single
+        strobe or flash beat rather than a held invert.</li>
+    </ul>
+
+    <h2 id="snapping">11. Snapping</h2>
     <ul class="feat-list">
       <li><b>Grid snap</b> — snaps drawing and placement to a configurable X/Y grid spacing, with an optional
         lock to keep X and Y spacing tied together.</li>
@@ -198,7 +240,7 @@
         subdivisions between each pair of guide lines.</li>
     </ul>
 
-    <h2 id="canvas">11. Canvas &amp; Viewport</h2>
+    <h2 id="canvas">12. Canvas &amp; Viewport</h2>
     <ul class="feat-list">
       <li><b>Background colour</b> — sets the canvas background, used both on-screen and in every export.</li>
       <li>
@@ -207,10 +249,11 @@
         preserves the existing drawing.
       </li>
       <li><b>Pan &amp; zoom</b> — scroll to pan, Ctrl/⌘+scroll to zoom toward the cursor, drag with Space or
-        the middle mouse button held to pan, and use the zoom buttons or Fit to reset the view.</li>
+        the middle mouse button held to pan, and use the zoom buttons or Fit to reset the view. On touch
+        devices, drag with two fingers to pan and pinch to zoom, both at once, the same as a map app.</li>
     </ul>
 
-    <h2 id="mandalas">12. Multiple Mandalas</h2>
+    <h2 id="mandalas">13. Multiple Mandalas</h2>
     <p>
       A single project can contain more than one mandala layered on the same canvas, each with its own axis
       count, rotation, mirror setting, strokes, shapes and sprites. Use the <b>+</b> button in the mandalas
@@ -218,14 +261,14 @@
       deleted).
     </p>
 
-    <h2 id="theater">13. Theater Mode</h2>
+    <h2 id="theater">14. Theater Mode</h2>
     <p>
       Theater Mode hides every toolbar and panel and centres the canvas full-screen for distraction-free
       viewing or presenting. A brief on-screen hint fades out after a few seconds; press <kbd>Esc</kbd> any
       time to exit back to the normal editor.
     </p>
 
-    <h2 id="export">14. Exporting</h2>
+    <h2 id="export">15. Exporting</h2>
     <p>All export options live under the <b>Export</b> menu in the toolbar:</p>
     <ul class="feat-list">
       <li><b>PNG</b> — a single still image at the canvas's native resolution.</li>
@@ -243,7 +286,7 @@
     </ul>
     <p>Guides, selection handles and hover highlights are always hidden automatically during every export.</p>
 
-    <h2 id="save">15. Saving &amp; Loading Projects</h2>
+    <h2 id="save">16. Saving &amp; Loading Projects</h2>
     <p>
       <b>Save</b> writes the entire project — every mandala's strokes, shapes and sprites, all animation
       keyframes, palette images (embedded directly in the file), canvas size and background colour — to a
@@ -251,11 +294,12 @@
       exactly as it was, including every animation and layer setting.
     </p>
 
-    <h2 id="shortcuts">16. Keyboard Shortcuts</h2>
+    <h2 id="shortcuts">17. Keyboard Shortcuts</h2>
     <table class="kbd-table">
       <tr><th>Key</th><th>Action</th></tr>
       <tr><td><kbd>B</kbd></td><td>Brush tool</td></tr>
       <tr><td><kbd>L</kbd></td><td>Line tool</td></tr>
+      <tr><td><kbd>K</kbd></td><td>Line Chain tool</td></tr>
       <tr><td><kbd>E</kbd></td><td>Eraser tool</td></tr>
       <tr><td><kbd>S</kbd></td><td>Select tool</td></tr>
       <tr><td><kbd>P</kbd></td><td>Stamp / Place tool</td></tr>
@@ -263,6 +307,9 @@
       <tr><td><kbd>C</kbd></td><td>Circle shape tool</td></tr>
       <tr><td><kbd>*</kbd></td><td>Star shape tool</td></tr>
       <tr><td><kbd>G</kbd></td><td>Polygon shape tool</td></tr>
+      <tr><td><kbd>V</kbd></td><td>Petal shape tool</td></tr>
+      <tr><td><kbd>Z</kbd></td><td>Bezier shape tool</td></tr>
+      <tr><td><kbd>W</kbd></td><td>Wing shape tool</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Exit stamp mode → Select tool, last placed sprite selected</td></tr>
       <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Decrease / increase brush or stamp size</td></tr>
       <tr><td><kbd>Delete</kbd></td><td>Delete the selected sprite or shape</td></tr>

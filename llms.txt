@@ -12,12 +12,15 @@ Key features:
 - Radial symmetry drawing (mirror/kaleidoscope or pinwheel/rotational modes)
 - Animated GIF and WebP stamping
 - Image and sprite import
-- Vector shape tool (circle, star, polygon) with gradients and dash/cap/join controls
+- Vector shape tool (circle, star, polygon, petal, bezier, wing) with gradients and dash/cap/join controls
+- Straight-line and chained-line drawing tools
 - Keyframe animation with easing curves (linear, ease, ease-in, ease-out, bounce, elastic)
 - Radial (in/out) and tangential (side-to-side) shape motion presets
-- Fading trail animation for drawn strokes, with adjustable length and speed
+- Fading trail animation for drawn strokes, with adjustable length, speed and a continuous-chase mode
 - Warp images into circular arcs
+- Global post-processing effects stack (Bloom, Echo, Chromatic Aberration, Vignette, Zoom Blur, Hue Rotate, Scanlines, Invert Flash), each independently animatable
 - Layer panel with visibility toggles and hover highlighting
+- Touch support: two-finger pinch-to-zoom and pan on tablets and phones
 - Theater Mode full-screen, chrome-free preview
 - PNG export
 - Animated GIF and WebP export
@@ -33,6 +36,5 @@ Mandalize is a free browser tool for creating animated mandala and kaleidoscope 
 
 Pages:
 - / — main app
-- /examples/ — example animated mandalas
 - /gif-kaleidoscope-maker/ — GIF-specific use case page
 - /help/ — feature reference and help guide
