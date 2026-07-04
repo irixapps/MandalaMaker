@@ -18,17 +18,17 @@ A free, browser-based animated mandala and kaleidoscope maker. Draw with radial 
 
 **[Neon Dreams](https://www.youtube.com/watch?v=nM0RFfepLXk)** — an animated mandala built from gradient strokes, keyframed shapes and sprites.
 
-[![Post Effects](https://img.youtube.com/vi/XKASeXVm9BA/maxresdefault.jpg)](https://youtu.be/XKASeXVm9BA)
+[![Mandalize Effects](https://img.youtube.com/vi/XKASeXVm9BA/maxresdefault.jpg)](https://youtu.be/XKASeXVm9BA)
 
-**[Post Effects](https://youtu.be/XKASeXVm9BA)** — a tour of the Effects panel: Bloom, Echo, Chromatic Aberration, Vignette, Zoom Blur, Hue Rotate, Scanlines and Invert Flash, layered and animated.
+**[Mandalize Effects](https://youtu.be/XKASeXVm9BA)** — a tour of the Effects panel: Bloom, Echo, Chromatic Aberration, Vignette, Zoom Blur, Hue Rotate, Scanlines and Invert Flash, layered and animated.
 
-[![Thomas' Eye](https://img.youtube.com/vi/w2R1Dy4ngrM/maxresdefault.jpg)](https://youtu.be/w2R1Dy4ngrM)
+[![Mandalize Eye](https://img.youtube.com/vi/w2R1Dy4ngrM/maxresdefault.jpg)](https://youtu.be/w2R1Dy4ngrM)
 
-**[Thomas' Eye](https://youtu.be/w2R1Dy4ngrM)** — vector shapes (Petal/Bezier/Wing) combined with image stamping.
+**[Mandalize Eye](https://youtu.be/w2R1Dy4ngrM)** — vector shapes (Petal/Bezier/Wing) combined with image stamping.
 
-[![Thomas & Orchid](https://img.youtube.com/vi/cUYdAhKy-PI/maxresdefault.jpg)](https://youtu.be/cUYdAhKy-PI)
+[![Mandalize Orchid](https://img.youtube.com/vi/cUYdAhKy-PI/hqdefault.jpg)](https://youtu.be/cUYdAhKy-PI)
 
-**[Thomas & Orchid](https://youtu.be/cUYdAhKy-PI)** — radial image stamping with orbit and warp animation.
+**[Mandalize Orchid](https://youtu.be/cUYdAhKy-PI)** — radial image stamping with orbit and warp animation.
 
 ---
 
