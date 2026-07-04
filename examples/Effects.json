@@ -1,0 +1,835 @@
+{
+  "version": 2,
+  "canvasW": 1200,
+  "canvasH": 900,
+  "bgColor": "#0d0d1a",
+  "mandalas": [
+    {
+      "id": "id1_1783130001023",
+      "cx": 600,
+      "cy": 450,
+      "axes": 8,
+      "axisRotation": 0,
+      "mirror": false,
+      "colorIdx": 0,
+      "visible": true,
+      "strokes": [],
+      "sprites": [],
+      "shapes": [
+        {
+          "type": "circle",
+          "x": -291.0179640718563,
+          "y": 195.17132030581695,
+          "r": 55.56490102059619,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "offsetX": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0.02345537757437071,
+                  "value": 500,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 220,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 500,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "params": {
+            "sides": 6,
+            "points": 5,
+            "innerRatio": 0.45
+          },
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": true,
+          "id": "id2_1783130024682",
+          "_layerName": "circle-001"
+        },
+        {
+          "id": "id3_1783130044423",
+          "type": "wing",
+          "x": -461.42001710863985,
+          "y": 308.08834340248075,
+          "bezierDx": 34.90162532078699,
+          "bezierDy": -131.39435414884508,
+          "bezierC1x": 38.68511226447578,
+          "bezierC1y": -49.326491177930805,
+          "bezierC2x": -64.3480720591721,
+          "bezierC2y": -84.12089975449003,
+          "wingMirrorAngle": -0.5887149458686072,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "orbit": {
+              "enabled": true,
+              "duration": 8.6,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": true,
+          "_layerName": "wing-001",
+          "visible": true,
+          "trailAnim": {
+            "enabled": false,
+            "duration": 2,
+            "lengthPct": 86,
+            "continuous": false
+          }
+        },
+        {
+          "id": "id4_1783130064503",
+          "type": "wing",
+          "x": -476.8177929854577,
+          "y": -100.46597652908468,
+          "bezierDx": 76.98887938408905,
+          "bezierDy": 96.4927288280582,
+          "bezierC1x": 35.56232098025495,
+          "bezierC1y": 62.008568043755844,
+          "bezierC2x": 76.32818372462108,
+          "bezierC2y": 20.11290329927241,
+          "wingMirrorAngle": 0.2076634724839983,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "offsetY": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": true,
+          "_layerName": "wing-002"
+        },
+        {
+          "id": "id5_1783130079022",
+          "type": "wing",
+          "x": -258.169375534645,
+          "y": -107.65160527159964,
+          "bezierDx": 140.63301967493584,
+          "bezierDy": -7.185628742515007,
+          "bezierC1x": 69.55894781468994,
+          "bezierC1y": -68.79236041040153,
+          "bezierC2x": 75.18014542739733,
+          "bezierC2y": 40.04984544034162,
+          "wingMirrorAngle": 0.39505853110543127,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "offsetX": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 220,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 60,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 7.2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": -180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": true,
+          "_layerName": "wing-003",
+          "visible": true
+        },
+        {
+          "id": "id6_1783130093220",
+          "type": "petal",
+          "x": -206.84345594525234,
+          "y": -87.1212374358426,
+          "petalDx": 68.77673224978616,
+          "petalDy": 11.291702309666391,
+          "petalCurve": -0.29327548806941406,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "miter",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "offsetX": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 220,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 60,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": true,
+          "_layerName": "petal-001"
+        },
+        {
+          "id": "id7_1783130100849",
+          "type": "petal",
+          "x": -0.5132591958938519,
+          "y": -0.8936925256629138,
+          "petalDx": -138.5799828913602,
+          "petalDy": -24.636441402908474,
+          "petalCurve": 0.5359821286101801,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "miter",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "offsetX": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 220,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 60,
+                  "easing": "ease"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "petal-002"
+        },
+        {
+          "id": "id8_1783130107639",
+          "type": "petal",
+          "x": 214.0290846877674,
+          "y": -4.999766092814355,
+          "petalDx": 84.17450812660388,
+          "petalDy": 7.18562874251495,
+          "petalCurve": -0.29824302377085504,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "miter",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "rotation": {
+              "enabled": true,
+              "duration": 3,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 8,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "petal-003"
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "id": "id9_1783130194503",
+      "type": "bloom",
+      "enabled": true,
+      "anim": {
+        "amount": {
+          "enabled": true,
+          "duration": 1.5,
+          "keyframes": [
+            {
+              "t": 0,
+              "value": 80,
+              "easing": "linear"
+            },
+            {
+              "t": 0.2391304347826087,
+              "value": 185.71428571428572,
+              "easing": "linear"
+            },
+            {
+              "t": 0.45,
+              "value": 80,
+              "easing": "linear"
+            },
+            {
+              "t": 0.5054347826086957,
+              "value": 200,
+              "easing": "linear"
+            },
+            {
+              "t": 0.55,
+              "value": 80,
+              "easing": "linear"
+            },
+            {
+              "t": 0.7608695652173914,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "t": 1,
+              "value": 80,
+              "easing": "linear"
+            }
+          ]
+        }
+      },
+      "_expanded": true,
+      "amount": 312,
+      "threshold": 60,
+      "radius": 8
+    },
+    {
+      "id": "id10_1783130213354",
+      "type": "echo",
+      "enabled": true,
+      "anim": {
+        "amount": null
+      },
+      "_expanded": true,
+      "amount": 59
+    },
+    {
+      "id": "id11_1783130319728",
+      "type": "chromaticAberration",
+      "enabled": false,
+      "anim": {
+        "amount": null
+      },
+      "_expanded": true,
+      "amount": 30,
+      "angle": 0
+    }
+  ],
+  "palette": []
+}

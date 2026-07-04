@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.52';
+const VERSION = '3.53';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -8693,6 +8693,17 @@ function init() {
   document.getElementById('color-swatch').style.background = S.color;
   centerCanvasView();
   requestAnimationFrame(render);
+
+  // Splash logo — shown centred on load, faded out after a beat, then
+  // removed from the DOM once the fade finishes so it can't linger as a
+  // stray layer.
+  const splash = document.getElementById('splash-logo');
+  if (splash) {
+    setTimeout(() => {
+      splash.classList.add('splash-hidden');
+      splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+    }, 1500);
+  }
 }
 
 // Scripts are placed at end of <body> so DOM is ready by the time this runs.
