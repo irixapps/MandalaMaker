@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.50';
+const VERSION = '3.51';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4503,10 +4503,18 @@ function renderShapeSymmetric(tCtx, m, shape) {
 // the whole thing, via the same low-level walker strokes use.
 function renderShapeTrailSymmetric(tCtx, m, shape) {
   const { effShape, effRotRad, effOrbitRad, effX, effY } = computeShapeRenderParams(shape);
-  const pts = getShapePoints(effShape);
-  if (pts.length < 2) return;
-  const windows = trailWindows(shape.trailAnim, S.animClock, isClosedLoop(pts));
-  if (!windows.length) return;
+  // Wing's two arms are separate subpaths that both start at the tip (see
+  // wingArmPointLists) — walked as independent point lists here too, each
+  // with its own trailWindows() call, so they read as two simultaneous
+  // trails sweeping outward together instead of one trail whose arc-length
+  // walk jumps straight across the gap between the arms' endpoints (the
+  // same phantom-bridge issue the gradient stroke renderer had).
+  const isWing = effShape.type === 'wing';
+  const armPtsList = isWing ? wingArmPointLists(effShape) : [getShapePoints(effShape)];
+  const armWindows = armPtsList.map(pts =>
+    pts.length < 2 ? null : trailWindows(shape.trailAnim, S.animClock, isClosedLoop(pts))
+  );
+  if (armWindows.every(w => !w || !w.length)) return;
 
   const n = shape.axes != null ? shape.axes : m.axes;
   const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
@@ -4525,7 +4533,11 @@ function renderShapeTrailSymmetric(tCtx, m, shape) {
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
       applyShapeLocalRotation(tCtx, shape, effRotRad);
-      for (const window of windows) renderTrailWindowInContext(tCtx, pts, effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, window);
+      for (let a = 0; a < armPtsList.length; a++) {
+        const windows = armWindows[a];
+        if (!windows) continue;
+        for (const window of windows) renderTrailWindowInContext(tCtx, armPtsList[a], effShape.color, effShape.thickness, effShape.opacity, effShape.gradient, window);
+      }
       tCtx.restore();
     }
   }
