@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.46';
+const VERSION = '3.47';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -578,7 +578,7 @@ function renderTrailWindowInContext(ctx, pts, color, thickness, opacity, gradien
 
 // Renders the visible [tailFrac, headFrac] window of `pts` across all symmetry copies, with the
 // trailing 25% of that window fading from transparent to full opacity (a "fading trail" look).
-function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, trailAnim, gradient) {
+function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirror, axes, axisRotation, trailAnim, gradient, erase) {
   if (pts.length < 2) return;
   const windows = trailWindows(trailAnim, S.animClock, isClosedLoop(pts));
   if (!windows.length) return;
@@ -589,7 +589,9 @@ function renderStrokeTrailSymmetric(ctx, m, pts, color, thickness, opacity, mirr
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
 
   ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
+  // See renderStrokeSymmetricTo — erase punches real alpha holes instead of
+  // painting a background-coloured patch.
+  ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
 
   for (let i = 0; i < effectiveN; i++) {
     for (let flip = 0; flip < (effectiveMirror ? 2 : 1); flip++) {
@@ -2788,9 +2790,16 @@ function rebuildStrokeCache() {
     _strokeCache.height = canvas.height;
   }
   const cc = _strokeCache.getContext('2d');
+  // Left transparent, not pre-filled with the background colour: erase
+  // strokes now punch real alpha holes (destination-out, see
+  // renderStrokeSymmetricTo) rather than painting over content, so if the
+  // background were baked in here an erase stroke drawn after it would eat
+  // straight through it too, leaving a hole in the cache with nothing behind
+  // it instead of the background colour. The background is instead painted
+  // in once, behind everything, after all per-frame content (cache + live
+  // layers) has been composited — see the `destination-over` fill in
+  // render() and the export functions.
   cc.clearRect(0, 0, canvas.width, canvas.height);
-  cc.fillStyle = S.bgColor;
-  cc.fillRect(0, 0, canvas.width, canvas.height);
 
   for (const m of S.mandalas) {
     if (!m.visible) continue;
@@ -2980,6 +2989,20 @@ function render(timestamp) {
       }
     }
   }
+
+  // Fill the background colour in behind everything drawn so far (cache,
+  // live layers, effects, and every content/tool preview above) rather than
+  // painting it upfront — erase strokes now punch real transparent holes
+  // (see renderStrokeSymmetricTo), and destination-over here fills only
+  // those holes (and any area with no content at all) with the background
+  // colour, without touching already-opaque pixels. Must happen before any
+  // UI chrome below (guides, handles, cursors) so those keep drawing with
+  // normal compositing on top of a fully opaque canvas.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.fillStyle = S.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
 
   // Guides + snap overlays
   if (S.showGuides) {
@@ -3322,7 +3345,7 @@ function renderMandala(m, forExport) {
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (stroke.trailAnim?.enabled) {
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.erase ? null : stroke.gradient);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.gradient, stroke.erase);
       continue;
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
@@ -3357,7 +3380,7 @@ function renderMandalaLive(m) {
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (isTrail) {
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.erase ? S.bgColor : stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.erase ? null : stroke.gradient);
+      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.gradient, stroke.erase);
       continue;
     }
     renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
@@ -3381,9 +3404,16 @@ function renderStrokeSymmetricTo(tgt, m, pts, color, thickness, opacity, erase, 
   const effectiveMirror = n === 0 ? false : mirror;
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
   tgt.save();
-  tgt.globalCompositeOperation = 'source-over';
+  // Erase is a real alpha punch-through (destination-out) rather than a
+  // painted background-coloured patch, so it correctly reveals whatever
+  // ends up underneath at render time — including animated content that
+  // moves through the erased area later — instead of permanently masking
+  // whatever happened to be there when the erase stroke was drawn. The
+  // stroke colour is irrelevant for destination-out (only its alpha
+  // coverage matters), so `color` is left as-is.
+  tgt.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
   tgt.globalAlpha = opacity;
-  tgt.strokeStyle = erase ? S.bgColor : color;
+  tgt.strokeStyle = color;
   tgt.lineWidth = thickness;
   tgt.lineCap = 'round';
   tgt.lineJoin = 'round';
@@ -3414,7 +3444,9 @@ function renderStrokeSymmetric(ctx, m, pts, color, thickness, opacity, erase, mi
   const effectiveMirror = n === 0 ? false : mirror;
   const segAngle = effectiveN > 0 ? (Math.PI * 2) / effectiveN : 0;
   ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
+  // See renderStrokeSymmetricTo — erase punches real alpha holes instead of
+  // painting a background-coloured patch.
+  ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
   ctx.globalAlpha = opacity;
 
   for (let i = 0; i < effectiveN; i++) {
@@ -3427,7 +3459,7 @@ function renderStrokeSymmetric(ctx, m, pts, color, thickness, opacity, erase, mi
       if (gradient && !erase) {
         renderGradientSegments(pts, gradient, thickness);
       } else {
-        ctx.strokeStyle = erase ? S.bgColor : color;
+        ctx.strokeStyle = color;
         ctx.lineWidth = thickness;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -7184,9 +7216,14 @@ function exportPNG() {
   S.selectedSpriteId = null;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+  // Fill background colour in behind everything, same destination-over
+  // trick as the live render() loop — see rebuildStrokeCache's comment.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
   ctx.fillStyle = S.bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+  ctx.restore();
   applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
   const a = document.createElement('a');
@@ -7415,9 +7452,14 @@ async function doExportWebP() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      // Fill background colour in behind everything, same destination-over
+      // trick as the live render() loop — see rebuildStrokeCache's comment.
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
       ctx.fillStyle = S.bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      ctx.restore();
       applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
       offCtx.clearRect(0, 0, expW, expH);
@@ -7518,9 +7560,14 @@ async function doExportGIF() {
 
       // Render frame to main canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      // Fill background colour in behind everything, same destination-over
+      // trick as the live render() loop — see rebuildStrokeCache's comment.
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
       ctx.fillStyle = S.bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      ctx.restore();
       applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
       // Scale down to export size
@@ -7706,9 +7753,14 @@ async function doExportVideo() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      // Fill background colour in behind everything, same destination-over
+      // trick as the live render() loop — see rebuildStrokeCache's comment.
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
       ctx.fillStyle = S.bgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      ctx.restore();
       applyEffectsChain(ctx, canvas); // EFFECT-MODULE: export-hook
 
       offCtx.fillStyle = S.bgColor;
