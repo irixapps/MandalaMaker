@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.49';
+const VERSION = '3.50';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2874,8 +2874,8 @@ function render(timestamp) {
   // Current stroke preview
   if (S.drawing && S.pts.length > 1) {
     const m = getActiveMandala();
-    const liveGrad = (S.gradientMode && S.tool !== 'erase') ? S.gradient : null;
-    if (m) renderStrokeSymmetric(ctx, m, S.pts, S.color, S.thickness, S.opacity, S.tool === 'erase', m.mirror !== false, m.axes, m.axisRotation, liveGrad);
+    const liveGrad = S.gradientMode ? S.gradient : null;
+    if (m) renderStrokeSymmetric(ctx, m, S.pts, S.color, S.thickness, S.opacity, false, m.mirror !== false, m.axes, m.axisRotation, liveGrad);
   }
   // Line / Line Chain preview — live symmetric line plus tip/end guide dots
   // (reusing Petal/Bezier's guide renderer with no curvature handle, since a
@@ -3032,26 +3032,6 @@ function render(timestamp) {
   }
   if (S.selectedShapeId && S.tool === 'select') {
     renderShapeSelectionHandles();
-  }
-
-  // Eraser cursor — drawn last so it's always on top
-  if (S.tool === 'erase' && S.mousePos) {
-    const r = S.thickness / 2;
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    // Outer ring
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.arc(S.mousePos.x, S.mousePos.y, r, 0, Math.PI * 2);
-    ctx.stroke();
-    // Inner crosshair dot
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath();
-    ctx.arc(S.mousePos.x, S.mousePos.y, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
   }
 
   renderOverlay();
@@ -6124,11 +6104,11 @@ function onMouseUp(e) {
     color: S.color,
     thickness: S.thickness,
     opacity: S.opacity,
-    erase: S.tool === 'erase',
+    erase: false,
     axes: m.axes,
     axisRotation: m.axisRotation,
     mirror: m.mirror,
-    gradient: (S.gradientMode && S.tool !== 'erase') ? JSON.parse(JSON.stringify(S.gradient)) : null,
+    gradient: S.gradientMode ? JSON.parse(JSON.stringify(S.gradient)) : null,
   };
   m.strokes.push(newStroke);
   if (!newStroke.gradient) invalidateStrokeCache(); // gradient strokes render live, no cache needed
@@ -6672,7 +6652,6 @@ function setTool(tool) {
     b.classList.toggle('active', b.dataset.tool === tool);
   });
   overlayCanvas.style.cursor =
-    tool === 'erase'      ? 'none'      :
     tool === 'eyedropper' ? 'crosshair'  :
     tool === 'select'     ? 'default'    :
     tool === 'place'      ? 'copy'       : 'crosshair';
@@ -8383,7 +8362,7 @@ function wireEvents() {
       setTool('select');
       return;
     }
-    const map = { b:'brush', l:'line', k:'lineChain', e:'erase', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing' };
+    const map = { b:'brush', l:'line', k:'lineChain', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
     if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {
