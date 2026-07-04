@@ -3,10 +3,16 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.47';
+const VERSION = '3.48';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
+// A fixed colour, deliberately not in MANDALA_COLORS, for the axis-snap
+// dots/rays — they used to reuse the active mandala's own accent colour
+// (the same colour as its axis guide lines), which made the two easy to
+// mix up on screen. A single consistent colour also means snap dots read
+// the same way regardless of which mandala/colour is currently active.
+const SNAP_AXIS_COLOR = '#ffffff';
 const HANDLE_RADIUS = 7;
 const MAX_HISTORY = 50;
 // Wing's mirror axis is a fixed vertical line through the tip (local,
@@ -4066,7 +4072,7 @@ function _snapDotRequestWorker(m, cacheKey, step, spacing, isActive) {
     id: entry.pendingId, axes: m.axes, axisRotation: m.axisRotation || 0,
     colorIdx: m.colorIdx, step, spacing,
     W: canvas.width, H: canvas.height, cx: m.cx, cy: m.cy,
-    isActive, colors: MANDALA_COLORS,
+    isActive, colors: [SNAP_AXIS_COLOR],
   });
 }
 
@@ -4087,7 +4093,7 @@ function _snapDotSync(m, cacheKey, step, spacing, isActive) {
   const totalHalfRays = m.axes * 2 * step;
   const angleStep = Math.PI / (m.axes * step);
   const rotRad = (m.axisRotation || 0) * Math.PI / 180;
-  const col = MANDALA_COLORS[m.colorIdx];
+  const col = SNAP_AXIS_COLOR;
   const DOT_R = isActive ? 2 : 1.5;
   oc.save(); oc.translate(m.cx, m.cy);
   if (step > 1) {
