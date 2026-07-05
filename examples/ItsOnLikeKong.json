@@ -90,9 +90,9 @@
         {
           "id": "id20_1782631193035",
           "paletteId": "id4_1782631015057",
-          "x": -273.5,
-          "y": -220,
-          "rotation": -1.5533430342749535,
+          "x": -187.94866920152094,
+          "y": -191.4828897338403,
+          "rotation": -0.8552113334772214,
           "scale": 0.5157413040584867,
           "opacity": 1,
           "flipX": false,
@@ -293,8 +293,8 @@
         {
           "id": "id28_1782631461661",
           "paletteId": "id10_1782631015322",
-          "x": 484.5,
-          "y": -73.5,
+          "x": 554.0817490494296,
+          "y": -21.028517110266193,
           "rotation": 0,
           "scale": 0.4603755862894157,
           "opacity": 1,
@@ -324,14 +324,15 @@
               ]
             }
           },
-          "_layerName": "download-002"
+          "_layerName": "download-002",
+          "visible": false
         },
         {
           "id": "id29_1782631543215",
           "paletteId": "id7_1782631015322",
           "x": 368.5,
           "y": 285.2086181640625,
-          "rotation": 0,
+          "rotation": 2.1816615649929116,
           "scale": 0.23404160812520913,
           "opacity": 1,
           "flipX": false,
@@ -845,34 +846,29 @@
       "enabled": true,
       "anim": {
         "amount": {
-          "enabled": false,
+          "enabled": true,
           "duration": 2,
           "keyframes": [
             {
               "t": 0,
-              "value": 30,
+              "value": 20,
               "easing": "ease"
             },
             {
-              "t": 0.20652173913043478,
-              "value": 71.42857142857144,
-              "easing": "ease"
-            },
-            {
-              "t": 0.41304347826086957,
-              "value": 28.57142857142856,
+              "t": 0.5,
+              "value": 90,
               "easing": "ease"
             },
             {
               "t": 1,
-              "value": 30,
+              "value": 20,
               "easing": "ease"
             }
           ]
         }
       },
       "_expanded": true,
-      "amount": 40,
+      "amount": 73,
       "threshold": 21,
       "radius": 14
     }
