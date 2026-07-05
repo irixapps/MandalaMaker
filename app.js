@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.55';
+const VERSION = '3.56';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -15,14 +15,27 @@ const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff
 const SNAP_AXIS_COLOR = '#ffffff';
 
 // ── Load Demo list ──────────────────────────────────────
-// The ONLY place to touch when adding/removing a demo: one entry here, one
-// matching .json file in examples/ (same shape as any project Save
-// produces). Nothing else — the "Load Demo" dropdown, its click handlers
-// and the fetch that loads a demo are all built generically from this
-// array in wireEvents() below. `file` is looked up as `examples/<file>.json`
-// relative to wherever index.html itself is served from, so this works
-// identically whether the app is running locally (via a dev server) or
-// deployed online — no absolute/hardcoded host in the path.
+// The ONLY places to touch when adding a demo:
+//   1. Save the project from the app (Save button) → examples/<Name>.json
+//   2. Wrap it as examples/<Name>.js:
+//        window.MANDALIZE_DEMOS = window.MANDALIZE_DEMOS || {};
+//        window.MANDALIZE_DEMOS["<Name>"] = <paste the .json content here>;
+//      (a one-line shell command: see the header comment in any existing
+//      examples/*.js for the exact wrap, or just copy one and swap the
+//      name + JSON body)
+//   3. Add one { file: '<Name>', label: '...' } entry below.
+// Nothing else — the "Load Demo" dropdown and its click handlers are built
+// generically from this array in wireEvents(). Removing a demo is just
+// deleting its entry here (the .json/.js files can stay or go).
+//
+// Demos are loaded as a plain <script> (see loadDemo()), not fetch()/XHR,
+// specifically so this works when index.html is opened directly via a
+// file:// URL and not just when served over http(s) — browsers block
+// fetch()/XHR reads of local files (CORS), but a <script src="local.js">
+// load isn't subject to that restriction, the same reason index.html can
+// already load app.js/style.css locally. That's also why each demo needs
+// its own small .js wrapper around the raw .json instead of being fetched
+// as JSON directly.
 const DEMO_EXAMPLES = [
   { file: 'ChakraAwakening', label: 'Chakra Awakening' },
   { file: 'ItsOnLikeKong',   label: "It's On Like Kong" },
@@ -31,6 +44,7 @@ const DEMO_EXAMPLES = [
   { file: 'ScribedOrchid',   label: 'Scribed Orchid' },
   { file: 'TheThirdEye',     label: 'The Third Eye' },
   { file: 'WeComeInPeace',   label: 'We Come In Peace' },
+  { file: 'Spirograph',      label: 'Spirograph' },
 ];
 
 const HANDLE_RADIUS = 7;
@@ -7240,7 +7254,18 @@ function loadProject(json) {
     resizeCanvas(S.canvasW, S.canvasH);
     S.mandalas = data.mandalas || [];
     S.effects = data.effects || []; // EFFECT-MODULE: persistence
-    S.effects.forEach(e => { if (e._expanded == null) e._expanded = false; });
+    S.effects.forEach(e => {
+      if (e._expanded == null) e._expanded = false;
+      // Backfill any control added to this effect type after the project was
+      // saved (e.g. Echo's Separation) — otherwise a missing field reads as
+      // undefined and crashes the control row's format() (a bare
+      // `.toFixed()` on undefined) the moment the panel tries to draw it.
+      const def = EFFECT_TYPES[e.type];
+      if (def) {
+        const defaults = def.defaults();
+        for (const k in defaults) if (e[k] === undefined) e[k] = defaults[k];
+      }
+    });
     flushHasAnimCache();
     updateEffectsList();
     invalidateStrokeCache();
@@ -7277,14 +7302,27 @@ function loadProject(json) {
 // through the exact same loadProject() a real Save/Load file goes through
 // — a demo is just a regular saved project. The relative path (no origin)
 // is what makes this work unmodified whether served locally or deployed.
+// Loads examples/<file>.js — a plain <script>, not a fetch()/XHR request,
+// specifically so this works when the app is opened directly via a
+// file:// URL and not just when served over http(s). Browsers block
+// fetch()/XHR reads of local files as a CORS security measure, but a
+// <script src="local/path.js"> load is exempt from that (same mechanism
+// index.html already relies on to load app.js/style.css locally) — so each
+// demo is stored as a .js file that just registers its data into
+// window.MANDALIZE_DEMOS instead of raw .json fetched at runtime.
 function loadDemo(file) {
-  fetch(`examples/${file}.json`)
-    .then(res => {
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      return res.text();
-    })
-    .then(loadProject)
-    .catch(err => alert('Failed to load demo: ' + err.message));
+  const existing = document.querySelector(`script[data-demo="${file}"]`);
+  if (existing) existing.remove(); // re-fetch fresh instead of relying on a stale cached run
+  const script = document.createElement('script');
+  script.src = `examples/${file}.js`;
+  script.dataset.demo = file;
+  script.onload = () => {
+    const data = window.MANDALIZE_DEMOS?.[file];
+    if (!data) { alert('Failed to load demo: no data registered for "' + file + '"'); return; }
+    loadProject(JSON.stringify(data));
+  };
+  script.onerror = () => alert(`Failed to load demo: could not load examples/${file}.js`);
+  document.head.appendChild(script);
 }
 
 function exportPNG() {
