@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.56';
+const VERSION = '3.57';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -894,8 +894,8 @@ const EFFECT_TYPES = {
     label: 'Echo',
     defaults: () => ({ amount: 60, separation: 0 }),
     controls: [
-      { key: 'amount',     label: 'Amount',     min: 0, max: 100, step: 1,    format: v => Math.round(v) + '%', animatable: true },
-      { key: 'separation', label: 'Separation', min: 0, max: 1,   step: 0.02, format: v => v.toFixed(2) + 's',  animatable: false },
+      { key: 'amount',     label: 'Amount',     min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'separation', label: 'Separation', min: 0, max: 30,  step: 1, format: v => Math.round(v) + (Math.round(v) === 1 ? ' frame' : ' frames'), animatable: false },
     ],
     presets: {
       amount: [
@@ -923,11 +923,19 @@ const EFFECT_TYPES = {
     // on a light background. `amount` controls how slow the fade is
     // (higher = longer-lived trail).
     //
-    // `separation` is the minimum animation-time gap (seconds) between two
-    // stamps — at 0 (the default, matching the original always-on
-    // behaviour) every frame stamps a fresh copy, giving one continuous
-    // blurred trail. Raising it skips stamping on frames that arrive too
-    // soon after the last one, so moving content leaves distinct, spaced-out
+    // `separation` is a literal rendered-frame count, not a time duration —
+    // it counts actual apply() calls (one per rendered frame, whether live
+    // preview or export), not animation-clock seconds. That's deliberate:
+    // live preview runs at a variable real frame rate while exports run at
+    // a fixed, user-chosen fps, so a time-based gap would visibly stamp at
+    // different real spacing between the two; "skip N frames" behaves the
+    // same way a frame-hold/frame-skip control does in any timeline-based
+    // animation tool — N is just N frames of whatever's actually being
+    // rendered, live or exported.
+    // At 0 (the default, matching the original always-on behaviour) every
+    // frame stamps a fresh copy, giving one continuous blurred trail.
+    // Raising it skips stamping on frames that arrive before N have passed
+    // since the last stamp, so moving content leaves distinct, spaced-out
     // ghost copies instead of a smear — still fades via the same `amount`
     // between stamps.
     apply(ctx, canvas, { amount, separation }, effectId) {
@@ -938,9 +946,10 @@ const EFFECT_TYPES = {
       buf.ctx.fillStyle = S.bgColor;
       buf.ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const gap = separation || 0;
-      if (buf.lastStampClock == null || S.animClock - buf.lastStampClock >= gap) {
-        buf.lastStampClock = S.animClock;
+      const skip = Math.max(0, Math.round(separation || 0));
+      buf.framesSinceStamp = (buf.framesSinceStamp || 0) + 1;
+      if (buf.framesSinceStamp > skip) {
+        buf.framesSinceStamp = 0;
         buf.ctx.globalCompositeOperation = 'lighten';
         buf.ctx.globalAlpha = 1;
         buf.ctx.drawImage(canvas, 0, 0);
