@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.54';
+const VERSION = '3.55';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -13,6 +13,26 @@ const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff
 // mix up on screen. A single consistent colour also means snap dots read
 // the same way regardless of which mandala/colour is currently active.
 const SNAP_AXIS_COLOR = '#ffffff';
+
+// ── Load Demo list ──────────────────────────────────────
+// The ONLY place to touch when adding/removing a demo: one entry here, one
+// matching .json file in examples/ (same shape as any project Save
+// produces). Nothing else — the "Load Demo" dropdown, its click handlers
+// and the fetch that loads a demo are all built generically from this
+// array in wireEvents() below. `file` is looked up as `examples/<file>.json`
+// relative to wherever index.html itself is served from, so this works
+// identically whether the app is running locally (via a dev server) or
+// deployed online — no absolute/hardcoded host in the path.
+const DEMO_EXAMPLES = [
+  { file: 'ChakraAwakening', label: 'Chakra Awakening' },
+  { file: 'ItsOnLikeKong',   label: "It's On Like Kong" },
+  { file: 'NeonDreams',      label: 'Neon Dreams' },
+  { file: 'RainbowNova',     label: 'Rainbow Nova' },
+  { file: 'ScribedOrchid',   label: 'Scribed Orchid' },
+  { file: 'TheThirdEye',     label: 'The Third Eye' },
+  { file: 'WeComeInPeace',   label: 'We Come In Peace' },
+];
+
 const HANDLE_RADIUS = 7;
 const MAX_HISTORY = 50;
 // Wing's mirror axis is a fixed vertical line through the tip (local,
@@ -656,12 +676,12 @@ function defaultAnimProp(value, duration = 2) {
 
 // ── Animation timeline canvas ────────────────────────────
 const ANIM_PROPS = [
-  { key: 'scale',    label: 'Scale',    min: 0.05, max: 8,   format: v => v.toFixed(2)+'×' },
-  { key: 'rotation', label: 'Rotation', min: -180,  max: 180, format: v => Math.round(v)+'°' },
-  { key: 'orbit',    label: 'Orbit',    min: -180,  max: 180, format: v => Math.round(v)+'°' },
-  { key: 'offsetX',  label: 'Offset X', min: -400,  max: 400, format: v => Math.round(v) },
-  { key: 'offsetY',  label: 'Offset Y', min: -400,  max: 400, format: v => Math.round(v) },
-  { key: 'opacity',  label: 'Opacity',  min: 0,     max: 1,   format: v => Math.round(v*100)+'%' },
+  { key: 'scale',    label: 'Scale',      min: 0.05, max: 8,   format: v => v.toFixed(2)+'×' },
+  { key: 'rotation', label: 'Rotation',   min: -180,  max: 180, format: v => Math.round(v)+'°' },
+  { key: 'orbit',    label: 'Orbit',      min: -180,  max: 180, format: v => Math.round(v)+'°' },
+  { key: 'offsetX',  label: 'Radial',     min: -500,  max: 500, format: v => Math.round(v) },
+  { key: 'offsetY',  label: 'Tangential', min: -500,  max: 500, format: v => Math.round(v) },
+  { key: 'opacity',  label: 'Opacity',    min: 0,     max: 1,   format: v => Math.round(v*100)+'%' },
 ];
 
 const TL = {  // timeline interaction state
@@ -688,13 +708,21 @@ const ANIM_PRESETS = {
     { label: 'Swing',        kfs: [{t:0,v:-45,e:'ease'},{t:0.5,v:45,e:'ease'},{t:1,v:-45,e:'ease'}], dur: 3 },
     { label: 'Figure 8',     kfs: [{t:0,v:0,e:'ease'},{t:0.25,v:90,e:'ease'},{t:0.5,v:0,e:'ease'},{t:0.75,v:-90,e:'ease'},{t:1,v:0,e:'ease'}], dur: 4 },
   ],
+  // Radial/Tangential presets — kept identical to SHAPE_ANIM_PRESETS'
+  // offsetX/offsetY (defined further down) so a stamped sprite's motion
+  // presets match a shape's exactly; duplicated rather than referenced
+  // since SHAPE_ANIM_PRESETS is declared later in the file (const TDZ).
   offsetX: [
-    { label: 'Drift Right',  kfs: [{t:0,v:-50,e:'ease'},{t:1,v:50,e:'ease'}], dur: 3 },
-    { label: 'Oscillate',    kfs: [{t:0,v:-100,e:'ease'},{t:0.5,v:100,e:'ease'},{t:1,v:-100,e:'ease'}], dur: 2 },
+    { label: 'Pulse Out', kfs: [{t:0,v:60,e:'ease'},{t:0.5,v:220,e:'ease'},{t:1,v:60,e:'ease'}], dur: 2 },
+    { label: 'Breathe',   kfs: [{t:0,v:100,e:'ease-in'},{t:0.5,v:180,e:'ease-out'},{t:1,v:100,e:'ease-in'}], dur: 4 },
+    { label: 'Approach',  kfs: [{t:0,v:250,e:'ease'},{t:0.5,v:40,e:'ease'},{t:1,v:250,e:'ease'}], dur: 3 },
+    { label: 'Expand',    kfs: [{t:0,v:40,e:'linear'},{t:1,v:300,e:'linear'}], dur: 3 },
+    { label: 'Heartbeat', kfs: [{t:0,v:80,e:'ease'},{t:0.15,v:180,e:'ease'},{t:0.3,v:80,e:'ease'},{t:0.45,v:200,e:'ease'},{t:1,v:80,e:'ease'}], dur: 1.5 },
   ],
   offsetY: [
-    { label: 'Float',        kfs: [{t:0,v:-20,e:'ease'},{t:0.5,v:20,e:'ease'},{t:1,v:-20,e:'ease'}], dur: 3 },
-    { label: 'Drop',         kfs: [{t:0,v:-100,e:'linear'},{t:1,v:100,e:'linear'}], dur: 2 },
+    { label: 'Arc Swing',  kfs: [{t:0,v:-60,e:'ease'},{t:0.5,v:60,e:'ease'},{t:1,v:-60,e:'ease'}], dur: 2 },
+    { label: 'Drift',      kfs: [{t:0,v:-80,e:'ease'},{t:1,v:80,e:'ease'}], dur: 3 },
+    { label: 'Shimmer',    kfs: [{t:0,v:-20,e:'ease'},{t:0.25,v:20,e:'ease'},{t:0.5,v:-20,e:'ease'},{t:0.75,v:20,e:'ease'},{t:1,v:-20,e:'ease'}], dur: 1.5 },
   ],
   opacity: [
     { label: 'Fade In/Out',  kfs: [{t:0,v:1,e:'ease'},{t:0.5,v:0.1,e:'ease'},{t:1,v:1,e:'ease'}], dur: 2 },
@@ -850,9 +878,10 @@ const EFFECT_TYPES = {
   },
   echo: {
     label: 'Echo',
-    defaults: () => ({ amount: 60 }),
+    defaults: () => ({ amount: 60, separation: 0 }),
     controls: [
-      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'amount',     label: 'Amount',     min: 0, max: 100, step: 1,    format: v => Math.round(v) + '%', animatable: true },
+      { key: 'separation', label: 'Separation', min: 0, max: 1,   step: 0.02, format: v => v.toFixed(2) + 's',  animatable: false },
     ],
     presets: {
       amount: [
@@ -863,8 +892,9 @@ const EFFECT_TYPES = {
     // A persistent accumulation buffer, not a stateless per-frame filter like
     // Bloom — each frame it (1) fades the buffer's existing content toward
     // the background colour by a small amount, then (2) stamps the fully-
-    // rendered current frame on top, then (3) writes the buffer back as the
-    // canvas's final content.
+    // rendered current frame on top (unless Separation says to skip this
+    // frame — see below), then (3) writes the buffer back as the canvas's
+    // final content.
     //
     // The stamp step uses 'lighten' compositing (keep the brighter of the
     // two, per channel) rather than a plain opaque overwrite — the current
@@ -878,7 +908,15 @@ const EFFECT_TYPES = {
     // (this app's default aesthetic); it won't read correctly as a trail
     // on a light background. `amount` controls how slow the fade is
     // (higher = longer-lived trail).
-    apply(ctx, canvas, { amount }, effectId) {
+    //
+    // `separation` is the minimum animation-time gap (seconds) between two
+    // stamps — at 0 (the default, matching the original always-on
+    // behaviour) every frame stamps a fresh copy, giving one continuous
+    // blurred trail. Raising it skips stamping on frames that arrive too
+    // soon after the last one, so moving content leaves distinct, spaced-out
+    // ghost copies instead of a smear — still fades via the same `amount`
+    // between stamps.
+    apply(ctx, canvas, { amount, separation }, effectId) {
       const buf = _ensureEchoBuffer(effectId, canvas.width, canvas.height);
       const fadeAlpha = 1 - Math.min(0.98, amount / 100);
       buf.ctx.globalCompositeOperation = 'source-over';
@@ -886,10 +924,14 @@ const EFFECT_TYPES = {
       buf.ctx.fillStyle = S.bgColor;
       buf.ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      buf.ctx.globalCompositeOperation = 'lighten';
-      buf.ctx.globalAlpha = 1;
-      buf.ctx.drawImage(canvas, 0, 0);
-      buf.ctx.globalCompositeOperation = 'source-over';
+      const gap = separation || 0;
+      if (buf.lastStampClock == null || S.animClock - buf.lastStampClock >= gap) {
+        buf.lastStampClock = S.animClock;
+        buf.ctx.globalCompositeOperation = 'lighten';
+        buf.ctx.globalAlpha = 1;
+        buf.ctx.drawImage(canvas, 0, 0);
+        buf.ctx.globalCompositeOperation = 'source-over';
+      }
 
       if (amount > 0) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -3047,6 +3089,21 @@ function spriteCanvasCenter(spr, m) {
   return { x: m.cx + spr.x, y: m.cy + spr.y };
 }
 
+// Sprite counterpart to shapeRadialTangentialOffset (see below) — same
+// polar-decomposition treatment for offsetX (radial: distance from centre)
+// / offsetY (tangential: arc-offset around centre), so animating a
+// stamped sprite's position behaves identically to animating a shape's.
+function spriteRadialTangentialOffset(spr, clk) {
+  const animOffX = getAnimValue(spr, 'offsetX', clk);
+  const animOffY = getAnimValue(spr, 'offsetY', clk);
+  if (animOffX == null && animOffY == null) return { x: spr.x, y: spr.y };
+  const baseRadius = Math.hypot(spr.x, spr.y);
+  const baseAngle  = baseRadius > 0.001 ? Math.atan2(spr.y, spr.x) : 0;
+  const radius = animOffX ?? baseRadius;
+  const angle  = baseAngle + (animOffY ?? 0) / Math.max(radius, 1);
+  return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+}
+
 // Returns the actual canvas position of the primary (i=0) copy of a sprite,
 // accounting for animated orbit, offsetX/Y — matching the render transform chain.
 function spriteAnimatedCenter(spr, m) {
@@ -3054,8 +3111,7 @@ function spriteAnimatedCenter(spr, m) {
   const clk = S.animClock;
   const rotRad  = ((spr.axisRotation != null ? spr.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
   const sprOrbit = (getAnimValue(spr, 'orbit', clk) ?? (spr.orbitAngle || 0)) * Math.PI / 180;
-  const sprX    = getAnimValue(spr, 'offsetX', clk) ?? spr.x;
-  const sprY    = getAnimValue(spr, 'offsetY', clk) ?? spr.y;
+  const { x: sprX, y: sprY } = spriteRadialTangentialOffset(spr, clk);
   const angle   = rotRad + sprOrbit;
   return {
     x: m.cx + Math.cos(angle) * sprX - Math.sin(angle) * sprY,
@@ -3525,12 +3581,9 @@ function renderSprite(ctx, m, spr, preloadedDrawable) {
   const animOpacity  = getAnimValue(spr, 'opacity',  clk) ?? (spr.opacity != null ? spr.opacity : 1);
   const animRotation = getAnimValue(spr, 'rotation', clk);
   const animOrbit    = getAnimValue(spr, 'orbit',    clk);
-  const animOffsetX  = getAnimValue(spr, 'offsetX',  clk);
-  const animOffsetY  = getAnimValue(spr, 'offsetY',  clk);
   const sprRotation  = animRotation != null ? animRotation * Math.PI / 180 : spr.rotation;
   const sprOrbit     = (animOrbit    != null ? animOrbit    : (spr.orbitAngle || 0)) * Math.PI / 180;
-  const sprX         = animOffsetX  != null ? animOffsetX  : spr.x;
-  const sprY         = animOffsetY  != null ? animOffsetY  : spr.y;
+  const { x: sprX, y: sprY } = spriteRadialTangentialOffset(spr, clk);
 
   const w = iw * animScale;
   const h = ih * animScale;
@@ -7220,6 +7273,20 @@ function loadProject(json) {
   }
 }
 
+// Fetches examples/<file>.json relative to the current page and loads it
+// through the exact same loadProject() a real Save/Load file goes through
+// — a demo is just a regular saved project. The relative path (no origin)
+// is what makes this work unmodified whether served locally or deployed.
+function loadDemo(file) {
+  fetch(`examples/${file}.json`)
+    .then(res => {
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.text();
+    })
+    .then(loadProject)
+    .catch(err => alert('Failed to load demo: ' + err.message));
+}
+
 function exportPNG() {
   // Render once without guides
   const wasGuides = S.showGuides;
@@ -7970,6 +8037,29 @@ function wireEvents() {
   document.getElementById('btn-export-webp').addEventListener('click', () => { exportMenu.style.display = 'none'; showGifModal('webp'); });
   document.getElementById('btn-export-video').addEventListener('click', () => { exportMenu.style.display = 'none'; showVideoModal(); });
 
+  // Load Demo dropdown — menu items built entirely from DEMO_EXAMPLES (see
+  // its declaration near the top of the file), so adding/removing a demo
+  // never touches this wiring or the HTML.
+  const demoMenu = document.getElementById('demo-menu');
+  demoMenu.innerHTML = DEMO_EXAMPLES.map(({ file, label }) =>
+    `<button class="export-menu-item" data-demo-file="${file}"><span class="export-menu-title">${label}</span></button>`
+  ).join('');
+  document.getElementById('btn-load-demo-menu').addEventListener('click', e => {
+    e.stopPropagation();
+    demoMenu.style.display = demoMenu.style.display === 'none' ? 'block' : 'none';
+  });
+  demoMenu.addEventListener('click', e => {
+    const item = e.target.closest('[data-demo-file]');
+    if (!item) return;
+    demoMenu.style.display = 'none';
+    loadDemo(item.dataset.demoFile);
+  });
+  document.addEventListener('click', e => {
+    if (demoMenu.style.display !== 'none' && !e.target.closest('#demo-dropdown')) {
+      demoMenu.style.display = 'none';
+    }
+  });
+
   // Video export modal
   document.getElementById('video-cancel-btn').addEventListener('click', () => {
     document.getElementById('video-modal').style.display = 'none';
@@ -8273,8 +8363,8 @@ function wireEvents() {
         const staticVal = key === 'scale' ? spr.scale
           : key === 'rotation' ? spr.rotation * 180 / Math.PI
           : key === 'orbit'    ? (spr.orbitAngle || 0)
-          : key === 'offsetX'  ? spr.x
-          : key === 'offsetY'  ? spr.y
+          : key === 'offsetX'  ? Math.hypot(spr.x, spr.y) // radial: base radius
+          : key === 'offsetY'  ? 0                        // tangential: no shift from rest position
           : key === 'opacity'  ? (spr.opacity ?? 1)
           : (min + max) / 2;
         if (!spr.anim[key]) {

@@ -1361,16 +1361,16 @@
           "anim": {
             "rotation": {
               "enabled": true,
-              "duration": 1.1,
+              "duration": 15,
               "keyframes": [
                 {
                   "t": 0,
-                  "value": -180,
+                  "value": -360,
                   "easing": "linear"
                 },
                 {
                   "t": 1,
-                  "value": 180,
+                  "value": 360,
                   "easing": "linear"
                 }
               ]
@@ -1392,6 +1392,27 @@
                 {
                   "t": 1,
                   "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetX": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 500,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5076451008945287,
+                  "value": 437.5598873046065,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 500,
                   "easing": "ease"
                 }
               ]
@@ -1419,7 +1440,7 @@
           "petalCurve": 0.46362367948973465,
           "r": 0,
           "color": "#ff6b9d",
-          "thickness": 2,
+          "thickness": 3,
           "opacity": 1,
           "fill": null,
           "lineCap": "round",
@@ -1501,6 +1522,22 @@
                   "t": 1,
                   "value": 60,
                   "easing": "ease"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 15,
+              "keyframes": [
+                {
+                  "t": 0.0030684418556272105,
+                  "value": -360,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 360,
+                  "easing": "linear"
                 }
               ]
             }
@@ -1600,21 +1637,9 @@
       "type": "bloom",
       "enabled": true,
       "anim": {
-        "amount": null
-      },
-      "_expanded": false,
-      "amount": 100,
-      "threshold": 60,
-      "radius": 12
-    },
-    {
-      "id": "id6_1783079395712",
-      "type": "echo",
-      "enabled": true,
-      "anim": {
         "amount": {
           "enabled": true,
-          "duration": 3,
+          "duration": 2,
           "keyframes": [
             {
               "t": 0,
@@ -1622,8 +1647,8 @@
               "easing": "ease"
             },
             {
-              "t": 0.5108695652173914,
-              "value": 32.14285714285714,
+              "t": 0.4673913043478261,
+              "value": 235.71428571428572,
               "easing": "ease"
             },
             {
@@ -1635,7 +1660,39 @@
         }
       },
       "_expanded": true,
-      "amount": 57
+      "amount": 206,
+      "threshold": 60,
+      "radius": 12
+    },
+    {
+      "id": "id6_1783079395712",
+      "type": "echo",
+      "enabled": true,
+      "anim": {
+        "amount": {
+          "enabled": true,
+          "duration": 1,
+          "keyframes": [
+            {
+              "t": 0,
+              "value": 0,
+              "easing": "ease"
+            },
+            {
+              "t": 0.5,
+              "value": 75,
+              "easing": "ease"
+            },
+            {
+              "t": 1,
+              "value": 0,
+              "easing": "ease"
+            }
+          ]
+        }
+      },
+      "_expanded": true,
+      "amount": 85
     },
     {
       "id": "id7_1783079412731",

@@ -69,7 +69,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.54">
+<link rel="stylesheet" href="style.css?v=3.55">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -172,6 +172,12 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
     <div class="toolbar-sep"></div>
     <div class="toolbar-group">
       <button class="btn" id="btn-load" title="Load project"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M1.5 4.2V3a1 1 0 011-1h2.8l1.3 1.5H11.5a1 1 0 011 1v.7"/><path d="M1.3 4.6a.8.8 0 01.8-.6h9.8a.8.8 0 01.79.92l-.86 5.6a1 1 0 01-.99.84H3.36a1 1 0 01-.99-.84l-.86-5.6a.8.8 0 01-.02-.22z"/></svg> Load</button>
+      <!-- Demo list is populated entirely from JS (DEMO_EXAMPLES in app.js) —
+           adding/removing a demo never needs an HTML change here. -->
+      <div class="export-dropdown" id="demo-dropdown">
+        <button class="btn" id="btn-load-demo-menu" title="Load a built-in example project">Load Demo ▾</button>
+        <div class="export-menu" id="demo-menu" style="display:none"></div>
+      </div>
       <button class="btn" id="btn-save" title="Save project (Ctrl+S)"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M2 1.5h7.5L12.5 4.5V11.5a1 1 0 01-1 1H2a1 1 0 01-1-1V2.5a1 1 0 011-1z"/><path d="M4 1.5h4.5v3H4z"/><path d="M3.3 8h7.4v4.5H3.3z"/></svg> Save</button>
       <div class="export-dropdown" id="export-dropdown">
         <button class="btn" id="btn-export-menu" title="Export">Export ▾</button>
@@ -484,18 +490,22 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <select id="anim-ease-sel-orbit" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-orbit" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
+        <!-- Offset X drives motion ALONG the sprite's axis spoke (in/out from center) = radial -->
         <div class="prop-row">
-          <label class="prop-label">Offset X</label>
-          <input type="range" id="prop-ox" min="-400" max="400" step="1" value="0">
+          <label class="prop-label prop-label-icon" title="Radial offset — moves the sprite in/out along its axis spoke, toward or away from the mandala center (positive = further out)">
+            <svg class="prop-dir-icon" width="18" height="18" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1" fill="none" opacity="0.45"/><circle cx="7" cy="7" r="0.9" fill="currentColor"/><line x1="7" y1="7" x2="10.6" y2="3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9 3.6 L10.6 3.4 L10.4 5" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6.6 L7 7 L7.4 6" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Radial</span>
+          </label>
+          <input type="range" id="prop-ox" min="-500" max="500" step="1" value="0">
           <span class="prop-val" id="prop-ox-val">0</span>
-          <button class="anim-btn" id="anim-btn-offsetX" title="Animate Offset X">∿</button>
+          <button class="anim-btn" id="anim-btn-offsetX" title="Animate radial (in/out) position along the axis">∿</button>
         </div>
         <div class="anim-panel" id="anim-panel-offsetX" style="display:none">
           <div class="anim-controls">
             <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-offsetX" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
-            <select id="anim-preset-offsetX" class="anim-preset-sel"><option value="">Presets…</option><option>Drift Right</option><option>Oscillate</option></select>
+            <select id="anim-preset-offsetX" class="anim-preset-sel"><option value="">Presets…</option><option>Pulse Out</option><option>Breathe</option><option>Approach</option><option>Expand</option><option>Heartbeat</option></select>
           </div>
           <canvas id="anim-tl-offsetX" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-offsetX" style="display:none">
@@ -503,18 +513,22 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <select id="anim-ease-sel-offsetX" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select><button class="anim-kf-del" id="anim-kf-del-offsetX" title="Delete keyframe"><svg width="10" height="11" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg></button>
           </div>
         </div>
+        <!-- Offset Y drives motion PERPENDICULAR to the axis spoke (side-to-side around the ring) = tangential -->
         <div class="prop-row">
-          <label class="prop-label">Offset Y</label>
-          <input type="range" id="prop-oy" min="-400" max="400" step="1" value="0">
+          <label class="prop-label prop-label-icon" title="Tangential offset — slides the sprite sideways, perpendicular to its axis spoke (like moving around a ring)">
+            <svg class="prop-dir-icon" width="18" height="18" viewBox="0 0 14 14"><circle cx="6.2" cy="7.2" r="4.3" stroke="currentColor" stroke-width="1" fill="none" opacity="0.45"/><circle cx="6.2" cy="7.2" r="0.8" fill="currentColor"/><path d="M9.6 3.6 C11.6 4.4 12.4 6.6 11.4 8.6" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M9.4 2.6 L9.6 3.6 L10.6 3.3" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.3 9.5 L11.4 8.6 L10.5 7.9" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Tang.</span>
+          </label>
+          <input type="range" id="prop-oy" min="-500" max="500" step="1" value="0">
           <span class="prop-val" id="prop-oy-val">0</span>
-          <button class="anim-btn" id="anim-btn-offsetY" title="Animate Offset Y">∿</button>
+          <button class="anim-btn" id="anim-btn-offsetY" title="Animate tangential (side-to-side) position">∿</button>
         </div>
         <div class="anim-panel" id="anim-panel-offsetY" style="display:none">
           <div class="anim-controls">
             <span class="anim-label">Dur</span>
             <input type="number" id="anim-dur-offsetY" value="2" min="0.1" max="60" step="0.1">
             <span class="anim-label">s</span>
-            <select id="anim-preset-offsetY" class="anim-preset-sel"><option value="">Presets…</option><option>Float</option><option>Drop</option></select>
+            <select id="anim-preset-offsetY" class="anim-preset-sel"><option value="">Presets…</option><option>Arc Swing</option><option>Drift</option><option>Shimmer</option></select>
           </div>
           <canvas id="anim-tl-offsetY" width="196" height="72"></canvas>
           <div class="anim-kf-row" id="anim-kf-row-offsetY" style="display:none">
@@ -1341,6 +1355,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.54"></script>
+<script src="app.js?v=3.55"></script>
 </body>
 </html>
