@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.61';
+const VERSION = '3.62';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1241,6 +1241,68 @@ const EFFECT_TYPES = {
     },
     resetState(effectId) { _spiralBuffers.delete(effectId); },
   },
+  lightRays: {
+    label: 'Light Rays',
+    defaults: () => ({ amount: 60, threshold: 55, length: 45 }),
+    controls: [
+      { key: 'amount',    label: 'Amount',    min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'threshold', label: 'Threshold', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
+      { key: 'length',    label: 'Length',    min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+    ],
+    presets: {
+      amount: [
+        { label: 'Pulse',   kfs: [{t:0,v:40,e:'ease'},{t:0.5,v:90,e:'ease'},{t:1,v:40,e:'ease'}], dur: 3 },
+        { label: 'Flicker', kfs: [{t:0,v:70,e:'linear'},{t:0.45,v:70,e:'linear'},{t:0.5,v:15,e:'linear'},{t:0.55,v:70,e:'linear'},{t:1,v:70,e:'linear'}], dur: 1.5 },
+      ],
+      length: [
+        { label: 'Breathe', kfs: [{t:0,v:35,e:'ease'},{t:0.5,v:70,e:'ease'},{t:1,v:35,e:'ease'}], dur: 4 },
+      ],
+    },
+    // Fakes volumetric "god rays" with no per-pixel readback (too slow for
+    // GIF/WebP export's per-frame loop): isolate bright regions with the
+    // same real per-channel threshold trick Bloom uses (its own SVG filter
+    // instance — see _setRaysThreshold — so the two effects can't clobber
+    // each other's threshold if both are active the same frame), then
+    // radially smear *just that bright layer* outward from the canvas
+    // centre as repeated, increasingly transparent scaled copies (the same
+    // accumulation trick Zoom Blur uses for its streaks), and finally
+    // screen-blend the smeared layer back onto the original — brightening
+    // outward along radial streaks instead of replacing pixels, so the
+    // rest of the artwork stays intact underneath.
+    apply(ctx, canvas, { amount, threshold, length }) {
+      if (amount <= 0 || length <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      _ensureRaysBrightOffscreen(W, H);
+      _raysBrightCtx.clearRect(0, 0, W, H);
+      _setRaysThreshold(threshold);
+      _raysBrightCtx.filter = 'url(#rays-threshold-filter)';
+      _raysBrightCtx.drawImage(canvas, 0, 0);
+      _raysBrightCtx.filter = 'none';
+
+      _ensureRaysAccumOffscreen(W, H);
+      _raysAccumCtx.clearRect(0, 0, W, H);
+      const cx = W / 2, cy = H / 2;
+      const steps = 14;
+      const maxScale = 1 + (length / 100) * 1.6;
+      for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1);
+        const scale = 1 + (maxScale - 1) * t;
+        _raysAccumCtx.save();
+        _raysAccumCtx.globalCompositeOperation = 'lighten';
+        _raysAccumCtx.globalAlpha = Math.min(1, ((1 - t) / steps) * 2.6 * (amount / 100));
+        _raysAccumCtx.translate(cx, cy);
+        _raysAccumCtx.scale(scale, scale);
+        _raysAccumCtx.translate(-cx, -cy);
+        _raysAccumCtx.drawImage(_raysBrightCanvas, 0, 0);
+        _raysAccumCtx.restore();
+      }
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.drawImage(_raysAccumCanvas, 0, 0);
+      ctx.restore();
+    },
+  },
   // Add new modules here.
 };
 
@@ -1457,6 +1519,62 @@ function _setBloomThreshold(thresholdPct) {
   for (const ch of ['R', 'G', 'B']) {
     _bloomThresholdFuncs[ch].setAttribute('slope', slope);
     _bloomThresholdFuncs[ch].setAttribute('intercept', intercept);
+  }
+}
+
+let _raysBrightCanvas = null, _raysBrightCtx = null;
+function _ensureRaysBrightOffscreen(W, H) {
+  if (!_raysBrightCanvas || _raysBrightCanvas.width !== W || _raysBrightCanvas.height !== H) {
+    _raysBrightCanvas = document.createElement('canvas');
+    _raysBrightCanvas.width = W; _raysBrightCanvas.height = H;
+    _raysBrightCtx = _raysBrightCanvas.getContext('2d');
+  }
+}
+let _raysAccumCanvas = null, _raysAccumCtx = null;
+function _ensureRaysAccumOffscreen(W, H) {
+  if (!_raysAccumCanvas || _raysAccumCanvas.width !== W || _raysAccumCanvas.height !== H) {
+    _raysAccumCanvas = document.createElement('canvas');
+    _raysAccumCanvas.width = W; _raysAccumCanvas.height = H;
+    _raysAccumCtx = _raysAccumCanvas.getContext('2d');
+  }
+}
+
+// Same real per-channel threshold trick as Bloom's _setBloomThreshold, but
+// its own SVG filter/element/id so Light Rays and Bloom can each carry a
+// different threshold in the same frame without clobbering one another.
+let _raysThresholdFuncs = null;
+function _ensureRaysThresholdFilter() {
+  if (_raysThresholdFuncs) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.style.position = 'absolute';
+  svg.style.pointerEvents = 'none';
+  const filter = document.createElementNS(NS, 'filter');
+  filter.setAttribute('id', 'rays-threshold-filter');
+  filter.setAttribute('color-interpolation-filters', 'sRGB');
+  const transfer = document.createElementNS(NS, 'feComponentTransfer');
+  const funcs = {};
+  for (const ch of ['R', 'G', 'B']) {
+    const fn = document.createElementNS(NS, `feFunc${ch}`);
+    fn.setAttribute('type', 'linear');
+    transfer.appendChild(fn);
+    funcs[ch] = fn;
+  }
+  filter.appendChild(transfer);
+  svg.appendChild(filter);
+  document.body.appendChild(svg);
+  _raysThresholdFuncs = funcs;
+}
+function _setRaysThreshold(thresholdPct) {
+  _ensureRaysThresholdFilter();
+  const t = Math.min(0.98, Math.max(0, thresholdPct / 100));
+  const slope = 1 / (1 - t);
+  const intercept = -t * slope;
+  for (const ch of ['R', 'G', 'B']) {
+    _raysThresholdFuncs[ch].setAttribute('slope', slope);
+    _raysThresholdFuncs[ch].setAttribute('intercept', intercept);
   }
 }
 
