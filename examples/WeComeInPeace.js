@@ -9,7 +9,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
       "id": "id1_1783246174789",
       "cx": 600,
       "cy": 450,
-      "axes": 8,
+      "axes": 10,
       "axisRotation": 0,
       "mirror": false,
       "colorIdx": 0,
@@ -3160,7 +3160,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
             }
           ],
           "color": "#ff6b9d",
-          "thickness": 4,
+          "thickness": 3,
           "opacity": 1,
           "erase": false,
           "axes": 8,
@@ -3203,8 +3203,8 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
           "_layerName": "grad-stroke-166",
           "trailAnim": {
             "enabled": true,
-            "duration": 5,
-            "lengthPct": 35,
+            "duration": 4,
+            "lengthPct": 22,
             "continuous": true,
             "reverse": false
           },
@@ -3227,6 +3227,56 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
             }
           },
           "visible": true
+        },
+        {
+          "id": "id9_1783302229751",
+          "pts": [
+            {
+              "x": -460.83650190114065,
+              "y": -226.48586954907321
+            },
+            {
+              "x": 127.7566539923954,
+              "y": -176.29575548063212
+            }
+          ],
+          "color": "#ff6b9d",
+          "thickness": 3,
+          "opacity": 1,
+          "erase": false,
+          "axes": 10,
+          "axisRotation": 0,
+          "mirror": false,
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ffffff"
+              },
+              {
+                "pos": 0.4,
+                "color": "#88ccff"
+              },
+              {
+                "pos": 0.7,
+                "color": "#0044aa"
+              },
+              {
+                "pos": 1,
+                "color": "#ffffff"
+              }
+            ],
+            "scale": 400,
+            "speed": 1.22
+          },
+          "_layerName": "grad-stroke-002",
+          "trailAnim": {
+            "enabled": true,
+            "duration": 2,
+            "lengthPct": 18,
+            "continuous": true,
+            "reverse": true
+          }
         }
       ],
       "sprites": [
@@ -3263,6 +3313,198 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
                   "easing": "linear"
                 }
               ]
+            },
+            "offsetX": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": 279.1378318056121,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.4724943866095121,
+                  "value": 500,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": 279.1378318056121,
+                  "easing": "ease"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "id3_1783301879842",
+          "paletteId": "id195_1783248514347",
+          "x": 0,
+          "y": -69.58174904942967,
+          "rotation": 0,
+          "scale": 0.10941898913151243,
+          "opacity": 1,
+          "flipX": false,
+          "warpMode": false,
+          "tileX": 1,
+          "tileY": 1,
+          "orbitAngle": 0,
+          "axes": 4,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "source-001",
+          "anim": {
+            "orbit": {
+              "enabled": false,
+              "duration": 11,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "id4_1783301885370",
+          "paletteId": "id195_1783248514347",
+          "x": 0,
+          "y": -109.50570342205327,
+          "rotation": 0,
+          "scale": 0.10941898913151243,
+          "opacity": 1,
+          "flipX": false,
+          "warpMode": false,
+          "tileX": 1,
+          "tileY": 1,
+          "orbitAngle": 0,
+          "axes": 4,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "source-002",
+          "anim": {
+            "orbit": {
+              "enabled": false,
+              "duration": 13,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "id5_1783301890720",
+          "paletteId": "id195_1783248514347",
+          "x": 0,
+          "y": -148.28897338403044,
+          "rotation": 0,
+          "scale": 0.10941898913151243,
+          "opacity": 1,
+          "flipX": false,
+          "warpMode": false,
+          "tileX": 1,
+          "tileY": 1,
+          "orbitAngle": 0,
+          "axes": 4,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "source-003",
+          "anim": {
+            "orbit": {
+              "enabled": false,
+              "duration": 15,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": true,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.5,
+                  "value": 60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
+                }
+              ]
             }
           }
         }
@@ -3278,7 +3520,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
           "petalCurve": 0.3579628759163316,
           "r": 0,
           "color": "#ff6b9d",
-          "thickness": 4,
+          "thickness": 3,
           "opacity": 1,
           "fill": null,
           "lineCap": "round",
@@ -3323,7 +3565,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
           "anim": {
             "rotation": {
               "enabled": true,
-              "duration": 30,
+              "duration": 2,
               "keyframes": [
                 {
                   "t": 0,
@@ -3409,7 +3651,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
           "y": -294.2965779467681,
           "r": 14.872705106926198,
           "color": "#ff6b9d",
-          "thickness": 4,
+          "thickness": 3,
           "opacity": 1,
           "fill": null,
           "lineCap": "round",
@@ -3535,7 +3777,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
           "y": -331.9391634980989,
           "r": 14.51854227531314,
           "color": "#ff6b9d",
-          "thickness": 4,
+          "thickness": 3,
           "opacity": 1,
           "fill": null,
           "lineCap": "round",
@@ -3633,6 +3875,204 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
             "continuous": false,
             "reverse": false
           }
+        },
+        {
+          "id": "id6_1783301993153",
+          "type": "petal",
+          "x": -533.8403041825095,
+          "y": -273.7642585551331,
+          "petalDx": 49.04942965779469,
+          "petalDy": 23.95437262357416,
+          "petalCurve": -0.46069868995633134,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 3,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "miter",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "rotation": {
+              "enabled": true,
+              "duration": 5,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 12,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 10,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "petal-001",
+          "trailAnim": {
+            "enabled": true,
+            "duration": 2,
+            "lengthPct": 40,
+            "continuous": false,
+            "reverse": false
+          }
+        },
+        {
+          "id": "id7_1783301999507",
+          "type": "petal",
+          "x": -519.0114068441064,
+          "y": -376.42585551330797,
+          "petalDx": 65.01901140684407,
+          "petalDy": 42.20532319391634,
+          "petalCurve": -0.4146816803811179,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 2,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "miter",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {
+            "orbit": {
+              "enabled": true,
+              "duration": 9.1,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            },
+            "rotation": {
+              "enabled": true,
+              "duration": 5.2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
+          },
+          "params": {},
+          "axes": 10,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "petal-002",
+          "trailAnim": {
+            "enabled": true,
+            "duration": 2,
+            "lengthPct": 40,
+            "continuous": false,
+            "reverse": false
+          }
         }
       ]
     }
@@ -3646,7 +4086,7 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
         "amount": null
       },
       "_expanded": true,
-      "amount": 88,
+      "amount": 72,
       "threshold": 48,
       "radius": 1
     },
@@ -3688,7 +4128,8 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
         }
       },
       "_expanded": true,
-      "amount": 57
+      "amount": 65,
+      "separation": 0
     }
   ],
   "palette": [
