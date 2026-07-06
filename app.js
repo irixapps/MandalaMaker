@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.59';
+const VERSION = '3.60';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1175,6 +1175,66 @@ const EFFECT_TYPES = {
       ctx.drawImage(_invertCanvas, 0, 0);
     },
   },
+  spiralEcho: {
+    label: 'Spiral Echo',
+    defaults: () => ({ amount: 55, rotation: 6, zoom: 100 }),
+    controls: [
+      { key: 'amount',   label: 'Amount',   min: 0,   max: 100, step: 1,   format: v => Math.round(v) + '%', animatable: true },
+      { key: 'rotation', label: 'Rotation', min: -30, max: 30,  step: 0.5, format: v => v.toFixed(1) + '°/f', animatable: true },
+      { key: 'zoom',     label: 'Zoom',     min: 90,  max: 110, step: 0.5, format: v => v.toFixed(1) + '%', animatable: true },
+    ],
+    presets: {
+      amount: [
+        { label: 'Vortex', kfs: [{t:0,v:60,e:'linear'},{t:1,v:60,e:'linear'}], dur: 2 },
+      ],
+      rotation: [
+        { label: 'Spin Up', kfs: [{t:0,v:2,e:'ease-in'},{t:1,v:20,e:'ease-in'}], dur: 4 },
+      ],
+      zoom: [
+        { label: 'Suck In',  kfs: [{t:0,v:100,e:'linear'},{t:1,v:96,e:'linear'}], dur: 3 },
+        { label: 'Expand Out',kfs: [{t:0,v:100,e:'linear'},{t:1,v:104,e:'linear'}], dur: 3 },
+      ],
+    },
+    // A feedback-loop buffer, like Echo, but each frame the *existing*
+    // buffer content is itself rotated and scaled around the canvas centre
+    // before the current frame stamps on top — so old copies don't just
+    // fade in place, they spin and drift inward/outward, compounding frame
+    // over frame into a hypnotic vortex/tunnel trail. `rotation` is degrees
+    // applied per rendered frame (not per second, same reasoning as Echo's
+    // separation — consistent between variable-rate live preview and
+    // fixed-fps export), `zoom` is the per-frame scale multiplier (100% =
+    // no drift, <100% spirals inward, >100% spirals outward), and `amount`
+    // is how much of the transformed history survives each frame (opacity
+    // of the feedback copy, not a background fade like Echo).
+    apply(ctx, canvas, { amount, rotation, zoom }, effectId) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      const buf = _ensureSpiralBuffer(effectId, W, H);
+      _ensureSpiralTemp(W, H);
+      const cx = W / 2, cy = H / 2;
+
+      _spiralTempCtx.clearRect(0, 0, W, H);
+      _spiralTempCtx.save();
+      _spiralTempCtx.globalAlpha = Math.min(0.98, amount / 100);
+      _spiralTempCtx.translate(cx, cy);
+      _spiralTempCtx.rotate(rotation * Math.PI / 180);
+      _spiralTempCtx.scale(zoom / 100, zoom / 100);
+      _spiralTempCtx.translate(-cx, -cy);
+      _spiralTempCtx.drawImage(buf.canvas, 0, 0);
+      _spiralTempCtx.restore();
+
+      buf.ctx.clearRect(0, 0, W, H);
+      buf.ctx.drawImage(_spiralTempCanvas, 0, 0);
+      buf.ctx.globalCompositeOperation = 'lighten';
+      buf.ctx.globalAlpha = 1;
+      buf.ctx.drawImage(canvas, 0, 0);
+      buf.ctx.globalCompositeOperation = 'source-over';
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(buf.canvas, 0, 0);
+    },
+    resetState(effectId) { _spiralBuffers.delete(effectId); },
+  },
   // Add new modules here.
 };
 
@@ -1296,6 +1356,26 @@ function _ensureEchoBuffer(id, W, H) {
     _echoBuffers.set(id, buf);
   }
   return buf;
+}
+
+let _spiralBuffers = new Map(); // effectId -> { canvas, ctx } — see the Spiral Echo module above
+function _ensureSpiralBuffer(id, W, H) {
+  let buf = _spiralBuffers.get(id);
+  if (!buf || buf.canvas.width !== W || buf.canvas.height !== H) {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    buf = { canvas: c, ctx: c.getContext('2d') };
+    _spiralBuffers.set(id, buf);
+  }
+  return buf;
+}
+let _spiralTempCanvas = null, _spiralTempCtx = null;
+function _ensureSpiralTemp(W, H) {
+  if (!_spiralTempCanvas || _spiralTempCanvas.width !== W || _spiralTempCanvas.height !== H) {
+    _spiralTempCanvas = document.createElement('canvas');
+    _spiralTempCanvas.width = W; _spiralTempCanvas.height = H;
+    _spiralTempCtx = _spiralTempCanvas.getContext('2d');
+  }
 }
 
 // EFFECT-MODULE: reset-hook — clears every effect's private runtime state
