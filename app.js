@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.58';
+const VERSION = '3.59';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -892,7 +892,7 @@ const EFFECT_TYPES = {
   },
   echo: {
     label: 'Echo',
-    defaults: () => ({ amount: 60, separation: 0 }),
+    defaults: () => ({ amount: 60, separation: 0, excludeImages: false }),
     controls: [
       { key: 'amount',     label: 'Amount',     min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
       { key: 'separation', label: 'Separation', min: 0, max: 4,   step: 1, format: v => Math.round(v) + (Math.round(v) === 1 ? ' frame' : ' frames'), animatable: false },
@@ -938,8 +938,16 @@ const EFFECT_TYPES = {
     // since the last stamp, so moving content leaves distinct, spaced-out
     // ghost copies instead of a smear — still fades via the same `amount`
     // between stamps.
-    apply(ctx, canvas, { amount, separation }, effectId) {
+    // `excludeImages` (opt-in, default off — see ECHO_EXCLUDE_IMAGES_FEATURE
+    // and drawMandalasWithOptionalSpriteSplit above) stamps a sprite-free
+    // snapshot into the trail buffer instead of the full canvas, then
+    // redraws sprites fresh on top afterwards, so stamped images/GIFs stay
+    // sharp and un-trailed while everything else still echoes. When off
+    // (or the snapshot isn't ready yet), this behaves exactly as before.
+    apply(ctx, canvas, { amount, separation, excludeImages }, effectId) {
       const buf = _ensureEchoBuffer(effectId, canvas.width, canvas.height);
+      const useSplit = excludeImages && _echoNoSpriteSnap && _echoNoSpriteSnap.width === canvas.width && _echoNoSpriteSnap.height === canvas.height;
+      const stampSource = useSplit ? _echoNoSpriteSnap : canvas;
       const fadeAlpha = 1 - Math.min(0.98, amount / 100);
       buf.ctx.globalCompositeOperation = 'source-over';
       buf.ctx.globalAlpha = fadeAlpha;
@@ -952,13 +960,14 @@ const EFFECT_TYPES = {
         buf.framesSinceStamp = 0;
         buf.ctx.globalCompositeOperation = 'lighten';
         buf.ctx.globalAlpha = 1;
-        buf.ctx.drawImage(canvas, 0, 0);
+        buf.ctx.drawImage(stampSource, 0, 0);
         buf.ctx.globalCompositeOperation = 'source-over';
       }
 
       if (amount > 0) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(buf.canvas, 0, 0);
+        if (useSplit) ctx.drawImage(_echoSpritesOnlySnap, 0, 0);
       }
     },
     resetState(effectId) { _echoBuffers.delete(effectId); },
@@ -1222,6 +1231,59 @@ function _ensureHueOffscreen(W, H) {
   }
 }
 
+// EFFECT-MODULE: Echo "exclude image layers" feature. Rollback plan: this
+// whole feature is inert unless a project actually has an Echo effect with
+// excludeImages=true (new projects/effects default to false, matching the
+// pre-existing behaviour exactly), so leaving ECHO_EXCLUDE_IMAGES_FEATURE at
+// true costs nothing for anyone not using the checkbox. If it ever proves
+// too slow in practice, flip this one constant to false to hard-disable it
+// everywhere (checkbox stops rendering, apply() falls back to the original
+// single-pass behaviour) without touching any other code.
+const ECHO_EXCLUDE_IMAGES_FEATURE = true;
+let _echoNoSpriteSnap = null, _echoSpritesOnlySnap = null; // lazily-sized offscreen canvases
+function _echoNeedsSpriteSplit() {
+  return ECHO_EXCLUDE_IMAGES_FEATURE && S.effects.some(e => e.type === 'echo' && e.enabled !== false && e.excludeImages);
+}
+function _ensureEchoSnapCanvases(W, H) {
+  if (!_echoNoSpriteSnap) {
+    _echoNoSpriteSnap = document.createElement('canvas');
+    _echoNoSpriteSnap.ctx = _echoNoSpriteSnap.getContext('2d');
+    _echoSpritesOnlySnap = document.createElement('canvas');
+    _echoSpritesOnlySnap.ctx = _echoSpritesOnlySnap.getContext('2d');
+  }
+  if (_echoNoSpriteSnap.width !== W || _echoNoSpriteSnap.height !== H) {
+    _echoNoSpriteSnap.width = _echoSpritesOnlySnap.width = W;
+    _echoNoSpriteSnap.height = _echoSpritesOnlySnap.height = H;
+  }
+}
+// Draws all mandalas into `ctx`/`canvas` (live cache-aware pass if
+// `forExport` is false, single full pass otherwise), then — only when some
+// Echo effect actually needs sprites excluded — additionally captures a
+// "content so far, no sprites" snapshot and a "sprites only" snapshot so
+// Echo's apply() can trail everything except sprites, then redraw sprites
+// fresh on top afterwards. Zero extra canvas work when no effect needs it.
+function drawMandalasWithOptionalSpriteSplit(forExport) {
+  const needSplit = _echoNeedsSpriteSplit();
+  for (const m of S.mandalas) {
+    if (!m.visible) continue;
+    if (forExport) renderMandala(m, true, needSplit);
+    else renderMandalaLive(m, needSplit);
+  }
+  if (!needSplit) return;
+  _ensureEchoSnapCanvases(canvas.width, canvas.height);
+  _echoNoSpriteSnap.ctx.clearRect(0, 0, canvas.width, canvas.height);
+  _echoNoSpriteSnap.ctx.drawImage(canvas, 0, 0);
+  _echoSpritesOnlySnap.ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const m of S.mandalas) {
+    if (!m.visible) continue;
+    for (const spr of m.sprites) {
+      if (spr.visible === false) continue;
+      renderSprite(ctx, m, spr);
+      renderSprite(_echoSpritesOnlySnap.ctx, m, spr);
+    }
+  }
+}
+
 let _echoBuffers = new Map(); // effectId -> { canvas, ctx } — see the Echo module above
 function _ensureEchoBuffer(id, W, H) {
   let buf = _echoBuffers.get(id);
@@ -1418,6 +1480,28 @@ function updateEffectsList() {
       const body = document.createElement('div');
       body.className = 'effect-item-body';
       def.controls.forEach(ctrl => body.appendChild(buildEffectControlRow(effect, def, ctrl)));
+      // EFFECT-MODULE: Echo "exclude image layers" toggle — not a slider, so
+      // it's a one-off row here rather than part of def.controls. Safe to
+      // delete this block (and the excludeImages default/apply()-branch) to
+      // fully remove the feature; every effect's default (false) reproduces
+      // the pre-existing behaviour exactly.
+      if (effect.type === 'echo' && ECHO_EXCLUDE_IMAGES_FEATURE) {
+        const exRow = document.createElement('div');
+        exRow.className = 'prop-row';
+        const exLabel = document.createElement('label');
+        exLabel.className = 'prop-label';
+        exLabel.textContent = 'Exclude Images';
+        const exInput = document.createElement('input');
+        exInput.type = 'checkbox';
+        exInput.checked = !!effect.excludeImages;
+        exInput.title = 'Keep stamped images/GIFs sharp and un-trailed by Echo';
+        exInput.addEventListener('change', () => {
+          effect.excludeImages = exInput.checked;
+          historySnapshot(); markRenderDirty();
+        });
+        exRow.appendChild(exLabel); exRow.appendChild(exInput);
+        body.appendChild(exRow);
+      }
       row.appendChild(body);
     }
     list.appendChild(row);
@@ -2931,10 +3015,7 @@ function render(timestamp) {
   if (S.snapGrid.enabled) renderGridOverlay();
 
   // Live layer: gradient strokes + sprites for all mandalas
-  for (const m of S.mandalas) {
-    if (!m.visible) continue;
-    renderMandalaLive(m);
-  }
+  drawMandalasWithOptionalSpriteSplit(false);
 
   // EFFECT-MODULE: render-hook — post-process the finished artwork before
   // any tool previews/guides/selection handles draw on top, so effects
@@ -3409,7 +3490,7 @@ function renderOverlay() {
 }
 
 // Full render — used by GIF/WebP export (no cache)
-function renderMandala(m, forExport) {
+function renderMandala(m, forExport, skipSprites) {
   for (const stroke of m.strokes) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
@@ -3428,11 +3509,11 @@ function renderMandala(m, forExport) {
       renderShapeSymmetric(ctx, m, shape);
     }
   }
-  for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
+  if (!skipSprites) { for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); } }
 }
 
 // Live render — gradient/trail/orbit strokes + shapes + sprites (static solid strokes come from cache)
-function renderMandalaLive(m) {
+function renderMandalaLive(m, skipSprites) {
   for (const stroke of m.strokes) {
     if (stroke.pts.length < 2 || stroke.visible === false) continue;
     const isTrail = !!stroke.trailAnim?.enabled;
@@ -3463,7 +3544,7 @@ function renderMandalaLive(m) {
       renderShapeSymmetric(ctx, m, shape);
     }
   }
-  for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); }
+  if (!skipSprites) { for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); } }
 }
 
 // Renders a stroke into an arbitrary 2D context (used by stroke cache builder)
@@ -7342,7 +7423,7 @@ function exportPNG() {
   S.selectedSpriteId = null;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+  drawMandalasWithOptionalSpriteSplit(true);
   // Fill background colour in behind everything, same destination-over
   // trick as the live render() loop — see rebuildStrokeCache's comment.
   ctx.save();
@@ -7578,7 +7659,7 @@ async function doExportWebP() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      drawMandalasWithOptionalSpriteSplit(true);
       // Fill background colour in behind everything, same destination-over
       // trick as the live render() loop — see rebuildStrokeCache's comment.
       ctx.save();
@@ -7686,7 +7767,7 @@ async function doExportGIF() {
 
       // Render frame to main canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      drawMandalasWithOptionalSpriteSplit(true);
       // Fill background colour in behind everything, same destination-over
       // trick as the live render() loop — see rebuildStrokeCache's comment.
       ctx.save();
@@ -7879,7 +7960,7 @@ async function doExportVideo() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const m of S.mandalas) { if (m.visible) renderMandala(m, true); }
+      drawMandalasWithOptionalSpriteSplit(true);
       // Fill background colour in behind everything, same destination-over
       // trick as the live render() loop — see rebuildStrokeCache's comment.
       ctx.save();
