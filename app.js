@@ -45,6 +45,7 @@ const DEMO_EXAMPLES = [
   { file: 'TheThirdEye',     label: 'The Third Eye' },
   { file: 'WeComeInPeace',   label: 'We Come In Peace' },
   { file: 'Spirograph',      label: 'Spirograph' },
+  { file: 'OrchidInBloom',   label: 'Orchid In Bloom' },
 ];
 
 const HANDLE_RADIUS = 7;

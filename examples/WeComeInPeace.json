@@ -4197,9 +4197,23 @@
         "amount": null
       },
       "_expanded": true,
-      "amount": 212,
+      "amount": 151,
       "threshold": 21,
       "radius": 19
+    },
+    {
+      "id": "id4_1783331694123",
+      "type": "spiralEcho",
+      "enabled": true,
+      "anim": {
+        "amount": null,
+        "rotation": null,
+        "zoom": null
+      },
+      "_expanded": true,
+      "amount": 59,
+      "rotation": 6,
+      "zoom": 99.5
     }
   ],
   "palette": [
