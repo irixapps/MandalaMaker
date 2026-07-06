@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.64';
+const VERSION = '3.65';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1459,6 +1459,76 @@ const EFFECT_TYPES = {
       ctx.drawImage(_rippleCanvas, 0, 0);
     },
   },
+  shatter: {
+    label: 'Kaleidoscope Shatter',
+    defaults: () => ({ amount: 0, shards: 10 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'shards', label: 'Shards', min: 4,  max: 24,  step: 1, format: v => Math.round(v), animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Shatter Pulse', kfs: [{t:0,v:0,e:'ease-out'},{t:0.3,v:100,e:'ease-in'},{t:1,v:0,e:'ease-out'}], dur: 1.5 },
+        { label: 'Slow Break',    kfs: [{t:0,v:0,e:'ease'},{t:0.5,v:60,e:'ease'},{t:1,v:0,e:'ease'}], dur: 4 },
+      ],
+    },
+    // Defaults to 0 (fully reassembled), same reasoning as Invert Flash and
+    // RGB Glitch — a held shatter is less interesting than a burst; this is
+    // meant to be driven by a curve (see presets) for a break-apart/
+    // reassemble beat. No per-pixel readback: cuts the canvas into radial
+    // pie-slice shards around its centre, then redraws *the whole source
+    // image* through each shard's wedge-shaped clip while the drawing
+    // context itself is translated/rotated outward — since the clip is
+    // defined in the same (already-transformed) space the image is drawn
+    // in, each shard still samples the correct original source pixels, it
+    // just displays them at a shifted, slightly rotated position, i.e. an
+    // outward-flying puzzle piece rather than a redrawn/distorted one.
+    // Every shard's direction/distance/spin comes from a fixed hash of its
+    // own index (`seed` below), not Math.random(), so the shatter *pattern*
+    // never flickers frame to frame — only `amount` (the scalar distance
+    // multiplier) moves, and at amount=0 every shard's offset is exactly
+    // zero, so the wedges' union reassembles pixel-for-pixel into the
+    // original frame.
+    apply(ctx, canvas, { amount, shards }) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      _ensureShatterOffscreen(W, H);
+      _shatterCtx.clearRect(0, 0, W, H);
+      const cx = W / 2, cy = H / 2;
+      const maxR = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy)) + 4;
+      const n = Math.max(2, Math.round(shards));
+      const maxDisp = Math.min(W, H) * 0.4 * (amount / 100);
+      const maxRot = 0.5 * (amount / 100);
+
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2;
+        const a1 = ((i + 1) / n) * Math.PI * 2;
+        const mid = (a0 + a1) / 2;
+        const seed = Math.sin(i * 12.9898) * 43758.5453;
+        const rnd = seed - Math.floor(seed);
+        const dirJitter = (rnd - 0.5) * 0.6;
+        const dist = maxDisp * (0.6 + rnd * 0.8);
+        const dx = Math.cos(mid + dirJitter) * dist;
+        const dy = Math.sin(mid + dirJitter) * dist;
+        const rot = (rnd - 0.5) * 2 * maxRot;
+
+        _shatterCtx.save();
+        _shatterCtx.translate(cx + dx, cy + dy);
+        _shatterCtx.rotate(rot);
+        _shatterCtx.translate(-cx, -cy);
+        _shatterCtx.beginPath();
+        _shatterCtx.moveTo(cx, cy);
+        _shatterCtx.arc(cx, cy, maxR, a0, a1);
+        _shatterCtx.closePath();
+        _shatterCtx.clip();
+        _shatterCtx.drawImage(canvas, 0, 0);
+        _shatterCtx.restore();
+      }
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(_shatterCanvas, 0, 0);
+    },
+  },
   // Add new modules here.
 };
 
@@ -1760,6 +1830,15 @@ function _ensureRippleOffscreen(W, H) {
     _rippleCanvas = document.createElement('canvas');
     _rippleCanvas.width = W; _rippleCanvas.height = H;
     _rippleCtx = _rippleCanvas.getContext('2d');
+  }
+}
+
+let _shatterCanvas = null, _shatterCtx = null;
+function _ensureShatterOffscreen(W, H) {
+  if (!_shatterCanvas || _shatterCanvas.width !== W || _shatterCanvas.height !== H) {
+    _shatterCanvas = document.createElement('canvas');
+    _shatterCanvas.width = W; _shatterCanvas.height = H;
+    _shatterCtx = _shatterCanvas.getContext('2d');
   }
 }
 
