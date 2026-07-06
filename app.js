@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.63';
+const VERSION = '3.64';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1395,6 +1395,70 @@ const EFFECT_TYPES = {
       ctx.drawImage(_glitchChanCanvas, 0, 0);
     },
   },
+  ripple: {
+    label: 'Displacement Ripple',
+    defaults: () => ({ amount: 40, frequency: 6, phase: 0 }),
+    controls: [
+      { key: 'amount',    label: 'Amount',    min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'frequency', label: 'Frequency', min: 1, max: 20,  step: 1, format: v => Math.round(v), animatable: false },
+      { key: 'phase',     label: 'Phase',     min: 0, max: 360, step: 1, format: v => Math.round(v) + '°', animatable: true },
+    ],
+    presets: {
+      amount: [
+        { label: 'Pulse', kfs: [{t:0,v:20,e:'ease'},{t:0.5,v:70,e:'ease'},{t:1,v:20,e:'ease'}], dur: 3 },
+      ],
+      // Phase isn't a ping-pong loop like the other new effects' presets —
+      // sin() is exactly periodic every 360°, so animating it linearly
+      // 0deg->360deg is a *mathematically perfect* loop: the ripple pattern
+      // at phase=360 is pixel-identical to phase=0, not just matching
+      // endpoints, so ripples appear to flow outward continuously forever
+      // with zero seam, at any duration.
+      phase: [
+        { label: 'Flow', kfs: [{t:0,v:0,e:'linear'},{t:1,v:360,e:'linear'}], dur: 3 },
+      ],
+    },
+    // Approximates a radial displacement/ripple with no per-pixel readback
+    // (too slow for GIF/WebP export's per-frame loop): slice the canvas
+    // into concentric rings around its centre and redraw the *whole* image
+    // locally rescaled per ring by a sine wave of distance-from-centre
+    // (see the amount/frequency/phase formula below), painting outermost
+    // ring first so each smaller circle clip fully overwrites the last —
+    // the net result is each radial band sitting at a slightly different
+    // effective zoom than its neighbours, which reads as concentric waves
+    // rippling outward as `phase` advances. Same "redraw the frame at a
+    // different scale, clipped" trick Zoom Blur uses for its streaks, just
+    // with a sinusoidal per-ring scale instead of one continuously
+    // increasing scale, and a hard overwrite instead of a fading trail.
+    apply(ctx, canvas, { amount, frequency, phase }) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      _ensureRippleOffscreen(W, H);
+      const cx = W / 2, cy = H / 2;
+      const maxR = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+      const rings = 28;
+      const ampPx = (amount / 100) * Math.min(W, H) * 0.035;
+      const phaseRad = phase * Math.PI / 180;
+
+      _rippleCtx.clearRect(0, 0, W, H);
+      for (let i = rings; i >= 0; i--) {
+        const r0 = (i / rings) * maxR;
+        const d = Math.sin((r0 / maxR) * frequency * Math.PI * 2 - phaseRad) * ampPx;
+        const scale = (r0 + d) / (r0 || 1);
+        _rippleCtx.save();
+        _rippleCtx.beginPath();
+        _rippleCtx.arc(cx, cy, r0 + maxR / rings, 0, Math.PI * 2);
+        _rippleCtx.clip();
+        _rippleCtx.translate(cx, cy);
+        _rippleCtx.scale(scale, scale);
+        _rippleCtx.translate(-cx, -cy);
+        _rippleCtx.drawImage(canvas, 0, 0);
+        _rippleCtx.restore();
+      }
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(_rippleCanvas, 0, 0);
+    },
+  },
   // Add new modules here.
 };
 
@@ -1687,6 +1751,15 @@ function _ensureGlitchChanOffscreen(W, H) {
     _glitchChanMaskCanvas = document.createElement('canvas');
     _glitchChanMaskCanvas.width = W; _glitchChanMaskCanvas.height = H;
     _glitchChanMaskCtx = _glitchChanMaskCanvas.getContext('2d');
+  }
+}
+
+let _rippleCanvas = null, _rippleCtx = null;
+function _ensureRippleOffscreen(W, H) {
+  if (!_rippleCanvas || _rippleCanvas.width !== W || _rippleCanvas.height !== H) {
+    _rippleCanvas = document.createElement('canvas');
+    _rippleCanvas.width = W; _rippleCanvas.height = H;
+    _rippleCtx = _rippleCanvas.getContext('2d');
   }
 }
 
