@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.60';
+const VERSION = '3.61';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1183,16 +1183,22 @@ const EFFECT_TYPES = {
       { key: 'rotation', label: 'Rotation', min: -30, max: 30,  step: 0.5, format: v => v.toFixed(1) + '°/f', animatable: true },
       { key: 'zoom',     label: 'Zoom',     min: 90,  max: 110, step: 0.5, format: v => v.toFixed(1) + '%', animatable: true },
     ],
+    // All presets below start and end each control on the same value (with
+    // a zero-velocity 'ease' at both endpoints where the curve isn't flat),
+    // so the keyframe player's clock%duration wrap — see getAnimValue —
+    // never produces a visible jump/restart; the loop point is seamless.
     presets: {
       amount: [
         { label: 'Vortex', kfs: [{t:0,v:60,e:'linear'},{t:1,v:60,e:'linear'}], dur: 2 },
+        { label: 'Pulse',   kfs: [{t:0,v:40,e:'ease'},{t:0.5,v:90,e:'ease'},{t:1,v:40,e:'ease'}], dur: 3 },
       ],
       rotation: [
-        { label: 'Spin Up', kfs: [{t:0,v:2,e:'ease-in'},{t:1,v:20,e:'ease-in'}], dur: 4 },
+        { label: 'Spin Pulse',   kfs: [{t:0,v:4,e:'ease'},{t:0.5,v:18,e:'ease'},{t:1,v:4,e:'ease'}], dur: 5 },
+        { label: 'Direction Flip',kfs: [{t:0,v:10,e:'ease'},{t:0.5,v:-10,e:'ease'},{t:1,v:10,e:'ease'}], dur: 6 },
       ],
       zoom: [
-        { label: 'Suck In',  kfs: [{t:0,v:100,e:'linear'},{t:1,v:96,e:'linear'}], dur: 3 },
-        { label: 'Expand Out',kfs: [{t:0,v:100,e:'linear'},{t:1,v:104,e:'linear'}], dur: 3 },
+        { label: 'Breathe Out', kfs: [{t:0,v:100,e:'ease'},{t:0.5,v:104,e:'ease'},{t:1,v:100,e:'ease'}], dur: 4 },
+        { label: 'Breathe In',  kfs: [{t:0,v:100,e:'ease'},{t:0.5,v:94,e:'ease'},{t:1,v:100,e:'ease'}], dur: 4 },
       ],
     },
     // A feedback-loop buffer, like Echo, but each frame the *existing*
