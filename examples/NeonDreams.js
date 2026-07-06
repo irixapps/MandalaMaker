@@ -241,17 +241,17 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           },
           "anim": {
             "orbit": {
-              "enabled": false,
-              "duration": 4,
+              "enabled": true,
+              "duration": 6.6,
               "keyframes": [
                 {
                   "t": 0,
-                  "value": -180,
+                  "value": 180,
                   "easing": "linear"
                 },
                 {
                   "t": 1,
-                  "value": 180,
+                  "value": -180,
                   "easing": "linear"
                 }
               ]
@@ -531,7 +531,7 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
             }
           ],
           "color": "#ff6b9d",
-          "thickness": 4,
+          "thickness": 3,
           "opacity": 1,
           "erase": false,
           "axes": 8,
@@ -575,8 +575,26 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "trailAnim": {
             "enabled": true,
             "duration": 2,
-            "lengthPct": 40,
-            "continuous": false
+            "lengthPct": 44,
+            "continuous": true
+          },
+          "anim": {
+            "orbit": {
+              "enabled": true,
+              "duration": 4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
+            }
           }
         },
         {
@@ -1381,7 +1399,7 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "anim": {
             "rotation": {
               "enabled": true,
-              "duration": 15,
+              "duration": 2.8,
               "keyframes": [
                 {
                   "t": 0,
@@ -1436,6 +1454,22 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
                   "easing": "ease"
                 }
               ]
+            },
+            "orbit": {
+              "enabled": true,
+              "duration": 8.4,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -180,
+                  "easing": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 180,
+                  "easing": "linear"
+                }
+              ]
             }
           },
           "params": {},
@@ -1444,10 +1478,10 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "mirror": true,
           "_layerName": "petal-001",
           "trailAnim": {
-            "enabled": false,
-            "duration": 2,
-            "lengthPct": 40,
-            "continuous": false
+            "enabled": true,
+            "duration": 1.8,
+            "lengthPct": 75,
+            "continuous": true
           }
         },
         {
@@ -1627,7 +1661,7 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "anim": {
             "orbit": {
               "enabled": true,
-              "duration": 8.2,
+              "duration": 6,
               "keyframes": [
                 {
                   "t": 0,
@@ -1646,7 +1680,14 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "axes": 8,
           "axisRotation": 0,
           "mirror": true,
-          "_layerName": "wing-001"
+          "_layerName": "wing-001",
+          "trailAnim": {
+            "enabled": true,
+            "duration": 2,
+            "lengthPct": 40,
+            "continuous": true,
+            "reverse": true
+          }
         }
       ]
     }
@@ -1695,17 +1736,17 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "keyframes": [
             {
               "t": 0,
-              "value": 25,
+              "value": 47.32142857142857,
               "easing": "ease"
             },
             {
-              "t": 0.5,
-              "value": 75,
+              "t": 0.5108695652173914,
+              "value": 90.17857142857143,
               "easing": "ease"
             },
             {
-              "t": 1,
-              "value": 25,
+              "t": 0.9945652173913043,
+              "value": 47.32142857142857,
               "easing": "ease"
             }
           ]
@@ -1713,7 +1754,8 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
       },
       "_expanded": true,
       "amount": 85,
-      "separation": 0
+      "separation": 0,
+      "excludeImages": false
     }
   ],
   "palette": [

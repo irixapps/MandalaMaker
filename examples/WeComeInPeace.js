@@ -4137,9 +4137,9 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
           "_layerName": "petal-001",
           "visible": true,
           "trailAnim": {
-            "enabled": false,
-            "duration": 2,
-            "lengthPct": 12,
+            "enabled": true,
+            "duration": 1.2,
+            "lengthPct": 48,
             "continuous": true,
             "reverse": false
           }
@@ -4148,18 +4148,6 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
     }
   ],
   "effects": [
-    {
-      "id": "id167_1783246372016",
-      "type": "bloom",
-      "enabled": true,
-      "anim": {
-        "amount": null
-      },
-      "_expanded": true,
-      "amount": 357,
-      "threshold": 100,
-      "radius": 14
-    },
     {
       "id": "id192_1783246858783",
       "type": "echo",
@@ -4198,9 +4186,21 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
         }
       },
       "_expanded": true,
-      "amount": 74,
+      "amount": 81,
       "separation": 0,
       "excludeImages": true
+    },
+    {
+      "id": "id167_1783246372016",
+      "type": "bloom",
+      "enabled": true,
+      "anim": {
+        "amount": null
+      },
+      "_expanded": true,
+      "amount": 212,
+      "threshold": 21,
+      "radius": 19
     }
   ],
   "palette": [
