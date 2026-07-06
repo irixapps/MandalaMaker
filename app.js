@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.62';
+const VERSION = '3.63';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1303,6 +1303,97 @@ const EFFECT_TYPES = {
       ctx.restore();
     },
   },
+  rgbGlitch: {
+    label: 'RGB Glitch',
+    defaults: () => ({ amount: 0, slices: 18 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'slices', label: 'Slices', min: 2, max: 40,  step: 1, format: v => Math.round(v), animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Glitch Burst', kfs: [{t:0,v:0,e:'linear'},{t:0.06,v:85,e:'linear'},{t:0.12,v:0,e:'linear'},{t:1,v:0,e:'linear'}], dur: 1.2 },
+        { label: 'Chaos Pulse',  kfs: [{t:0,v:0,e:'linear'},{t:0.3,v:0,e:'linear'},{t:0.35,v:70,e:'linear'},{t:0.4,v:0,e:'linear'},{t:0.7,v:0,e:'linear'},{t:0.75,v:90,e:'linear'},{t:0.8,v:0,e:'linear'},{t:1,v:0,e:'linear'}], dur: 2 },
+        { label: 'Static Hold',  kfs: [{t:0,v:40,e:'linear'},{t:1,v:40,e:'linear'}], dur: 1 },
+      ],
+    },
+    // Defaults to 0 (off), same reasoning as Invert Flash — a constantly-
+    // held heavy glitch reads as broken, not stylish; this is meant to be
+    // driven by a burst curve (see presets) for VHS-tracking-error/
+    // datamosh-style stutters. No per-pixel readback: (1) redraws random
+    // horizontal bands of the frame at a random slice-specific horizontal
+    // offset (a cheap whole-band drawImage per glitching slice, not a
+    // pixel-sort), using true per-frame randomness — since this is called
+    // once per rendered frame either live or exported, the glitch pattern
+    // is simply whatever that frame's draw rolled, no different from how a
+    // real capture glitch looks frame to frame; then (2) applies one global
+    // RGB channel split (same isolate-by-multiply-then-add trick as
+    // Chromatic Aberration, its own scratch canvases so the two effects
+    // can't clobber each other mid-chain) for a constant-cost colour-fringe
+    // sizzle regardless of how many slices are configured.
+    apply(ctx, canvas, { amount, slices }) {
+      if (amount <= 0) return;
+      const W = canvas.width, H = canvas.height;
+      _ensureGlitchOffscreen(W, H);
+
+      _glitchCtx.clearRect(0, 0, W, H);
+      _glitchCtx.drawImage(canvas, 0, 0);
+      const bandCount = Math.max(1, Math.round(slices));
+      const bandH = H / bandCount;
+      const prob = Math.min(1, (amount / 100) * 0.55);
+      const maxShift = (amount / 100) * W * 0.12;
+      for (let i = 0; i < bandCount; i++) {
+        if (Math.random() > prob) continue;
+        const y = Math.floor(i * bandH);
+        const h = Math.ceil(bandH) + 1;
+        const dx = (Math.random() * 2 - 1) * maxShift;
+        _glitchCtx.save();
+        _glitchCtx.beginPath();
+        _glitchCtx.rect(0, y, W, h);
+        _glitchCtx.clip();
+        _glitchCtx.clearRect(0, y, W, h);
+        _glitchCtx.drawImage(canvas, dx, 0);
+        _glitchCtx.restore();
+      }
+      // A shifted band leaves a transparent gap at whichever edge the
+      // source didn't reach — left with this backfill, that gap would
+      // still read as alpha 0 going into the channel-isolation pass below,
+      // and 'multiply' against a transparent destination resolves to the
+      // *unblended* fill colour at full alpha (see the W3C compositing
+      // spec's blend formula for Da=0), so three isolated R/G/B passes
+      // recombined with 'lighter' would turn every gap solid white.
+      // Backfilling with the real background colour first means there's
+      // no fully-transparent pixel left for that to happen to.
+      _glitchCtx.save();
+      _glitchCtx.globalCompositeOperation = 'destination-over';
+      _glitchCtx.fillStyle = S.bgColor;
+      _glitchCtx.fillRect(0, 0, W, H);
+      _glitchCtx.restore();
+
+      _ensureGlitchChanOffscreen(W, H);
+      const chanOffset = 1 + (amount / 100) * 6;
+      function isolatedChannel(color, ox) {
+        _glitchChanMaskCtx.clearRect(0, 0, W, H);
+        _glitchChanMaskCtx.globalCompositeOperation = 'source-over';
+        _glitchChanMaskCtx.drawImage(_glitchCanvas, ox, 0);
+        _glitchChanMaskCtx.globalCompositeOperation = 'multiply';
+        _glitchChanMaskCtx.fillStyle = color;
+        _glitchChanMaskCtx.fillRect(0, 0, W, H);
+      }
+      _glitchChanCtx.clearRect(0, 0, W, H);
+      _glitchChanCtx.globalCompositeOperation = 'lighter';
+      isolatedChannel('#ff0000', -chanOffset);
+      _glitchChanCtx.drawImage(_glitchChanMaskCanvas, 0, 0);
+      isolatedChannel('#00ff00', 0);
+      _glitchChanCtx.drawImage(_glitchChanMaskCanvas, 0, 0);
+      isolatedChannel('#0000ff', chanOffset);
+      _glitchChanCtx.drawImage(_glitchChanMaskCanvas, 0, 0);
+      _glitchChanCtx.globalCompositeOperation = 'source-over';
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(_glitchChanCanvas, 0, 0);
+    },
+  },
   // Add new modules here.
 };
 
@@ -1575,6 +1666,26 @@ function _setRaysThreshold(thresholdPct) {
   for (const ch of ['R', 'G', 'B']) {
     _raysThresholdFuncs[ch].setAttribute('slope', slope);
     _raysThresholdFuncs[ch].setAttribute('intercept', intercept);
+  }
+}
+
+let _glitchCanvas = null, _glitchCtx = null;
+function _ensureGlitchOffscreen(W, H) {
+  if (!_glitchCanvas || _glitchCanvas.width !== W || _glitchCanvas.height !== H) {
+    _glitchCanvas = document.createElement('canvas');
+    _glitchCanvas.width = W; _glitchCanvas.height = H;
+    _glitchCtx = _glitchCanvas.getContext('2d');
+  }
+}
+let _glitchChanCanvas = null, _glitchChanCtx = null, _glitchChanMaskCanvas = null, _glitchChanMaskCtx = null;
+function _ensureGlitchChanOffscreen(W, H) {
+  if (!_glitchChanCanvas || _glitchChanCanvas.width !== W || _glitchChanCanvas.height !== H) {
+    _glitchChanCanvas = document.createElement('canvas');
+    _glitchChanCanvas.width = W; _glitchChanCanvas.height = H;
+    _glitchChanCtx = _glitchChanCanvas.getContext('2d');
+    _glitchChanMaskCanvas = document.createElement('canvas');
+    _glitchChanMaskCanvas.width = W; _glitchChanMaskCanvas.height = H;
+    _glitchChanMaskCtx = _glitchChanMaskCanvas.getContext('2d');
   }
 }
 
