@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.66';
+const VERSION = '3.67';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1467,35 +1467,57 @@ const EFFECT_TYPES = {
   },
   cometSparkle: {
     label: 'Comet Sparkle',
-    defaults: () => ({ amount: 40, speed: 40, size: 6 }),
+    defaults: () => ({ amount: 40, speed: 40, size: 6, innerRadius: 20, blur: 6, duration: 50, rotation: 0, gradient: 'Rainbow' }),
     controls: [
-      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
-      { key: 'speed',  label: 'Speed',  min: 1, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
-      { key: 'size',   label: 'Size',   min: 2, max: 20,  step: 1, format: v => Math.round(v) + 'px', animatable: false },
+      { key: 'amount',      label: 'Amount',       min: 0,   max: 100, step: 1,   format: v => Math.round(v) + '%',   animatable: true },
+      { key: 'speed',       label: 'Speed',        min: 1,   max: 100, step: 1,   format: v => Math.round(v) + '%',   animatable: false },
+      { key: 'size',        label: 'Size',         min: 2,   max: 20,  step: 1,   format: v => Math.round(v) + 'px',  animatable: false },
+      { key: 'innerRadius', label: 'Inner Radius', min: 0,   max: 100, step: 1,   format: v => Math.round(v) + '%',   animatable: false },
+      { key: 'blur',        label: 'Blur',         min: 0,   max: 20,  step: 1,   format: v => Math.round(v) + 'px',  animatable: true },
+      { key: 'duration',    label: 'Duration',     min: 10,  max: 200, step: 5,   format: v => Math.round(v) + 'f',   animatable: false },
+      { key: 'rotation',    label: 'Rotation',     min: -20, max: 20,  step: 0.5, format: v => v.toFixed(1) + '°/f',  animatable: true },
     ],
     presets: {
       amount: [
         { label: 'Sparkle Burst', kfs: [{t:0,v:10,e:'ease'},{t:0.5,v:90,e:'ease'},{t:1,v:10,e:'ease'}], dur: 3 },
         { label: 'Gentle Drift',  kfs: [{t:0,v:30,e:'linear'},{t:1,v:30,e:'linear'}], dur: 2 },
       ],
+      blur: [
+        { label: 'Pulse Glow', kfs: [{t:0,v:2,e:'ease'},{t:0.5,v:14,e:'ease'},{t:1,v:2,e:'ease'}], dur: 3 },
+      ],
+      rotation: [
+        { label: 'Slow Spin',  kfs: [{t:0,v:3,e:'linear'},{t:1,v:3,e:'linear'}], dur: 1 },
+        { label: 'Spin Pulse', kfs: [{t:0,v:2,e:'ease'},{t:0.5,v:12,e:'ease'},{t:1,v:2,e:'ease'}], dur: 5 },
+      ],
     },
     // A small persistent particle system, not a whole-canvas filter: each
-    // frame spawns a few glowing dots at a ring around the centre (count
+    // frame spawns a few glowing dots on a ring at `innerRadius` (count
     // driven by `amount`, true per-frame randomness like RGB Glitch — no
-    // reproducibility need), then advances every live particle outward by
-    // its own velocity and fades its life down, drawing each as a radial-
-    // gradient glow. Particles accumulate into their own persistent buffer
-    // that's only lightly faded (destination-out) each frame rather than
-    // fully cleared, so a moving particle leaves a soft fading streak
-    // behind it — a comet tail — without needing to track path history per
-    // particle. That buffer is then composited onto the real canvas with
-    // 'lighter' (additive), so sparkles layer on top of the existing
-    // artwork as pure added brightness instead of replacing anything
-    // underneath — this is the one effect in the stack that's additive
+    // reproducibility need), tracked in polar coordinates (angle, radius)
+    // rather than x/y velocity so every particle can share one global
+    // `rotation` (degrees per frame) — the whole field swirls together like
+    // a pinwheel/galaxy as it expands, instead of drifting in fixed
+    // straight lines. Each particle also carries a fixed `t` sampled once
+    // at spawn into the chosen `gradient` preset (same sampleGradientRGB
+    // used by stroke/shape gradients elsewhere), so sparkle colour comes
+    // from a real palette instead of random hue. `duration` controls how
+    // many frames a particle survives (life -= 1/duration per frame) and
+    // `blur` drives a canvas shadowBlur glow on top of each particle's own
+    // radial-gradient falloff. Particles accumulate into their own
+    // persistent buffer that's only lightly faded (destination-out) each
+    // frame rather than fully cleared, so a moving particle leaves a soft
+    // fading streak behind it — a comet tail — without tracking path
+    // history per particle. That buffer then composites onto the real
+    // canvas with 'lighter' (additive), so sparkles layer on top of
+    // existing artwork as pure added brightness rather than replacing
+    // anything underneath — the one effect in the stack that's additive
     // decoration rather than a transform of the frame.
-    apply(ctx, canvas, { amount, speed, size }, effectId) {
+    apply(ctx, canvas, { amount, speed, size, innerRadius, blur, duration, rotation, gradient }, effectId) {
       const W = canvas.width, H = canvas.height;
       const st = _ensureCometState(effectId, W, H);
+      const cx = W / 2, cy = H / 2;
+      const stops = GRADIENT_PRESETS[gradient] || GRADIENT_PRESETS.Rainbow;
+      const rotRad = rotation * Math.PI / 180;
 
       st.ctx.globalCompositeOperation = 'destination-out';
       st.ctx.globalAlpha = 0.12;
@@ -1505,39 +1527,43 @@ const EFFECT_TYPES = {
       st.ctx.globalAlpha = 1;
 
       if (amount > 0) {
-        const cx = W / 2, cy = H / 2;
         st.spawnAccum = (st.spawnAccum || 0) + (amount / 100) * 2.2;
+        const baseR = Math.min(W, H) * 0.5 * (innerRadius / 100);
         while (st.spawnAccum >= 1) {
           st.spawnAccum -= 1;
-          const angle = Math.random() * Math.PI * 2;
-          const r0 = Math.min(W, H) * (0.15 + Math.random() * 0.1);
-          const spd = (speed / 100) * (Math.min(W, H) * 0.012) * (0.6 + Math.random() * 0.8);
+          const radialSpeed = (speed / 100) * (Math.min(W, H) * 0.012) * (0.6 + Math.random() * 0.8);
           st.particles.push({
-            x: cx + Math.cos(angle) * r0,
-            y: cy + Math.sin(angle) * r0,
-            vx: Math.cos(angle) * spd,
-            vy: Math.sin(angle) * spd,
+            angle: Math.random() * Math.PI * 2,
+            radius: baseR + Math.random() * Math.min(W, H) * 0.03,
+            radialSpeed,
             life: 1,
-            hue: Math.random() * 360,
+            t: Math.random(),
           });
         }
       }
 
       st.ctx.globalCompositeOperation = 'lighter';
+      st.ctx.shadowBlur = blur;
       for (let i = st.particles.length - 1; i >= 0; i--) {
         const p = st.particles[i];
-        p.x += p.vx; p.y += p.vy;
-        p.life -= 0.02;
+        p.angle += rotRad;
+        p.radius += p.radialSpeed;
+        p.life -= 1 / Math.max(1, duration);
         if (p.life <= 0) { st.particles.splice(i, 1); continue; }
-        const r = Math.max(0.5, size * p.life);
-        const grad = st.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-        grad.addColorStop(0, `hsla(${p.hue}, 100%, 80%, ${p.life})`);
-        grad.addColorStop(1, `hsla(${p.hue}, 100%, 60%, 0)`);
+        const x = cx + Math.cos(p.angle) * p.radius;
+        const y = cy + Math.sin(p.angle) * p.radius;
+        const { r: cr, g: cg, b: cb } = sampleGradientRGB(stops, p.t);
+        const rad = Math.max(0.5, size * p.life);
+        st.ctx.shadowColor = `rgba(${cr},${cg},${cb},${p.life})`;
+        const grad = st.ctx.createRadialGradient(x, y, 0, x, y, rad);
+        grad.addColorStop(0, `rgba(${cr},${cg},${cb},${p.life})`);
+        grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
         st.ctx.fillStyle = grad;
         st.ctx.beginPath();
-        st.ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        st.ctx.arc(x, y, rad, 0, Math.PI * 2);
         st.ctx.fill();
       }
+      st.ctx.shadowBlur = 0;
       st.ctx.globalCompositeOperation = 'source-over';
 
       ctx.save();
@@ -1897,10 +1923,11 @@ function applyEffectsChain(ctx, canvas) {
     for (const ctrl of def.controls) {
       resolved[ctrl.key] = (ctrl.animatable ? getAnimValue(effect, ctrl.key, clk) : null) ?? effect[ctrl.key];
     }
-    // Echo's excludeImages is a plain boolean toggle, not a def.controls
-    // slider, so it isn't picked up by the loop above — pass it through
-    // explicitly.
+    // Echo's excludeImages and Comet Sparkle's gradient are plain
+    // non-slider fields, not def.controls entries, so they aren't picked
+    // up by the loop above — pass them through explicitly.
     if (effect.type === 'echo') resolved.excludeImages = effect.excludeImages;
+    if (effect.type === 'cometSparkle') resolved.gradient = effect.gradient;
     def.apply(ctx, canvas, resolved, effect.id);
   }
 }
@@ -1994,6 +2021,30 @@ function updateEffectsList() {
         });
         exRow.appendChild(exLabel); exRow.appendChild(exInput);
         body.appendChild(exRow);
+      }
+      // EFFECT-MODULE: Comet Sparkle's gradient picker — a preset name, not
+      // a slider, so it's a one-off row here (same reasoning as Echo's
+      // checkbox above) reusing the same GRADIENT_PRESETS dropdown pattern
+      // as the stroke/shape gradient pickers elsewhere in the app.
+      if (effect.type === 'cometSparkle') {
+        const gradRow = document.createElement('div');
+        gradRow.className = 'prop-row';
+        const gradLabel = document.createElement('label');
+        gradLabel.className = 'prop-label';
+        gradLabel.textContent = 'Gradient';
+        const gradSel = document.createElement('select');
+        for (const name of Object.keys(GRADIENT_PRESETS)) {
+          const opt = document.createElement('option');
+          opt.value = name; opt.textContent = name;
+          if (name === effect.gradient) opt.selected = true;
+          gradSel.appendChild(opt);
+        }
+        gradSel.addEventListener('change', () => {
+          effect.gradient = gradSel.value;
+          historySnapshot(); markRenderDirty();
+        });
+        gradRow.appendChild(gradLabel); gradRow.appendChild(gradSel);
+        body.appendChild(gradRow);
       }
       row.appendChild(body);
     }
