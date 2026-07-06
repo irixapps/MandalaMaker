@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.65';
+const VERSION = '3.66';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1395,70 +1395,6 @@ const EFFECT_TYPES = {
       ctx.drawImage(_glitchChanCanvas, 0, 0);
     },
   },
-  ripple: {
-    label: 'Displacement Ripple',
-    defaults: () => ({ amount: 40, frequency: 6, phase: 0 }),
-    controls: [
-      { key: 'amount',    label: 'Amount',    min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
-      { key: 'frequency', label: 'Frequency', min: 1, max: 20,  step: 1, format: v => Math.round(v), animatable: false },
-      { key: 'phase',     label: 'Phase',     min: 0, max: 360, step: 1, format: v => Math.round(v) + '°', animatable: true },
-    ],
-    presets: {
-      amount: [
-        { label: 'Pulse', kfs: [{t:0,v:20,e:'ease'},{t:0.5,v:70,e:'ease'},{t:1,v:20,e:'ease'}], dur: 3 },
-      ],
-      // Phase isn't a ping-pong loop like the other new effects' presets —
-      // sin() is exactly periodic every 360°, so animating it linearly
-      // 0deg->360deg is a *mathematically perfect* loop: the ripple pattern
-      // at phase=360 is pixel-identical to phase=0, not just matching
-      // endpoints, so ripples appear to flow outward continuously forever
-      // with zero seam, at any duration.
-      phase: [
-        { label: 'Flow', kfs: [{t:0,v:0,e:'linear'},{t:1,v:360,e:'linear'}], dur: 3 },
-      ],
-    },
-    // Approximates a radial displacement/ripple with no per-pixel readback
-    // (too slow for GIF/WebP export's per-frame loop): slice the canvas
-    // into concentric rings around its centre and redraw the *whole* image
-    // locally rescaled per ring by a sine wave of distance-from-centre
-    // (see the amount/frequency/phase formula below), painting outermost
-    // ring first so each smaller circle clip fully overwrites the last —
-    // the net result is each radial band sitting at a slightly different
-    // effective zoom than its neighbours, which reads as concentric waves
-    // rippling outward as `phase` advances. Same "redraw the frame at a
-    // different scale, clipped" trick Zoom Blur uses for its streaks, just
-    // with a sinusoidal per-ring scale instead of one continuously
-    // increasing scale, and a hard overwrite instead of a fading trail.
-    apply(ctx, canvas, { amount, frequency, phase }) {
-      if (amount <= 0) return;
-      const W = canvas.width, H = canvas.height;
-      _ensureRippleOffscreen(W, H);
-      const cx = W / 2, cy = H / 2;
-      const maxR = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
-      const rings = 28;
-      const ampPx = (amount / 100) * Math.min(W, H) * 0.035;
-      const phaseRad = phase * Math.PI / 180;
-
-      _rippleCtx.clearRect(0, 0, W, H);
-      for (let i = rings; i >= 0; i--) {
-        const r0 = (i / rings) * maxR;
-        const d = Math.sin((r0 / maxR) * frequency * Math.PI * 2 - phaseRad) * ampPx;
-        const scale = (r0 + d) / (r0 || 1);
-        _rippleCtx.save();
-        _rippleCtx.beginPath();
-        _rippleCtx.arc(cx, cy, r0 + maxR / rings, 0, Math.PI * 2);
-        _rippleCtx.clip();
-        _rippleCtx.translate(cx, cy);
-        _rippleCtx.scale(scale, scale);
-        _rippleCtx.translate(-cx, -cy);
-        _rippleCtx.drawImage(canvas, 0, 0);
-        _rippleCtx.restore();
-      }
-
-      ctx.clearRect(0, 0, W, H);
-      ctx.drawImage(_rippleCanvas, 0, 0);
-    },
-  },
   shatter: {
     label: 'Kaleidoscope Shatter',
     defaults: () => ({ amount: 0, shards: 10 }),
@@ -1528,6 +1464,88 @@ const EFFECT_TYPES = {
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(_shatterCanvas, 0, 0);
     },
+  },
+  cometSparkle: {
+    label: 'Comet Sparkle',
+    defaults: () => ({ amount: 40, speed: 40, size: 6 }),
+    controls: [
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
+      { key: 'speed',  label: 'Speed',  min: 1, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
+      { key: 'size',   label: 'Size',   min: 2, max: 20,  step: 1, format: v => Math.round(v) + 'px', animatable: false },
+    ],
+    presets: {
+      amount: [
+        { label: 'Sparkle Burst', kfs: [{t:0,v:10,e:'ease'},{t:0.5,v:90,e:'ease'},{t:1,v:10,e:'ease'}], dur: 3 },
+        { label: 'Gentle Drift',  kfs: [{t:0,v:30,e:'linear'},{t:1,v:30,e:'linear'}], dur: 2 },
+      ],
+    },
+    // A small persistent particle system, not a whole-canvas filter: each
+    // frame spawns a few glowing dots at a ring around the centre (count
+    // driven by `amount`, true per-frame randomness like RGB Glitch — no
+    // reproducibility need), then advances every live particle outward by
+    // its own velocity and fades its life down, drawing each as a radial-
+    // gradient glow. Particles accumulate into their own persistent buffer
+    // that's only lightly faded (destination-out) each frame rather than
+    // fully cleared, so a moving particle leaves a soft fading streak
+    // behind it — a comet tail — without needing to track path history per
+    // particle. That buffer is then composited onto the real canvas with
+    // 'lighter' (additive), so sparkles layer on top of the existing
+    // artwork as pure added brightness instead of replacing anything
+    // underneath — this is the one effect in the stack that's additive
+    // decoration rather than a transform of the frame.
+    apply(ctx, canvas, { amount, speed, size }, effectId) {
+      const W = canvas.width, H = canvas.height;
+      const st = _ensureCometState(effectId, W, H);
+
+      st.ctx.globalCompositeOperation = 'destination-out';
+      st.ctx.globalAlpha = 0.12;
+      st.ctx.fillStyle = '#000';
+      st.ctx.fillRect(0, 0, W, H);
+      st.ctx.globalCompositeOperation = 'source-over';
+      st.ctx.globalAlpha = 1;
+
+      if (amount > 0) {
+        const cx = W / 2, cy = H / 2;
+        st.spawnAccum = (st.spawnAccum || 0) + (amount / 100) * 2.2;
+        while (st.spawnAccum >= 1) {
+          st.spawnAccum -= 1;
+          const angle = Math.random() * Math.PI * 2;
+          const r0 = Math.min(W, H) * (0.15 + Math.random() * 0.1);
+          const spd = (speed / 100) * (Math.min(W, H) * 0.012) * (0.6 + Math.random() * 0.8);
+          st.particles.push({
+            x: cx + Math.cos(angle) * r0,
+            y: cy + Math.sin(angle) * r0,
+            vx: Math.cos(angle) * spd,
+            vy: Math.sin(angle) * spd,
+            life: 1,
+            hue: Math.random() * 360,
+          });
+        }
+      }
+
+      st.ctx.globalCompositeOperation = 'lighter';
+      for (let i = st.particles.length - 1; i >= 0; i--) {
+        const p = st.particles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.life -= 0.02;
+        if (p.life <= 0) { st.particles.splice(i, 1); continue; }
+        const r = Math.max(0.5, size * p.life);
+        const grad = st.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        grad.addColorStop(0, `hsla(${p.hue}, 100%, 80%, ${p.life})`);
+        grad.addColorStop(1, `hsla(${p.hue}, 100%, 60%, 0)`);
+        st.ctx.fillStyle = grad;
+        st.ctx.beginPath();
+        st.ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        st.ctx.fill();
+      }
+      st.ctx.globalCompositeOperation = 'source-over';
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(st.canvas, 0, 0);
+      ctx.restore();
+    },
+    resetState(effectId) { _cometStates.delete(effectId); },
   },
   // Add new modules here.
 };
@@ -1824,15 +1842,6 @@ function _ensureGlitchChanOffscreen(W, H) {
   }
 }
 
-let _rippleCanvas = null, _rippleCtx = null;
-function _ensureRippleOffscreen(W, H) {
-  if (!_rippleCanvas || _rippleCanvas.width !== W || _rippleCanvas.height !== H) {
-    _rippleCanvas = document.createElement('canvas');
-    _rippleCanvas.width = W; _rippleCanvas.height = H;
-    _rippleCtx = _rippleCanvas.getContext('2d');
-  }
-}
-
 let _shatterCanvas = null, _shatterCtx = null;
 function _ensureShatterOffscreen(W, H) {
   if (!_shatterCanvas || _shatterCanvas.width !== W || _shatterCanvas.height !== H) {
@@ -1840,6 +1849,18 @@ function _ensureShatterOffscreen(W, H) {
     _shatterCanvas.width = W; _shatterCanvas.height = H;
     _shatterCtx = _shatterCanvas.getContext('2d');
   }
+}
+
+let _cometStates = new Map(); // effectId -> { canvas, ctx, particles, spawnAccum } — see the Comet Sparkle module above
+function _ensureCometState(id, W, H) {
+  let st = _cometStates.get(id);
+  if (!st || st.canvas.width !== W || st.canvas.height !== H) {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    st = { canvas: c, ctx: c.getContext('2d'), particles: [], spawnAccum: 0 };
+    _cometStates.set(id, st);
+  }
+  return st;
 }
 
 // EFFECT-MODULE: core — instance creation, per-frame resolve+apply, and the
