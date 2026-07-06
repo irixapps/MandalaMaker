@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.67';
+const VERSION = '3.68';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1467,6 +1467,11 @@ const EFFECT_TYPES = {
   },
   cometSparkle: {
     label: 'Comet Sparkle',
+    // Hidden from the "+Add" dropdown for now (still needs more tuning),
+    // but left fully registered so it keeps rendering/editing correctly in
+    // any project that already has one — see wireEffectsPanel's dropdown
+    // population, which skips any def with hidden:true.
+    hidden: true,
     defaults: () => ({ amount: 40, speed: 40, size: 6, innerRadius: 20, blur: 6, duration: 50, rotation: 0, gradient: 'Rainbow' }),
     controls: [
       { key: 'amount',      label: 'Amount',       min: 0,   max: 100, step: 1,   format: v => Math.round(v) + '%',   animatable: true },
@@ -2313,6 +2318,7 @@ function refreshAllEffectTimelines() {
 function wireEffectsPanel() {
   const addSel = document.getElementById('effect-add-select');
   for (const key of Object.keys(EFFECT_TYPES)) {
+    if (EFFECT_TYPES[key].hidden) continue;
     const opt = document.createElement('option');
     opt.value = key; opt.textContent = EFFECT_TYPES[key].label;
     addSel.appendChild(opt);
