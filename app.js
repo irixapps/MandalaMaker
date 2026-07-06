@@ -1408,6 +1408,10 @@ function applyEffectsChain(ctx, canvas) {
     for (const ctrl of def.controls) {
       resolved[ctrl.key] = (ctrl.animatable ? getAnimValue(effect, ctrl.key, clk) : null) ?? effect[ctrl.key];
     }
+    // Echo's excludeImages is a plain boolean toggle, not a def.controls
+    // slider, so it isn't picked up by the loop above — pass it through
+    // explicitly.
+    if (effect.type === 'echo') resolved.excludeImages = effect.excludeImages;
     def.apply(ctx, canvas, resolved, effect.id);
   }
 }
