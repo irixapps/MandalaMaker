@@ -3197,14 +3197,15 @@
               }
             ],
             "scale": 400,
-            "speed": 0.3
+            "speed": 0.3,
+            "reverse": true
           },
           "_layerName": "grad-stroke-166",
           "trailAnim": {
             "enabled": true,
-            "duration": 4,
-            "lengthPct": 22,
-            "continuous": true,
+            "duration": 3,
+            "lengthPct": 17,
+            "continuous": false,
             "reverse": false
           },
           "anim": {
@@ -3876,20 +3877,95 @@
           }
         },
         {
-          "id": "id6_1783301993153",
-          "type": "petal",
-          "x": -533.8403041825095,
-          "y": -273.7642585551331,
-          "petalDx": 49.04942965779469,
-          "petalDy": 23.95437262357416,
-          "petalCurve": -0.46069868995633134,
+          "id": "id2_1783309921682",
+          "type": "wing",
+          "x": -532.6996197718631,
+          "y": -334.2205323193916,
+          "bezierDx": 87.83269961977186,
+          "bezierDy": 5.703422053231918,
+          "bezierC1x": 42.87222316594525,
+          "bezierC1y": 18.931261343302445,
+          "bezierC2x": 44.96047645382661,
+          "bezierC2y": -13.227839290070527,
+          "wingMirrorAngle": 0.5557557211123136,
           "r": 0,
           "color": "#ff6b9d",
-          "thickness": 3,
+          "thickness": 4,
           "opacity": 1,
           "fill": null,
           "lineCap": "round",
-          "lineJoin": "miter",
+          "lineJoin": "round",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.3,
+            "reverse": false
+          },
+          "rotation": 0,
+          "orbit": 0,
+          "anim": {},
+          "params": {},
+          "axes": 10,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "wing-001",
+          "trailAnim": {
+            "enabled": true,
+            "duration": 0.7,
+            "lengthPct": 40,
+            "continuous": false,
+            "reverse": false
+          }
+        },
+        {
+          "id": "id6_1783310013962",
+          "type": "wing",
+          "x": -568.0608365019011,
+          "y": -361.5969581749049,
+          "bezierDx": 65.01901140684406,
+          "bezierDy": 123.19391634980988,
+          "bezierC1x": 39.52110635176484,
+          "bezierC1y": 45.275909062996,
+          "bezierC2x": 2.684216842151468,
+          "bezierC2y": 84.76211375069224,
+          "wingMirrorAngle": 0.5621867439000292,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "round",
           "dash": [],
           "gradient": {
             "stops": [
@@ -3927,36 +4003,128 @@
           },
           "rotation": 0,
           "orbit": 0,
+          "anim": {},
+          "params": {},
+          "axes": 10,
+          "axisRotation": 0,
+          "mirror": false,
+          "_layerName": "wing-005",
+          "trailAnim": {
+            "enabled": true,
+            "duration": 0.7,
+            "lengthPct": 40,
+            "continuous": false,
+            "reverse": false
+          }
+        },
+        {
+          "id": "id7_1783310211211",
+          "type": "petal",
+          "x": -607.9847908745247,
+          "y": -169.9619771863118,
+          "petalDx": 142.58555133079847,
+          "petalDy": 26.23574144486696,
+          "petalCurve": -0.37730593041971017,
+          "r": 0,
+          "color": "#ff6b9d",
+          "thickness": 4,
+          "opacity": 1,
+          "fill": null,
+          "lineCap": "round",
+          "lineJoin": "miter",
+          "dash": [],
+          "gradient": {
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#ff0000"
+              },
+              {
+                "pos": 0.17,
+                "color": "#ff8800"
+              },
+              {
+                "pos": 0.33,
+                "color": "#ffff00"
+              },
+              {
+                "pos": 0.5,
+                "color": "#00ff44"
+              },
+              {
+                "pos": 0.67,
+                "color": "#0088ff"
+              },
+              {
+                "pos": 0.83,
+                "color": "#aa00ff"
+              },
+              {
+                "pos": 1,
+                "color": "#ff0000"
+              }
+            ],
+            "scale": 400,
+            "speed": 0.79
+          },
+          "rotation": 0,
+          "orbit": 0,
           "anim": {
             "rotation": {
               "enabled": true,
-              "duration": 5,
+              "duration": 3,
               "keyframes": [
                 {
                   "t": 0,
-                  "value": -180,
+                  "value": 360,
                   "easing": "linear"
                 },
                 {
                   "t": 1,
-                  "value": 180,
+                  "value": -360,
                   "easing": "linear"
                 }
               ]
             },
-            "orbit": {
+            "offsetX": {
               "enabled": true,
-              "duration": 12,
+              "duration": 2,
               "keyframes": [
                 {
                   "t": 0,
-                  "value": -180,
-                  "easing": "linear"
+                  "value": -500,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.4923548991054712,
+                  "value": -180.26257454628671,
+                  "easing": "ease"
                 },
                 {
                   "t": 1,
-                  "value": 180,
-                  "easing": "linear"
+                  "value": -500,
+                  "easing": "ease"
+                }
+              ]
+            },
+            "offsetY": {
+              "enabled": false,
+              "duration": 2,
+              "keyframes": [
+                {
+                  "t": 0,
+                  "value": -60,
+                  "easing": "ease"
+                },
+                {
+                  "t": 0.49745163303515705,
+                  "value": 495.8668821417846,
+                  "easing": "ease"
+                },
+                {
+                  "t": 1,
+                  "value": -60,
+                  "easing": "ease"
                 }
               ]
             }
@@ -3966,110 +4134,12 @@
           "axisRotation": 0,
           "mirror": false,
           "_layerName": "petal-001",
+          "visible": true,
           "trailAnim": {
-            "enabled": true,
+            "enabled": false,
             "duration": 2,
-            "lengthPct": 40,
-            "continuous": false,
-            "reverse": false
-          }
-        },
-        {
-          "id": "id7_1783301999507",
-          "type": "petal",
-          "x": -519.0114068441064,
-          "y": -376.42585551330797,
-          "petalDx": 65.01901140684407,
-          "petalDy": 42.20532319391634,
-          "petalCurve": -0.4146816803811179,
-          "r": 0,
-          "color": "#ff6b9d",
-          "thickness": 2,
-          "opacity": 1,
-          "fill": null,
-          "lineCap": "round",
-          "lineJoin": "miter",
-          "dash": [],
-          "gradient": {
-            "stops": [
-              {
-                "pos": 0,
-                "color": "#ff0000"
-              },
-              {
-                "pos": 0.17,
-                "color": "#ff8800"
-              },
-              {
-                "pos": 0.33,
-                "color": "#ffff00"
-              },
-              {
-                "pos": 0.5,
-                "color": "#00ff44"
-              },
-              {
-                "pos": 0.67,
-                "color": "#0088ff"
-              },
-              {
-                "pos": 0.83,
-                "color": "#aa00ff"
-              },
-              {
-                "pos": 1,
-                "color": "#ff0000"
-              }
-            ],
-            "scale": 400,
-            "speed": 0.3
-          },
-          "rotation": 0,
-          "orbit": 0,
-          "anim": {
-            "orbit": {
-              "enabled": true,
-              "duration": 9.1,
-              "keyframes": [
-                {
-                  "t": 0,
-                  "value": -180,
-                  "easing": "linear"
-                },
-                {
-                  "t": 1,
-                  "value": 180,
-                  "easing": "linear"
-                }
-              ]
-            },
-            "rotation": {
-              "enabled": true,
-              "duration": 5.2,
-              "keyframes": [
-                {
-                  "t": 0,
-                  "value": -180,
-                  "easing": "linear"
-                },
-                {
-                  "t": 1,
-                  "value": 180,
-                  "easing": "linear"
-                }
-              ]
-            }
-          },
-          "params": {},
-          "axes": 10,
-          "axisRotation": 0,
-          "mirror": false,
-          "_layerName": "petal-002",
-          "trailAnim": {
-            "enabled": true,
-            "duration": 2,
-            "lengthPct": 40,
-            "continuous": false,
+            "lengthPct": 12,
+            "continuous": true,
             "reverse": false
           }
         }
@@ -4085,9 +4155,9 @@
         "amount": null
       },
       "_expanded": true,
-      "amount": 72,
-      "threshold": 48,
-      "radius": 1
+      "amount": 357,
+      "threshold": 100,
+      "radius": 14
     },
     {
       "id": "id192_1783246858783",
@@ -4127,8 +4197,9 @@
         }
       },
       "_expanded": true,
-      "amount": 65,
-      "separation": 0
+      "amount": 74,
+      "separation": 0,
+      "excludeImages": true
     }
   ],
   "palette": [
