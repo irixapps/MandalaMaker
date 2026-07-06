@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.57';
+const VERSION = '3.58';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -895,7 +895,7 @@ const EFFECT_TYPES = {
     defaults: () => ({ amount: 60, separation: 0 }),
     controls: [
       { key: 'amount',     label: 'Amount',     min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
-      { key: 'separation', label: 'Separation', min: 0, max: 30,  step: 1, format: v => Math.round(v) + (Math.round(v) === 1 ? ' frame' : ' frames'), animatable: false },
+      { key: 'separation', label: 'Separation', min: 0, max: 4,   step: 1, format: v => Math.round(v) + (Math.round(v) === 1 ? ' frame' : ' frames'), animatable: false },
     ],
     presets: {
       amount: [
