@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.79';
+const VERSION = '3.80';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3091,6 +3091,32 @@ function hsvToRgb(h, s, v) {
 
 function colorDist(r1, g1, b1, r2, g2, b2) {
   return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+}
+
+// Drawing in a colour that's very close to the background is a real trap —
+// the stroke *does* render correctly (verified: identical pixels either
+// way, only the background differs), it's just visually indistinguishable
+// from "nothing happened," which reads exactly like a bug. Rather than
+// changing any actual rendering behaviour, just surface a warning next to
+// the colour swatch so it's obvious before the user draws and wonders
+// where their stroke went.
+//
+// Raw RGB distance (colorDist) isn't the right metric here: black
+// (0,0,0) vs this app's default near-black background (#0d0d1a) is only
+// ~52 apart on that scale, well above a naive low threshold, yet the two
+// are essentially indistinguishable on screen. What actually determines
+// on-screen visibility is *perceived brightness*, not raw channel
+// distance — two very different hues at the same low brightness are
+// still hard to tell apart. Compare luma (standard 0.299/0.587/0.114
+// weighting) instead, which correctly flags black-on-near-black
+// regardless of the small hue offset between them.
+function updateColorContrastWarning() {
+  const warn = document.getElementById('color-contrast-warning');
+  if (!warn) return;
+  const a = hexToRgb(S.color), b = hexToRgb(S.bgColor);
+  const lumaA = 0.299 * a.r + 0.587 * a.g + 0.114 * a.b;
+  const lumaB = 0.299 * b.r + 0.587 * b.g + 0.114 * b.b;
+  warn.style.display = Math.abs(lumaA - lumaB) < 25 ? '' : 'none';
 }
 
 // ── Custom colour popover ───────────────────────────────
@@ -7177,6 +7203,7 @@ function pickColor(x, y) {
   S.color = hex;
   document.getElementById('draw-color').value = hex;
   document.getElementById('color-swatch').style.background = hex;
+  updateColorContrastWarning();
   setTool('brush');
 }
 
@@ -8265,6 +8292,7 @@ function loadProject(json) {
     const data = JSON.parse(json);
     S.bgColor = data.bgColor || '#0d0d1a';
     document.getElementById('bg-color').value = S.bgColor;
+    updateColorContrastWarning();
     S.canvasW = data.canvasW || 1200;
     S.canvasH = data.canvasH || 900;
     resizeCanvas(S.canvasW, S.canvasH);
@@ -9259,7 +9287,7 @@ function wireEvents() {
     m.mirror = e.target.checked;
   });
   document.getElementById('cb-guides').addEventListener('change', e => { S.showGuides = e.target.checked; markRenderDirty(); });
-  document.getElementById('bg-color').addEventListener('input', e => { S.bgColor = e.target.value; invalidateStrokeCache(); });
+  document.getElementById('bg-color').addEventListener('input', e => { S.bgColor = e.target.value; invalidateStrokeCache(); updateColorContrastWarning(); });
   wireViewport();
 
   // Tool buttons
@@ -9271,6 +9299,7 @@ function wireEvents() {
   document.getElementById('draw-color').addEventListener('input', e => {
     S.color = e.target.value;
     document.getElementById('color-swatch').style.background = e.target.value;
+    updateColorContrastWarning();
   });
   document.getElementById('brush-size').addEventListener('input', e => {
     S.thickness = parseInt(e.target.value);
@@ -9846,6 +9875,7 @@ function init() {
   updateLayersList();
   updateStatusBarVisibility();
   document.getElementById('color-swatch').style.background = S.color;
+  updateColorContrastWarning();
   centerCanvasView();
   requestAnimationFrame(render);
 
