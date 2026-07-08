@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.87';
+const VERSION = '3.88';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3458,6 +3458,37 @@ function createMandala(cx, cy, axes = 8, colorIdx = 0) {
   };
 }
 
+// ── Layer z-order ────────────────────────────────────────
+// Strokes/shapes/sprites used to render as three separate groups (all
+// strokes, then all shapes, then all sprites) regardless of the order they
+// were actually drawn in — so a stroke drawn after a shape would still
+// render behind it, and a gradient stroke (rendered live, always on top of
+// the cached solid strokes) would render in front of a solid stroke drawn
+// after it. Every new item gets an increasing z so draw order is a single
+// real stacking order across all three types; see getOrderedEntries.
+function nextZ(m) { return (m._z = (m._z || 0) + 1); }
+
+// Older saved projects predate the z field — assign one to any item that's
+// missing it, preserving the original strokes-then-shapes-then-sprites
+// stacking so nothing visually jumps the first time an old file is loaded.
+function backfillLayerZ(m) {
+  let z = m._z || 0;
+  for (const s of (m.strokes || [])) if (s.z == null) s.z = ++z;
+  for (const s of (m.shapes  || [])) if (s.z == null) s.z = ++z;
+  for (const s of (m.sprites || [])) if (s.z == null) s.z = ++z;
+  m._z = z;
+}
+
+// Flat, bottom-to-top render/list order across strokes+shapes+sprites.
+function getOrderedEntries(m) {
+  const entries = [];
+  for (const s of (m.strokes || [])) entries.push({ type: 'stroke', item: s });
+  for (const s of (m.shapes  || [])) entries.push({ type: 'shape',  item: s });
+  for (const s of (m.sprites || [])) entries.push({ type: 'sprite', item: s });
+  entries.sort((a, b) => (a.item.z || 0) - (b.item.z || 0));
+  return entries;
+}
+
 // ── Palette management ──────────────────────────────────
 function loadImageFromFile(file) {
   const reader = new FileReader();
@@ -3699,45 +3730,58 @@ function getDrawableImage(item, noCache = false) {
   return item.processedCache;
 }
 
-// ── Stroke cache (offscreen canvas for solid strokes) ────
-// Re-renders only when strokes/BG change; gradient strokes + sprites
-// are always rendered live on top.
-let _strokeCache = null;
+// ── Stroke cache (offscreen canvases for solid strokes) ──
+// Solid (non-gradient/trail/orbit/erase) strokes are pre-rendered instead
+// of redrawn every frame — but they can no longer all be flattened into
+// one canvas blitted before everything else, since that puts every solid
+// stroke behind every shape/sprite/gradient stroke regardless of actual
+// draw order (see getOrderedEntries/nextZ). Instead this bakes each
+// maximal contiguous run of solid strokes (in z order) into its own
+// offscreen canvas; renderMandalaLive blits each run at its correct
+// position in the interleaved z walk, so a solid stroke drawn after a
+// shape still renders after it — only the strokes need re-baking when
+// something changes, shapes/sprites already redraw live every frame.
 let _strokeCacheDirty = true;
+const _runCaches = new Map(); // mandala.id -> [{ startIdx, endIdx, canvas }]
 // Reusable proxy object for renderShapeSymmetric — avoids per-frame allocation.
 const _shapeProxy = {};
 
 function invalidateStrokeCache() { _strokeCacheDirty = true; markRenderDirty(); flushHasAnimCache(); }
 
-function rebuildStrokeCache() {
-  if (!_strokeCache || _strokeCache.width !== canvas.width || _strokeCache.height !== canvas.height) {
-    _strokeCache = document.createElement('canvas');
-    _strokeCache.width  = canvas.width;
-    _strokeCache.height = canvas.height;
-  }
-  const cc = _strokeCache.getContext('2d');
-  // Left transparent, not pre-filled with the background colour: erase
-  // strokes now punch real alpha holes (destination-out, see
-  // renderStrokeSymmetricTo) rather than painting over content, so if the
-  // background were baked in here an erase stroke drawn after it would eat
-  // straight through it too, leaving a hole in the cache with nothing behind
-  // it instead of the background colour. The background is instead painted
-  // in once, behind everything, after all per-frame content (cache + live
-  // layers) has been composited — see the `destination-over` fill in
-  // render() and the export functions.
-  cc.clearRect(0, 0, canvas.width, canvas.height);
+// Erase strokes are deliberately excluded — they need to stay live (drawn
+// directly to the main ctx at their real z position) so they punch through
+// whatever is actually visible there at render time, including content
+// from an earlier cache run or a shape, not just whatever happens to share
+// their own run's canvas.
+function isCacheableStrokeEntry(entry) {
+  if (entry.type !== 'stroke') return false;
+  const s = entry.item;
+  return s.pts.length >= 2 && s.visible !== false && !s.erase && !s.gradient && !s.trailAnim?.enabled && !s.anim?.orbit?.enabled;
+}
 
+function rebuildStrokeCache() {
+  _runCaches.clear();
   for (const m of S.mandalas) {
     if (!m.visible) continue;
-    for (const stroke of m.strokes) {
-      if (stroke.pts.length < 2 || stroke.gradient || stroke.trailAnim?.enabled || stroke.anim?.orbit?.enabled || stroke.visible === false) continue; // skip gradient/trail/orbit — rendered live
-      const axes = stroke.axes != null ? stroke.axes : m.axes;
-      const rot  = strokeEffectiveRot(stroke, m, S.animClock);
-      // Use the offscreen ctx, not the main ctx
-      const savedCtx = ctx;
-      // Temporarily rebind renderStrokeSymmetric to use cc
-      renderStrokeSymmetricTo(cc, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, null);
+    const entries = getOrderedEntries(m);
+    const runs = [];
+    let i = 0;
+    while (i < entries.length) {
+      if (!isCacheableStrokeEntry(entries[i])) { i++; continue; }
+      const startIdx = i;
+      const cv = document.createElement('canvas');
+      cv.width = canvas.width; cv.height = canvas.height;
+      const cc = cv.getContext('2d');
+      while (i < entries.length && isCacheableStrokeEntry(entries[i])) {
+        const stroke = entries[i].item;
+        const axes = stroke.axes != null ? stroke.axes : m.axes;
+        const rot  = strokeEffectiveRot(stroke, m, S.animClock);
+        renderStrokeSymmetricTo(cc, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, null);
+        i++;
+      }
+      runs.push({ startIdx, endIdx: i - 1, canvas: cv });
     }
+    _runCaches.set(m.id, runs);
   }
   _strokeCacheDirty = false;
 }
@@ -3772,10 +3816,10 @@ function render(timestamp) {
     }
   }
 
-  // Composite cached solid strokes (rebuilds if dirty)
+  // Rebuild per-mandala solid-stroke run caches if dirty — each run gets
+  // blitted at its correct z position inside renderMandalaLive, not here.
   if (_strokeCacheDirty) rebuildStrokeCache();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(_strokeCache, 0, 0);
 
   // Grid overlay
   if (S.snapGrid.enabled) renderGridOverlay();
@@ -4283,20 +4327,24 @@ function renderOverlay() {
   }
 }
 
-// Full render — used by GIF/WebP export (no cache)
-function renderMandala(m, forExport, skipSprites) {
-  for (const stroke of m.strokes) {
-    if (stroke.pts.length < 2 || stroke.visible === false) continue;
+// Draws one ordered entry (stroke/shape/sprite) straight to ctx, live —
+// shared by renderMandala's full pass and renderMandalaLive's non-cached
+// entries. skipSprites lets the Echo/Bloom "Exclude Images" sprite-split
+// path omit sprites from this pass and re-composite them separately.
+function renderLiveEntry(m, entry, skipSprites) {
+  if (entry.type === 'stroke') {
+    const stroke = entry.item;
+    if (stroke.pts.length < 2 || stroke.visible === false) return;
     const axes = stroke.axes != null ? stroke.axes : m.axes;
     const rot  = strokeEffectiveRot(stroke, m, S.animClock);
     if (stroke.trailAnim?.enabled) {
       renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.gradient, stroke.erase);
-      continue;
+    } else {
+      renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
     }
-    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
-  }
-  for (const shape of (m.shapes || [])) {
-    if (shape.visible === false) continue;
+  } else if (entry.type === 'shape') {
+    const shape = entry.item;
+    if (shape.visible === false) return;
     // Text has no outline path for the generic arc-length trail renderer to
     // walk (getShapePoints returns [] for it) -- its own Fading Trail
     // handling lives inside renderTextShape/textFillStyle instead, reached
@@ -4306,47 +4354,35 @@ function renderMandala(m, forExport, skipSprites) {
     } else {
       renderShapeSymmetric(ctx, m, shape);
     }
+  } else if (entry.type === 'sprite') {
+    if (!skipSprites && entry.item.visible !== false) renderSprite(ctx, m, entry.item);
   }
-  if (!skipSprites) { for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); } }
 }
 
-// Live render — gradient/trail/orbit strokes + shapes + sprites (static solid strokes come from cache)
+// Full render — used by GIF/WebP export (no cache, everything drawn live
+// in one pass through the real z order).
+function renderMandala(m, forExport, skipSprites) {
+  for (const entry of getOrderedEntries(m)) renderLiveEntry(m, entry, skipSprites);
+}
+
+// Live render — walks the same z order, but blits a pre-baked run canvas
+// (see rebuildStrokeCache) wherever a maximal run of solid strokes sits,
+// instead of redrawing them; everything else (gradient/trail/orbit/erase
+// strokes, shapes, sprites) still renders live at its exact position in
+// the walk, so the visible stacking always matches actual draw order.
 function renderMandalaLive(m, skipSprites) {
-  for (const stroke of m.strokes) {
-    if (stroke.pts.length < 2 || stroke.visible === false) continue;
-    const isTrail = !!stroke.trailAnim?.enabled;
-    const isOrbiting = !!stroke.anim?.orbit?.enabled;
-    // Erase strokes are always solid (never gradient/trail/orbit themselves),
-    // so they'd otherwise be skipped here and only exist in the cache — fine
-    // for masking earlier *static* strokes, but a gradient/trail/orbit stroke
-    // drawn earlier still renders live, on top of the whole cache, every
-    // frame, so an erase stroke sitting below it in the cache could never
-    // actually cover it. Redrawing erase strokes here too (harmless
-    // redundancy against already-cached static content, since erasing twice
-    // is idempotent) puts them back in the same original z-order as any
-    // live content they need to mask.
-    if (!stroke.gradient && !isTrail && !isOrbiting && !stroke.erase) continue; // static — already in cache
-    const axes = stroke.axes != null ? stroke.axes : m.axes;
-    const rot  = strokeEffectiveRot(stroke, m, S.animClock);
-    if (isTrail) {
-      renderStrokeTrailSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.mirror !== false, axes, rot, stroke.trailAnim, stroke.gradient, stroke.erase);
+  const entries = getOrderedEntries(m);
+  const runs = _runCaches.get(m.id) || [];
+  let runIdx = 0;
+  for (let i = 0; i < entries.length; i++) {
+    if (runIdx < runs.length && i === runs[runIdx].startIdx) {
+      ctx.drawImage(runs[runIdx].canvas, 0, 0);
+      i = runs[runIdx].endIdx; // for-loop's i++ advances past the run next iteration
+      runIdx++;
       continue;
     }
-    renderStrokeSymmetric(ctx, m, stroke.pts, stroke.color, stroke.thickness, stroke.opacity, stroke.erase, stroke.mirror !== false, axes, rot, stroke.gradient || null);
+    renderLiveEntry(m, entries[i], skipSprites);
   }
-  for (const shape of (m.shapes || [])) {
-    if (shape.visible === false) continue;
-    // Text has no outline path for the generic arc-length trail renderer to
-    // walk (getShapePoints returns [] for it) -- its own Fading Trail
-    // handling lives inside renderTextShape/textFillStyle instead, reached
-    // via the normal renderShapeSymmetric path.
-    if (shape.trailAnim?.enabled && shape.type !== 'text') {
-      renderShapeTrailSymmetric(ctx, m, shape);
-    } else {
-      renderShapeSymmetric(ctx, m, shape);
-    }
-  }
-  if (!skipSprites) { for (const spr of m.sprites) { if (spr.visible !== false) renderSprite(ctx, m, spr); } }
 }
 
 // Renders a stroke into an arbitrary 2D context (used by stroke cache builder)
@@ -6669,7 +6705,7 @@ function wireShapeProps() {
     // gradient stop on either one silently edits both. JSON round-trip
     // matches how saveProject/loadProject already serialize this same
     // shape data, so anything that survives a save/load survives this too.
-    const copy = { ...JSON.parse(JSON.stringify(found.shape)), id: uid(), x: found.shape.x + 20, y: found.shape.y + 20 };
+    const copy = { ...JSON.parse(JSON.stringify(found.shape)), id: uid(), z: nextZ(found.mandala), x: found.shape.x + 20, y: found.shape.y + 20 };
     (found.mandala.shapes = found.mandala.shapes || []).push(copy);
     S.selectedShapeId = copy.id;
     flushHasAnimCache();
@@ -7261,6 +7297,7 @@ function onMouseDown(e) {
       mirror: m.mirror,
     };
     if (!m.shapes) m.shapes = [];
+    shape.z = nextZ(m);
     m.shapes.push(shape);
     S.selectedShapeId = shape.id;
     updateShapeProps();
@@ -7313,6 +7350,7 @@ function onMouseDown(e) {
         mirror: m.mirror,
       };
       if (!m.shapes) m.shapes = [];
+      shape.z = nextZ(m);
       m.shapes.push(shape);
       S.selectedShapeId = shape.id;
       updateShapeProps();
@@ -7375,6 +7413,7 @@ function onMouseDown(e) {
         mirror: m.mirror,
       };
       if (!m.shapes) m.shapes = [];
+      shape.z = nextZ(m);
       m.shapes.push(shape);
       S.selectedShapeId = shape.id;
       updateShapeProps();
@@ -7441,6 +7480,7 @@ function onMouseDown(e) {
         mirror: m.mirror,
       };
       if (!m.shapes) m.shapes = [];
+      shape.z = nextZ(m);
       m.shapes.push(shape);
       S.selectedShapeId = shape.id;
       updateShapeProps();
@@ -7489,6 +7529,7 @@ function onMouseDown(e) {
             mirror: m.mirror,
             gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
           };
+          newStroke.z = nextZ(m);
           m.strokes.push(newStroke);
           if (!newStroke.gradient) invalidateStrokeCache();
           if (S.tool === 'lineChain') S.lineChainStroke = newStroke;
@@ -7678,6 +7719,7 @@ function onMouseUp(e) {
       const shape = { ...S.shapePreview, id: uid() };
       delete shape._startX; delete shape._startY;
       if (!m.shapes) m.shapes = [];
+      shape.z = nextZ(m);
       m.shapes.push(shape);
       S.selectedShapeId = shape.id;
       updateShapeProps();
@@ -7715,6 +7757,7 @@ function onMouseUp(e) {
     mirror: m.mirror,
     gradient: S.gradientMode ? JSON.parse(JSON.stringify(S.gradient)) : null,
   };
+  newStroke.z = nextZ(m);
   m.strokes.push(newStroke);
   if (!newStroke.gradient) invalidateStrokeCache(); // gradient strokes render live, no cache needed
   updateLayersList();
@@ -7771,6 +7814,7 @@ function placeSprite(wx, wy) {
   if (item.stampScale == null) item.stampScale = defaultScale;
   m.sprites.push({
     id: uid(),
+    z: nextZ(m),
     paletteId: item.id,
     x: local.x,
     y: local.y,
@@ -7876,28 +7920,24 @@ function layerHasAnimation(type, item) {
 }
 
 // Moves the current selection to the layer immediately above/below it in
-// the Layers panel's displayed (topmost-first) order — same flat
-// strokes-then-shapes-then-sprites list updateLayersList builds, just
-// walked in display order instead of storage order. dir: -1 = up
-// (towards the top of the panel), +1 = down.
+// the Layers panel's displayed (topmost-first) order — same real z order
+// updateLayersList shows, just walked in display order instead of z order.
+// dir: -1 = up (towards the top of the panel), +1 = down.
 function selectAdjacentLayer(dir) {
   const m = getActiveMandala();
   if (!m) return;
-  const entries = [];
-  for (const stroke of (m.strokes || [])) entries.push({ type: 'stroke', id: stroke.id });
-  for (const shape  of (m.shapes  || [])) entries.push({ type: 'shape',  id: shape.id  });
-  for (const spr    of m.sprites)         entries.push({ type: 'sprite', id: spr.id    });
+  const entries = getOrderedEntries(m);
   if (!entries.length) return;
   const displayOrder = entries.slice().reverse(); // topmost-first, matches updateLayersList's render order
   const currentId = S.selectedSpriteId || S.selectedShapeId || S.selectedStrokeId;
   if (!currentId) return;
-  const idx = displayOrder.findIndex(e => e.id === currentId);
+  const idx = displayOrder.findIndex(e => e.item.id === currentId);
   if (idx === -1) return;
   const next = displayOrder[idx + dir];
   if (!next) return;
-  S.selectedSpriteId = next.type === 'sprite' ? next.id : null;
-  S.selectedShapeId  = next.type === 'shape'  ? next.id : null;
-  S.selectedStrokeId = next.type === 'stroke' ? next.id : null;
+  S.selectedSpriteId = next.type === 'sprite' ? next.item.id : null;
+  S.selectedShapeId  = next.type === 'shape'  ? next.item.id : null;
+  S.selectedStrokeId = next.type === 'stroke' ? next.item.id : null;
   updateSpriteProps();
   updateShapeProps();
   updateStrokeProps();
@@ -7912,11 +7952,8 @@ function updateLayersList() {
   const m = getActiveMandala();
   if (!m) return;
 
-  // Build flat list: strokes drawn first (bottom), then shapes, then sprites (top).
-  const entries = [];
-  for (const stroke of (m.strokes || [])) entries.push({ type: 'stroke', item: stroke });
-  for (const shape  of (m.shapes  || [])) entries.push({ type: 'shape',  item: shape  });
-  for (const spr    of m.sprites)         entries.push({ type: 'sprite', item: spr    });
+  // Flat list in real z order (bottom to top) — see getOrderedEntries.
+  const entries = getOrderedEntries(m);
 
   if (entries.length === 0) {
     list.innerHTML = '<div style="padding:6px 10px;font-size:10px;opacity:.35">No layers yet</div>';
@@ -8891,6 +8928,10 @@ function loadProject(json) {
     S.canvasH = data.canvasH || 900;
     resizeCanvas(S.canvasW, S.canvasH);
     S.mandalas = data.mandalas || [];
+    // Projects saved before the z-order field existed (or demo files) need
+    // one backfilled so strokes/shapes/sprites keep their original visual
+    // stacking instead of all colliding at z=undefined.
+    for (const m of S.mandalas) backfillLayerZ(m);
     S.effects = data.effects || []; // EFFECT-MODULE: persistence
     S.effects.forEach(e => {
       if (e._expanded == null) e._expanded = false;
@@ -10148,7 +10189,7 @@ function wireEvents() {
     historySnapshot();
     // Deep clone — see the shape Duplicate handler's comment for why a
     // shallow spread isn't enough (shared anim/keyframe object references).
-    const copy = { ...JSON.parse(JSON.stringify(found.sprite)), id: uid(), x: found.sprite.x + 20, y: found.sprite.y + 20 };
+    const copy = { ...JSON.parse(JSON.stringify(found.sprite)), id: uid(), z: nextZ(found.mandala), x: found.sprite.x + 20, y: found.sprite.y + 20 };
     found.mandala.sprites.push(copy);
     S.selectedSpriteId = copy.id;
     updateSpriteProps();
