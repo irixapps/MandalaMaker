@@ -69,7 +69,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Great+Vibes&family=Cinzel:wght@400;700&family=Pacifico&family=Orbitron:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.82">
+<link rel="stylesheet" href="style.css?v=3.83">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -623,19 +623,26 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <label class="prop-label">Text</label>
             <textarea id="sp-text-content" rows="2" style="flex:1;resize:vertical;background:var(--input-bg,#1a1a2a);color:inherit;border:1px solid var(--border);border-radius:3px;padding:4px;font:inherit">Text</textarea>
           </div>
-          <div class="prop-row">
+          <div class="prop-row" style="position:relative">
             <label class="prop-label">Font</label>
-            <select id="sp-text-font">
-              <option value="Inter" style="font-family:Inter">Inter (Sans)</option>
-              <option value="Georgia, serif" style="font-family:Georgia, serif">Georgia (Serif)</option>
-              <option value="'Playfair Display', serif" style="font-family:'Playfair Display', serif">Playfair Display</option>
-              <option value="'Great Vibes', cursive" style="font-family:'Great Vibes', cursive">Great Vibes (Script)</option>
-              <option value="'Cinzel', serif" style="font-family:'Cinzel', serif">Cinzel (Decorative)</option>
-              <option value="'Pacifico', cursive" style="font-family:'Pacifico', cursive">Pacifico (Casual Script)</option>
-              <option value="'Orbitron', sans-serif" style="font-family:'Orbitron', sans-serif">Orbitron (Sci-Fi)</option>
-              <option value="'Courier New', monospace" style="font-family:'Courier New', monospace">Courier New (Mono)</option>
-              <option value="Impact, sans-serif" style="font-family:Impact, sans-serif">Impact</option>
-            </select>
+            <button type="button" id="sp-text-font-btn" class="btn" style="flex:1;text-align:left;font-size:13px">Inter (Sans)</button>
+          </div>
+          <!-- Fully in-page font picker, not a native <select> — a native
+               dropdown's popup is OS-rendered (same reason the colour
+               picker got its own in-page popover), so per-option
+               font-family styling silently doesn't apply on most
+               platforms. This one is real DOM, so each row genuinely
+               previews in its own font. -->
+          <div class="font-menu" id="sp-text-font-menu">
+            <div class="font-menu-item" data-value="Inter" style="font-family:Inter">Inter (Sans)</div>
+            <div class="font-menu-item" data-value="Georgia, serif" style="font-family:Georgia, serif">Georgia (Serif)</div>
+            <div class="font-menu-item" data-value="'Playfair Display', serif" style="font-family:'Playfair Display', serif">Playfair Display</div>
+            <div class="font-menu-item" data-value="'Great Vibes', cursive" style="font-family:'Great Vibes', cursive">Great Vibes (Script)</div>
+            <div class="font-menu-item" data-value="'Cinzel', serif" style="font-family:'Cinzel', serif">Cinzel (Decorative)</div>
+            <div class="font-menu-item" data-value="'Pacifico', cursive" style="font-family:'Pacifico', cursive">Pacifico (Casual Script)</div>
+            <div class="font-menu-item" data-value="'Orbitron', sans-serif" style="font-family:'Orbitron', sans-serif">Orbitron (Sci-Fi)</div>
+            <div class="font-menu-item" data-value="'Courier New', monospace" style="font-family:'Courier New', monospace">Courier New (Mono)</div>
+            <div class="font-menu-item" data-value="Impact, sans-serif" style="font-family:Impact, sans-serif">Impact</div>
           </div>
           <div class="prop-row">
             <label class="prop-label">Size</label>
@@ -1395,6 +1402,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.82"></script>
+<script src="app.js?v=3.83"></script>
 </body>
 </html>

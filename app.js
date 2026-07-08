@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.82';
+const VERSION = '3.83';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4019,6 +4019,31 @@ function shapeAnimatedWorldCenter(m, shape) {
   };
 }
 
+// World position of an arbitrary point in a shape's own local frame — (lx,
+// ly) relative to the shape's anchor, before the shape's own `rotation`
+// property is applied (this function applies it). Unlike petal/bezier's
+// per-point helpers below (which pivot around their tip, a fixed geometry
+// anchor), this pivots around the shape's own origin, matching how
+// renderShapeInContext's default branch (circle/star/polygon/text) actually
+// rotates — `applyShapeLocalRotation` just does ctx.rotate(effRotRad) at the
+// local origin for anything that isn't petal/bezier/wing. Used for text's
+// rotation handle.
+function shapeAnimatedWorldPoint(m, shape, lx, ly) {
+  const clk = S.animClock;
+  const rotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+  const orbit  = (getAnimValue(shape, 'orbit', clk) ?? (shape.orbit || 0)) * Math.PI / 180;
+  const effRot = (getAnimValue(shape, 'rotation', clk) ?? (shape.rotation || 0)) * Math.PI / 180;
+  const { x: ox, y: oy } = shapeRadialTangentialOffset(shape, clk);
+  const rx = Math.cos(effRot) * lx - Math.sin(effRot) * ly;
+  const ry = Math.sin(effRot) * lx + Math.cos(effRot) * ly;
+  const px = ox + rx, py = oy + ry;
+  const angle = rotRad + orbit;
+  return {
+    x: m.cx + Math.cos(angle) * px - Math.sin(angle) * py,
+    y: m.cy + Math.sin(angle) * px + Math.cos(angle) * py,
+  };
+}
+
 // World position of an arbitrary point in a petal's local frame (relative
 // to the tip, before the shape's own rotation) — like shapeAnimatedWorldCenter
 // but for an offset point rather than the anchor itself, so it also accounts
@@ -5661,9 +5686,14 @@ function getShapeHandleAtPoint(wx, wy) {
     return null;
   }
   if (shape.type === 'text') {
-    // Move-only for now — no resize handle, Font Size drives sizing instead.
-    const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
+    // Move + rotate — no resize handle, Font Size drives sizing instead.
+    // The rotate handle sits along the shape's own local -Y axis (straight
+    // "up" before rotation is applied), so it visibly orbits the text as
+    // rotation changes, same convention as most vector editors' rotate grips.
     const { r } = shapeHitCircle(shape);
+    const { x: rhx, y: rhy } = shapeAnimatedWorldPoint(m, shape, 0, -(r + 20));
+    if (Math.hypot(wx - rhx, wy - rhy) < HANDLE_RADIUS + 4) return 'shape-rotate';
+    const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
     if (Math.hypot(wx - cx, wy - cy) < r) return 'shape-move';
     return null;
   }
@@ -5779,6 +5809,7 @@ function renderShapeSelectionHandles() {
   if (shape.type === 'text') {
     const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
     const { r } = shapeHitCircle(shape);
+    const { x: rhx, y: rhy } = shapeAnimatedWorldPoint(m, shape, 0, -(r + 20));
     ctx.save();
     ctx.strokeStyle = '#7c6af0';
     ctx.lineWidth = 1.5;
@@ -5787,11 +5818,26 @@ function renderShapeSelectionHandles() {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
+    // Spoke out to the rotate handle, matching the base/curvature
+    // construction lines Petal/Bezier draw to their own handles.
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(rhx, rhy);
+    ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = '#7c6af0';
     ctx.beginPath();
     ctx.arc(cx, cy, HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
+    // Rotate handle (green, matches Bezier's C2 handle colour convention
+    // for "a different kind of control than move").
+    ctx.fillStyle = '#6affc4';
+    ctx.strokeStyle = '#7c6af0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(rhx, rhy, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
     return;
   }
@@ -5835,6 +5881,17 @@ function handleShapeDragFn(pos) {
     shape.y = orig.y + (sin * dx + cos * dy);
   } else if (S.shapeHandleDrag === 'shape-scale') {
     shape.r = Math.max(2, orig.r + dx);
+  } else if (S.shapeHandleDrag === 'shape-rotate') {
+    // Invert the axis/orbit transform to get the drag angle in the
+    // shape's own local frame, then measure it against the handle's
+    // un-rotated baseline (straight "up", i.e. -90°) — see
+    // shapeAnimatedWorldPoint's comment for why the handle sits there.
+    const { x: ccx, y: ccy } = shapeAnimatedWorldCenter(m, shape);
+    const axisRotRad = ((shape.axisRotation != null ? shape.axisRotation : m.axisRotation) || 0) * Math.PI / 180;
+    const orbit = (getAnimValue(shape, 'orbit', S.animClock) ?? (shape.orbit || 0)) * Math.PI / 180;
+    const worldAngle = Math.atan2(pos.y - ccy, pos.x - ccx);
+    const localAngle = worldAngle - (axisRotRad + orbit);
+    shape.rotation = (localAngle + Math.PI / 2) * 180 / Math.PI;
   } else if (S.shapeHandleDrag === 'petal-base') {
     // Re-aim/resize the tip->base axis, same angle-snap as the Line tool
     // and the petal's own creation drag.
@@ -5967,7 +6024,18 @@ function updateShapeProps() {
   if (isText) {
     const textContentEl = document.getElementById('sp-text-content');
     if (document.activeElement !== textContentEl) textContentEl.value = shape.text || '';
-    document.getElementById('sp-text-font').value = shape.fontFamily || 'Inter';
+    const currentFont = shape.fontFamily || 'Inter';
+    const fontBtn = document.getElementById('sp-text-font-btn');
+    let matchedItem = null;
+    document.querySelectorAll('#sp-text-font-menu .font-menu-item').forEach(item => {
+      const isMatch = item.dataset.value === currentFont;
+      item.classList.toggle('selected', isMatch);
+      if (isMatch) matchedItem = item;
+    });
+    if (fontBtn) {
+      fontBtn.textContent = matchedItem ? matchedItem.textContent : currentFont;
+      fontBtn.style.fontFamily = currentFont;
+    }
     document.getElementById('sp-text-size').value = shape.fontSize || 48;
     document.getElementById('sp-text-size-val').textContent = (shape.fontSize || 48) + 'px';
   }
@@ -6015,10 +6083,33 @@ function wireShapeProps() {
     forShape(s => { s.text = e.target.value; markRenderDirty(); });
   });
   document.getElementById('sp-text-content').addEventListener('change', () => historySnapshot());
-  document.getElementById('sp-text-font').addEventListener('change', e => {
-    forShape(s => { s.fontFamily = e.target.value; markRenderDirty(); });
-    historySnapshot();
+
+  // Custom font popover (not a native <select> — see the .font-menu CSS
+  // comment for why). Click the button to open a fixed-position list
+  // anchored under it; click a row to apply and close; click anywhere
+  // else to close without choosing.
+  const fontBtn = document.getElementById('sp-text-font-btn');
+  const fontMenu = document.getElementById('sp-text-font-menu');
+  fontBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const rect = fontBtn.getBoundingClientRect();
+    fontMenu.style.left = rect.left + 'px';
+    fontMenu.style.top = (rect.bottom + 4) + 'px';
+    fontMenu.classList.toggle('visible');
   });
+  fontMenu.querySelectorAll('.font-menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const value = item.dataset.value;
+      forShape(s => { s.fontFamily = value; markRenderDirty(); });
+      fontBtn.textContent = item.textContent;
+      fontBtn.style.fontFamily = value;
+      fontMenu.querySelectorAll('.font-menu-item').forEach(i => i.classList.toggle('selected', i === item));
+      fontMenu.classList.remove('visible');
+      historySnapshot();
+    });
+  });
+  document.addEventListener('click', () => fontMenu.classList.remove('visible'));
+
   document.getElementById('sp-text-size').addEventListener('input', e => {
     forShape(s => { s.fontSize = parseInt(e.target.value) || 48; document.getElementById('sp-text-size-val').textContent = s.fontSize + 'px'; });
   });
