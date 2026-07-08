@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.81';
+const VERSION = '3.82';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5981,6 +5981,8 @@ function updateShapeProps() {
   // configurable stroke ends).
   const fillRow = document.getElementById('sp-fill-row');
   if (fillRow) fillRow.style.display = (isBezier || isText) ? 'none' : '';
+  const thicknessBlock = document.getElementById('sp-thickness-block');
+  if (thicknessBlock) thicknessBlock.style.display = isText ? 'none' : '';
 
   // Gradient and fading-trail — same controls the Drawing inspector has.
   const hasGradient = !!shape.gradient;
