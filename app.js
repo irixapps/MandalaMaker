@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.74';
+const VERSION = '3.75';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1968,14 +1968,20 @@ function effectHasAnimation(effect) {
   return def.controls.some(c => c.animatable && effect.anim?.[c.key]?.enabled);
 }
 
-// Runs the whole enabled effects stack, in order, against whatever's
-// currently on `canvas` — called once per frame after all mandala content
-// is drawn (see EFFECT-MODULE: render-hook) and once per exported frame
-// (see EFFECT-MODULE: export-hook).
+// Runs the whole enabled effects stack against whatever's currently on
+// `canvas` — called once per frame after all mandala content is drawn (see
+// EFFECT-MODULE: render-hook) and once per exported frame (see
+// EFFECT-MODULE: export-hook). Walks S.effects *bottom-to-top* (reverse
+// array order) to match the panel's layer-stack convention: the effect
+// listed at the top of the panel is meant to read as "closest to the
+// viewer," so it needs to run last, working on whatever every effect below
+// it already produced — the same top-is-final-result mental model as a
+// Photoshop layer stack, not a top-runs-first pipeline order.
 function applyEffectsChain(ctx, canvas) {
   if (!S.effects.length) return;
   const clk = S.animClock;
-  for (const effect of S.effects) {
+  for (let i = S.effects.length - 1; i >= 0; i--) {
+    const effect = S.effects[i];
     if (!effect.enabled) continue;
     const def = EFFECT_TYPES[effect.type];
     if (!def) continue;
@@ -2013,6 +2019,7 @@ function updateEffectsList() {
     if (!def) return;
     const row = document.createElement('div');
     row.className = 'effect-item' + (effect.enabled ? '' : ' disabled');
+    row.title = 'Effects apply bottom-to-top: the bottom effect runs first, and each one above it runs after, on top of the result so far — the top effect is the final pass.';
 
     const header = document.createElement('div');
     header.className = 'effect-item-header';
@@ -2020,8 +2027,8 @@ function updateEffectsList() {
     header.innerHTML =
       `<span class="effect-item-name">${effect._expanded ? '▾' : '▸'} ${def.label}</span>` +
       (animated ? `<span class="effect-anim-badge" title="This effect is animated">∿</span>` : '') +
-      `<button class="effect-reorder-btn" data-dir="up" ${idx === 0 ? 'disabled' : ''} title="Move up">▲</button>` +
-      `<button class="effect-reorder-btn" data-dir="down" ${idx === S.effects.length - 1 ? 'disabled' : ''} title="Move down">▼</button>` +
+      `<button class="effect-reorder-btn" data-dir="up" ${idx === 0 ? 'disabled' : ''} title="Move up (runs later, closer to the final result)">▲</button>` +
+      `<button class="effect-reorder-btn" data-dir="down" ${idx === S.effects.length - 1 ? 'disabled' : ''} title="Move down (runs earlier)">▼</button>` +
       `<button class="effect-toggle-btn" title="Enable/disable">${effect.enabled ? '👁' : '🚫'}</button>` +
       `<button class="effect-delete-btn" title="Remove effect">🗑</button>`;
 
