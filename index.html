@@ -68,8 +68,8 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.80">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Great+Vibes&family=Cinzel:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css?v=3.81">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -378,6 +378,11 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           </g>
         </svg>
       </button>
+      <button class="tool-btn" data-tool="text" title="Text — click to place a text layer (T)">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4,4.5 L18,4.5 M11,4.5 L11,17.5 M7,17.5 L15,17.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
       <div class="panel-sep" style="width:44px;margin:6px 0"></div>
       <div class="panel-label" style="font-size:9px;margin-bottom:4px">MANDALAS</div>
       <div id="mandala-list"></div>
@@ -609,6 +614,31 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <label class="prop-label">Curvature</label>
             <input type="range" id="sp-petal-curve" min="-120" max="120" value="35">
             <span class="prop-val" id="sp-petal-curve-val">35%</span>
+          </div>
+        </div>
+
+        <!-- Text content/font — text only -->
+        <div id="sp-text-row" style="display:none">
+          <div class="prop-row" style="align-items:flex-start">
+            <label class="prop-label">Text</label>
+            <textarea id="sp-text-content" rows="2" style="flex:1;resize:vertical;background:var(--input-bg,#1a1a2a);color:inherit;border:1px solid var(--border);border-radius:3px;padding:4px;font:inherit">Text</textarea>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Font</label>
+            <select id="sp-text-font">
+              <option value="Inter">Inter (Sans)</option>
+              <option value="Georgia, serif">Georgia (Serif)</option>
+              <option value="'Playfair Display', serif">Playfair Display</option>
+              <option value="'Great Vibes', cursive">Great Vibes (Script)</option>
+              <option value="'Cinzel', serif">Cinzel (Decorative)</option>
+              <option value="'Courier New', monospace">Courier New (Mono)</option>
+              <option value="Impact, sans-serif">Impact</option>
+            </select>
+          </div>
+          <div class="prop-row">
+            <label class="prop-label">Size</label>
+            <input type="range" id="sp-text-size" min="8" max="300" value="48">
+            <span class="prop-val" id="sp-text-size-val">48px</span>
           </div>
         </div>
 
@@ -1062,7 +1092,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
   </div>
 
   <footer id="status-bar">
-    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon,text">
       <div class="toolbar-group">
         <label style="font-size:12px">Color:</label>
         <input type="color" id="draw-color" value="#ff6b9d">
@@ -1070,7 +1100,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <span id="color-contrast-warning" title="This colour is very close to the background colour — strokes drawn with it will be hard to see" style="display:none;font-size:13px;cursor:default">⚠️</span>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon,text">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <button id="btn-gradient-mode" title="Toggle gradient stroke mode" style="font-size:11px;padding:2px 7px;line-height:1.4">Gradient</button>
@@ -1084,7 +1114,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         <span id="brush-size-val" style="min-width:20px">4</span>
       </div>
     </span>
-    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon">
+    <span class="status-group" data-tools="brush,line,lineChain,circle,star,polygon,text">
       <div class="toolbar-sep"></div>
       <div class="toolbar-group">
         <label style="font-size:12px">Opacity:</label>
@@ -1361,6 +1391,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.80"></script>
+<script src="app.js?v=3.81"></script>
 </body>
 </html>

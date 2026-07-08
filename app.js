@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.80';
+const VERSION = '3.81';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5235,7 +5235,36 @@ function getShapePath2D(shape) {
   return p;
 }
 
+// Text renders straight through fillText — no Path2D fill/stroke geometry
+// (that machinery, and its arc-length-walk gradient stroke renderer, is
+// built for vector outline shapes; text's gradient instead uses a plain
+// canvas gradient across its own measured bounding box, which is simpler
+// and reads well on a filled word/phrase without needing per-glyph
+// gradient sampling).
+function renderTextShape(tCtx, shape) {
+  const text = shape.text || '';
+  if (!text) return;
+  tCtx.save();
+  tCtx.globalAlpha = shape.opacity ?? 1;
+  tCtx.font = `${shape.fontSize || 48}px ${shape.fontFamily || 'Inter'}`;
+  tCtx.textAlign = 'center';
+  tCtx.textBaseline = 'middle';
+  if (shape.gradient && tCtx === ctx) {
+    const w = measureTextShapeWidth(shape), h = shape.fontSize || 48;
+    const grad = tCtx.createLinearGradient(-w / 2, 0, w / 2, 0);
+    for (const s of shape.gradient.stops) {
+      grad.addColorStop(Math.min(1, Math.max(0, s.pos)), s.color);
+    }
+    tCtx.fillStyle = grad;
+  } else {
+    tCtx.fillStyle = shape.color || '#ffffff';
+  }
+  tCtx.fillText(text, 0, 0);
+  tCtx.restore();
+}
+
 function renderShapeInContext(tCtx, shape) {
+  if (shape.type === 'text') { renderTextShape(tCtx, shape); return; }
   const path = getShapePath2D(shape);
   tCtx.save();
   tCtx.globalAlpha = shape.opacity || 1;
@@ -5353,6 +5382,9 @@ function computeShapeRenderParams(shape) {
   _shapeProxy.bezierC2x = shape.bezierC2x;
   _shapeProxy.bezierC2y = shape.bezierC2y;
   _shapeProxy.wingMirrorAngle = shape.wingMirrorAngle;
+  _shapeProxy.text       = shape.text;
+  _shapeProxy.fontFamily = shape.fontFamily;
+  _shapeProxy.fontSize   = shape.fontSize;
   const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
@@ -5467,7 +5499,23 @@ function renderShapeTrailSymmetric(tCtx, m, shape) {
 // tip->base midpoint instead of the anchor, with the axis half-length as
 // its radius. Ignores shape.rotation, same simplification the other shape
 // types already accept here.
+// Text has no natural "radius" — measures its rendered width (via the
+// global ctx, temporarily repointed at the shape's font) so hit-testing,
+// selection handles, and the fill/gradient bounding box all agree on the
+// same size.
+function measureTextShapeWidth(shape) {
+  ctx.save();
+  ctx.font = `${shape.fontSize || 48}px ${shape.fontFamily || 'Inter'}`;
+  const w = ctx.measureText(shape.text || '').width;
+  ctx.restore();
+  return w;
+}
+
 function shapeHitCircle(shape) {
+  if (shape.type === 'text') {
+    const w = measureTextShapeWidth(shape), h = shape.fontSize || 48;
+    return { cx: shape.x, cy: shape.y, r: Math.hypot(w, h) / 2 + 8 };
+  }
   if (shape.type === 'petal' || shape.type === 'bezier' || shape.type === 'wing') {
     const dx = shape.type === 'petal' ? (shape.petalDx || 0) : (shape.bezierDx || 0);
     const dy = shape.type === 'petal' ? (shape.petalDy || 0) : (shape.bezierDy || 0);
@@ -5612,6 +5660,13 @@ function getShapeHandleAtPoint(wx, wy) {
     if (Math.hypot(wx - mx, wy - my) < axisLen / 2 + (shape.thickness || 2) / 2 + 8) return 'shape-move';
     return null;
   }
+  if (shape.type === 'text') {
+    // Move-only for now — no resize handle, Font Size drives sizing instead.
+    const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
+    const { r } = shapeHitCircle(shape);
+    if (Math.hypot(wx - cx, wy - cy) < r) return 'shape-move';
+    return null;
+  }
   const animR = getAnimValue(shape, 'radius', clk) ?? shape.r;
   const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
   const scaleHx = cx + animR + shape.thickness / 2 + 4;
@@ -5718,6 +5773,25 @@ function renderShapeSelectionHandles() {
     ctx.arc(c2x, c2y, HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (shape.type === 'text') {
+    const { x: cx, y: cy } = shapeAnimatedWorldCenter(m, shape);
+    const { r } = shapeHitCircle(shape);
+    ctx.save();
+    ctx.strokeStyle = '#7c6af0';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#7c6af0';
+    ctx.beginPath();
+    ctx.arc(cx, cy, HANDLE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
     return;
   }
@@ -5833,8 +5907,8 @@ function updateShapeProps() {
   const { shape } = found;
   document.getElementById('sp-type-label').textContent =
     shape.type.charAt(0).toUpperCase() + shape.type.slice(1);
-  document.getElementById('sp-radius').value = Math.round(shape.r);
-  document.getElementById('sp-radius-val').textContent = Math.round(shape.r) + 'px';
+  document.getElementById('sp-radius').value = Math.round(shape.r || 0);
+  document.getElementById('sp-radius-val').textContent = Math.round(shape.r || 0) + 'px';
   document.getElementById('sp-color').value = shape.color;
   document.getElementById('sp-thickness').value = shape.thickness;
   document.getElementById('sp-thickness-val').textContent = shape.thickness;
@@ -5883,10 +5957,20 @@ function updateShapeProps() {
   // both use freeform control-point handles, with no single scalar to show.
   const isPetal = shape.type === 'petal';
   const isBezier = shape.type === 'bezier' || shape.type === 'wing';
+  const isText = shape.type === 'text';
   const radiusBlock = document.getElementById('sp-radius-block');
   const petalRow = document.getElementById('sp-petal-row');
-  if (radiusBlock) radiusBlock.style.display = (isPetal || isBezier) ? 'none' : '';
+  if (radiusBlock) radiusBlock.style.display = (isPetal || isBezier || isText) ? 'none' : '';
   if (petalRow) petalRow.style.display = isPetal ? '' : 'none';
+  const textRow = document.getElementById('sp-text-row');
+  if (textRow) textRow.style.display = isText ? '' : 'none';
+  if (isText) {
+    const textContentEl = document.getElementById('sp-text-content');
+    if (document.activeElement !== textContentEl) textContentEl.value = shape.text || '';
+    document.getElementById('sp-text-font').value = shape.fontFamily || 'Inter';
+    document.getElementById('sp-text-size').value = shape.fontSize || 48;
+    document.getElementById('sp-text-size-val').textContent = (shape.fontSize || 48) + 'px';
+  }
   if (isPetal) {
     const pct = Math.round((shape.petalCurve ?? 0.35) * 100);
     document.getElementById('sp-petal-curve').value = pct;
@@ -5896,7 +5980,7 @@ function updateShapeProps() {
   // than let it silently do nothing. Cap DOES apply (both ends are plain,
   // configurable stroke ends).
   const fillRow = document.getElementById('sp-fill-row');
-  if (fillRow) fillRow.style.display = isBezier ? 'none' : '';
+  if (fillRow) fillRow.style.display = (isBezier || isText) ? 'none' : '';
 
   // Gradient and fading-trail — same controls the Drawing inspector has.
   const hasGradient = !!shape.gradient;
@@ -5925,6 +6009,18 @@ function wireShapeProps() {
   document.getElementById('sp-radius').addEventListener('input', e => {
     forShape(s => { s.r = parseInt(e.target.value) || 10; document.getElementById('sp-radius-val').textContent = s.r + 'px'; });
   });
+  document.getElementById('sp-text-content').addEventListener('input', e => {
+    forShape(s => { s.text = e.target.value; markRenderDirty(); });
+  });
+  document.getElementById('sp-text-content').addEventListener('change', () => historySnapshot());
+  document.getElementById('sp-text-font').addEventListener('change', e => {
+    forShape(s => { s.fontFamily = e.target.value; markRenderDirty(); });
+    historySnapshot();
+  });
+  document.getElementById('sp-text-size').addEventListener('input', e => {
+    forShape(s => { s.fontSize = parseInt(e.target.value) || 48; document.getElementById('sp-text-size-val').textContent = s.fontSize + 'px'; });
+  });
+  document.getElementById('sp-text-size').addEventListener('change', () => historySnapshot());
   document.getElementById('sp-color').addEventListener('input', e => forShape(s => s.color = e.target.value));
   document.getElementById('sp-thickness').addEventListener('input', e => {
     forShape(s => { s.thickness = parseInt(e.target.value) || 1; document.getElementById('sp-thickness-val').textContent = s.thickness; });
@@ -6677,6 +6773,43 @@ function onMouseDown(e) {
     return;
   }
 
+  // Text tool — single click places a text layer immediately (no drag-to-
+  // size like Circle/Star/Polygon; Font Size drives sizing instead) and
+  // drops straight into Select on the new layer, same finalize pattern as
+  // every other one-shot tool.
+  if (S.tool === 'text') {
+    if (!m) return;
+    const local = toMandalaLocal(m, pos.x, pos.y);
+    historySnapshot();
+    const shape = {
+      id: uid(), type: 'text',
+      x: local.x, y: local.y,
+      text: 'Text',
+      fontFamily: 'Inter',
+      fontSize: 48,
+      color: S.color,
+      thickness: S.thickness,
+      opacity: S.opacity,
+      fill: null,
+      lineCap: 'round', lineJoin: 'round', dash: [],
+      gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+      rotation: 0, orbit: 0,
+      anim: {},
+      params: {},
+      axes: m.axes,
+      axisRotation: m.axisRotation,
+      mirror: m.mirror,
+    };
+    if (!m.shapes) m.shapes = [];
+    m.shapes.push(shape);
+    S.selectedShapeId = shape.id;
+    updateShapeProps();
+    updateLayersList();
+    setTool('select');
+    markRenderDirty();
+    return;
+  }
+
   // Petal tool — three clicks, no dragging: click 1 sets the tip, move and
   // click 2 sets the base (axis live-previews as the cursor moves), move
   // and click 3 sets curvature (also live-previewed) and finalizes.
@@ -7263,7 +7396,7 @@ function ensureLayerName(item, type) {
   return item._layerName;
 }
 
-const _SHAPE_ICON = { circle: '○', star: '★', polygon: '⬡' };
+const _SHAPE_ICON = { circle: '○', star: '★', polygon: '⬡', text: 'T' };
 const _SPRITE_ICON = '⊞';
 const _STROKE_ICON = '✏';
 
@@ -7739,7 +7872,7 @@ function setTool(tool) {
 // Tools that actually draw a stroke/shape with the current colour or
 // gradient — the only ones the gradient panel is relevant for. Every other
 // tool (erase, select, place/stamp, eyedropper) hides it automatically.
-const GRADIENT_PANEL_TOOLS = new Set(['brush', 'line', 'lineChain', 'circle', 'star', 'polygon']);
+const GRADIENT_PANEL_TOOLS = new Set(['brush', 'line', 'lineChain', 'circle', 'star', 'polygon', 'text']);
 
 function updateGradientPanelVisibility() {
   const panel = document.getElementById('gradient-panel');
@@ -9576,7 +9709,7 @@ function wireEvents() {
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === '?' || e.key === '/') { toggleHelp(); return; }
     if (e.key === 'Escape') { if (isTheaterMode()) { exitTheaterMode(); return; } closeHelp(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
@@ -9593,7 +9726,7 @@ function wireEvents() {
       setTool('select');
       return;
     }
-    const map = { b:'brush', l:'line', k:'lineChain', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing' };
+    const map = { b:'brush', l:'line', k:'lineChain', s:'select', p:'place', i:'eyedropper', c:'circle', g:'polygon', v:'petal', z:'bezier', w:'wing', t:'text' };
     if (map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
     if (e.key === '*' || (e.shiftKey && e.key === '8')) setTool('star');
     if (e.key === 'Delete' || e.key === 'Backspace') {
