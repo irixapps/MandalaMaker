@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.86';
+const VERSION = '3.87';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -1065,6 +1065,17 @@ const EFFECT_TYPES = {
         _chromaMaskCtx.globalCompositeOperation = 'multiply';
         _chromaMaskCtx.fillStyle = color;
         _chromaMaskCtx.fillRect(0, 0, W, H);
+        // 'multiply' against a transparent backdrop has nothing to multiply
+        // against, so the blend falls through to the flat fill colour —
+        // every empty area of the canvas gets flooded solid red/green/blue
+        // instead of staying empty, and once the three channels are summed
+        // via 'lighter' below that flood adds up to solid white, blowing
+        // out (and visually "inverting") anywhere that wasn't already
+        // fully opaque. Re-clip to the original image's alpha shape so
+        // empty areas stay empty.
+        _chromaMaskCtx.globalCompositeOperation = 'destination-in';
+        _chromaMaskCtx.drawImage(canvas, ox, oy);
+        _chromaMaskCtx.globalCompositeOperation = 'source-over';
       }
 
       _chromaCtx.clearRect(0, 0, W, H);
@@ -5327,6 +5338,38 @@ function trailAlphaAtFrac(frac, windows) {
   return alpha;
 }
 
+// ctx.measureText is the expensive part of arc text (and it's called once
+// per glyph, per mirrored/axis copy, every animation frame) — cache glyph
+// widths per font, and cache the whole computed layout (widths/angles/
+// totalAngle) per shape.id, invalidated only when text/font/size/radius
+// actually change. A shape with N axes × mirror draws N*2 copies per frame
+// but they all share one shape.id, so this turns "measure every glyph on
+// every copy every frame" into "measure once, reuse for the rest of that
+// frame and every subsequent unchanged frame".
+const _glyphWidthCache = new Map(); // fontKey -> Map<char, width>
+function getGlyphWidth(tCtx, fontKey, ch) {
+  let m = _glyphWidthCache.get(fontKey);
+  if (!m) { m = new Map(); _glyphWidthCache.set(fontKey, m); }
+  let w = m.get(ch);
+  if (w === undefined) { w = tCtx.measureText(ch).width; m.set(ch, w); }
+  return w;
+}
+const _arcLayoutCache = new Map(); // shape.id -> { sig, chars, widths, angles, totalAngle }
+function getArcLayout(tCtx, shape, fontSize, radius) {
+  const fontKey = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
+  const sig = `${shape.text}|${fontKey}|${radius}`;
+  const cached = _arcLayoutCache.get(shape.id);
+  if (cached && cached.sig === sig) return cached;
+  tCtx.font = fontKey;
+  const chars = [...(shape.text || '')];
+  const widths = chars.map(ch => getGlyphWidth(tCtx, fontKey, ch));
+  const angles = widths.map(w => w / radius);
+  const totalAngle = angles.reduce((a, b) => a + b, 0);
+  const entry = { sig, chars, widths, angles, totalAngle };
+  _arcLayoutCache.set(shape.id, entry);
+  return entry;
+}
+
 // Arc text: walks the string glyph-by-glyph around a circle of the given
 // radius, placing each character at real arc-length spacing (angle = glyph
 // width / radius) so letters don't stretch or compress — unlike the
@@ -5338,19 +5381,15 @@ function trailAlphaAtFrac(frac, windows) {
 function renderArcText(tCtx, shape) {
   const text = shape.text || '';
   if (!text) return;
-  const chars = [...text];
-  if (!chars.length) return;
   const fontSize = shape.fontSize || 48;
   const radius = shape.arc.radius || 150;
   const dir = shape.arc.direction === -1 ? -1 : 1;
   const flip = !!shape.arc.flip;
   const startAngle = (shape.arc.startAngle || 0) * Math.PI / 180;
 
+  const { chars, angles, totalAngle } = getArcLayout(tCtx, shape, fontSize, radius);
+  if (!chars.length || !totalAngle) return;
   tCtx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
-  const widths = chars.map(ch => tCtx.measureText(ch).width);
-  const angles = widths.map(w => w / radius);
-  const totalAngle = angles.reduce((a, b) => a + b, 0);
-  if (!totalAngle) return;
 
   const windows = shape.trailAnim?.enabled ? trailWindows(shape.trailAnim, S.animClock, false) : null;
   const gradient = shape.gradient;
@@ -5713,11 +5752,23 @@ function renderShapeTrailSymmetric(tCtx, m, shape) {
 // global ctx, temporarily repointed at the shape's font) so hit-testing,
 // selection handles, and the fill/gradient bounding box all agree on the
 // same size.
+// Called several times per shape per frame (hit-testing, trail masking,
+// straight fill) plus once per mirrored/axis copy, so the same
+// text+font+size combination gets re-measured many times a frame without
+// this cache — measureText is the expensive part, not the lookup.
+const _textWidthCache = new Map(); // `${fontKey}|${text}` -> width
 function measureTextShapeWidth(shape) {
-  ctx.save();
-  ctx.font = `${shape.fontSize || 48}px ${shape.fontFamily || 'Inter'}`;
-  const w = ctx.measureText(shape.text || '').width;
-  ctx.restore();
+  const fontKey = `${shape.fontSize || 48}px ${shape.fontFamily || 'Inter'}`;
+  const text = shape.text || '';
+  const cacheKey = fontKey + '|' + text;
+  let w = _textWidthCache.get(cacheKey);
+  if (w === undefined) {
+    ctx.save();
+    ctx.font = fontKey;
+    w = ctx.measureText(text).width;
+    ctx.restore();
+    _textWidthCache.set(cacheKey, w);
+  }
   return w;
 }
 
