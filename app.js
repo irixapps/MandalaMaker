@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.68';
+const VERSION = '3.69';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -845,7 +845,8 @@ const SHAPE_ANIM_PRESETS = {
 const EFFECT_TYPES = {
   bloom: {
     label: 'Bloom',
-    defaults: () => ({ amount: 50, threshold: 60, radius: 12 }),
+    supportsExcludeImages: true,
+    defaults: () => ({ amount: 50, threshold: 60, radius: 12, excludeImages: false }),
     controls: [
       { key: 'amount',    label: 'Amount',    min: 0, max: 400, step: 1, format: v => Math.round(v) + '%', animatable: true },
       { key: 'threshold', label: 'Threshold', min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: false },
@@ -867,13 +868,23 @@ const EFFECT_TYPES = {
     // (this app's typical look, with little actual midtone content); a true
     // threshold clips low values to 0 and rescales the rest, so it visibly
     // shrinks/grows the bloom regardless of how saturated the source is.
-    apply(ctx, canvas, { amount, threshold, radius }) {
+    // `excludeImages` (opt-in, default off — see ECHO_EXCLUDE_IMAGES_FEATURE
+    // and drawMandalasWithOptionalSpriteSplit) sources the blur/threshold
+    // pass from the sprite-free snapshot instead of the full canvas, so
+    // stamped images/GIFs don't grow a glow halo. Unlike Echo/Spiral Echo,
+    // Bloom never clears or replaces the canvas — it only adds a glow layer
+    // on top via 'lighter' — so the sprites themselves are already sitting
+    // on `ctx` untouched; excluding them here just means the glow *source*
+    // skips them, no separate "redraw sprites on top" step needed.
+    apply(ctx, canvas, { amount, threshold, radius, excludeImages }) {
       if (amount <= 0 || radius <= 0) return;
+      const useSplit = excludeImages && _echoNoSpriteSnap && _echoNoSpriteSnap.width === canvas.width && _echoNoSpriteSnap.height === canvas.height;
+      const source = useSplit ? _echoNoSpriteSnap : canvas;
       _ensureBloomOffscreen(canvas.width, canvas.height);
       _bloomCtx.clearRect(0, 0, canvas.width, canvas.height);
       _setBloomThreshold(threshold);
       _bloomCtx.filter = `url(#bloom-threshold-filter) brightness(130%) blur(${radius}px)`;
-      _bloomCtx.drawImage(canvas, 0, 0);
+      _bloomCtx.drawImage(source, 0, 0);
       _bloomCtx.filter = 'none';
 
       // A single 'lighter' pass at alpha 1 is already as bright as one copy
@@ -893,6 +904,7 @@ const EFFECT_TYPES = {
   },
   echo: {
     label: 'Echo',
+    supportsExcludeImages: true,
     defaults: () => ({ amount: 60, separation: 0, excludeImages: false }),
     controls: [
       { key: 'amount',     label: 'Amount',     min: 0, max: 100, step: 1, format: v => Math.round(v) + '%', animatable: true },
@@ -1178,7 +1190,8 @@ const EFFECT_TYPES = {
   },
   spiralEcho: {
     label: 'Spiral Echo',
-    defaults: () => ({ amount: 55, rotation: 6, zoom: 100 }),
+    supportsExcludeImages: true,
+    defaults: () => ({ amount: 55, rotation: 6, zoom: 100, excludeImages: false }),
     controls: [
       { key: 'amount',   label: 'Amount',   min: 0,   max: 100, step: 1,   format: v => Math.round(v) + '%', animatable: true },
       { key: 'rotation', label: 'Rotation', min: -30, max: 30,  step: 0.5, format: v => v.toFixed(1) + '°/f', animatable: true },
@@ -1213,12 +1226,19 @@ const EFFECT_TYPES = {
     // no drift, <100% spirals inward, >100% spirals outward), and `amount`
     // is how much of the transformed history survives each frame (opacity
     // of the feedback copy, not a background fade like Echo).
-    apply(ctx, canvas, { amount, rotation, zoom }, effectId) {
+    // `excludeImages` (opt-in, default off, same mechanism as Echo's) uses
+    // the sprite-free snapshot as the stamp source into the feedback
+    // buffer instead of the full canvas, then redraws sprites fresh on top
+    // afterwards, so stamped images/GIFs stay sharp instead of getting
+    // dragged into the spinning vortex trail.
+    apply(ctx, canvas, { amount, rotation, zoom, excludeImages }, effectId) {
       if (amount <= 0) return;
       const W = canvas.width, H = canvas.height;
       const buf = _ensureSpiralBuffer(effectId, W, H);
       _ensureSpiralTemp(W, H);
       const cx = W / 2, cy = H / 2;
+      const useSplit = excludeImages && _echoNoSpriteSnap && _echoNoSpriteSnap.width === W && _echoNoSpriteSnap.height === H;
+      const stampSource = useSplit ? _echoNoSpriteSnap : canvas;
 
       _spiralTempCtx.clearRect(0, 0, W, H);
       _spiralTempCtx.save();
@@ -1234,11 +1254,12 @@ const EFFECT_TYPES = {
       buf.ctx.drawImage(_spiralTempCanvas, 0, 0);
       buf.ctx.globalCompositeOperation = 'lighten';
       buf.ctx.globalAlpha = 1;
-      buf.ctx.drawImage(canvas, 0, 0);
+      buf.ctx.drawImage(stampSource, 0, 0);
       buf.ctx.globalCompositeOperation = 'source-over';
 
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(buf.canvas, 0, 0);
+      if (useSplit) ctx.drawImage(_echoSpritesOnlySnap, 0, 0);
     },
     resetState(effectId) { _spiralBuffers.delete(effectId); },
   },
@@ -1634,18 +1655,23 @@ function _ensureHueOffscreen(W, H) {
   }
 }
 
-// EFFECT-MODULE: Echo "exclude image layers" feature. Rollback plan: this
-// whole feature is inert unless a project actually has an Echo effect with
-// excludeImages=true (new projects/effects default to false, matching the
-// pre-existing behaviour exactly), so leaving ECHO_EXCLUDE_IMAGES_FEATURE at
-// true costs nothing for anyone not using the checkbox. If it ever proves
-// too slow in practice, flip this one constant to false to hard-disable it
-// everywhere (checkbox stops rendering, apply() falls back to the original
-// single-pass behaviour) without touching any other code.
+// EFFECT-MODULE: shared "exclude image layers" feature, usable by any
+// effect module. Originally Echo-only (hence the `_echo*` names, kept as-is
+// to avoid a churny rename), now also opted into by Spiral Echo and Bloom
+// via `supportsExcludeImages: true` on their EFFECT_TYPES entry — see each
+// module's own excludeImages handling for how it uses the snapshots.
+// Rollback plan: this whole feature is inert unless a project actually has
+// an opted-in effect with excludeImages=true (new projects/effects default
+// to false, matching the pre-existing behaviour exactly), so leaving
+// ECHO_EXCLUDE_IMAGES_FEATURE at true costs nothing for anyone not using the
+// checkbox. If it ever proves too slow in practice, flip this one constant
+// to false to hard-disable it everywhere (checkboxes stop rendering,
+// apply() falls back to the original single-pass behaviour in every
+// opted-in module) without touching any other code.
 const ECHO_EXCLUDE_IMAGES_FEATURE = true;
 let _echoNoSpriteSnap = null, _echoSpritesOnlySnap = null; // lazily-sized offscreen canvases
 function _echoNeedsSpriteSplit() {
-  return ECHO_EXCLUDE_IMAGES_FEATURE && S.effects.some(e => e.type === 'echo' && e.enabled !== false && e.excludeImages);
+  return ECHO_EXCLUDE_IMAGES_FEATURE && S.effects.some(e => e.enabled !== false && e.excludeImages && EFFECT_TYPES[e.type]?.supportsExcludeImages);
 }
 function _ensureEchoSnapCanvases(W, H) {
   if (!_echoNoSpriteSnap) {
@@ -1661,10 +1687,11 @@ function _ensureEchoSnapCanvases(W, H) {
 }
 // Draws all mandalas into `ctx`/`canvas` (live cache-aware pass if
 // `forExport` is false, single full pass otherwise), then — only when some
-// Echo effect actually needs sprites excluded — additionally captures a
+// opted-in effect actually needs sprites excluded — additionally captures a
 // "content so far, no sprites" snapshot and a "sprites only" snapshot so
-// Echo's apply() can trail everything except sprites, then redraw sprites
-// fresh on top afterwards. Zero extra canvas work when no effect needs it.
+// that effect's apply() can work on everything except sprites, then redraw
+// sprites fresh on top afterwards. Zero extra canvas work when no effect
+// needs it.
 function drawMandalasWithOptionalSpriteSplit(forExport) {
   const needSplit = _echoNeedsSpriteSplit();
   for (const m of S.mandalas) {
@@ -1928,10 +1955,11 @@ function applyEffectsChain(ctx, canvas) {
     for (const ctrl of def.controls) {
       resolved[ctrl.key] = (ctrl.animatable ? getAnimValue(effect, ctrl.key, clk) : null) ?? effect[ctrl.key];
     }
-    // Echo's excludeImages and Comet Sparkle's gradient are plain
-    // non-slider fields, not def.controls entries, so they aren't picked
-    // up by the loop above — pass them through explicitly.
-    if (effect.type === 'echo') resolved.excludeImages = effect.excludeImages;
+    // excludeImages (any module with supportsExcludeImages) and Comet
+    // Sparkle's gradient are plain non-slider fields, not def.controls
+    // entries, so they aren't picked up by the loop above — pass them
+    // through explicitly.
+    if (def.supportsExcludeImages) resolved.excludeImages = effect.excludeImages;
     if (effect.type === 'cometSparkle') resolved.gradient = effect.gradient;
     def.apply(ctx, canvas, resolved, effect.id);
   }
@@ -2005,12 +2033,13 @@ function updateEffectsList() {
       const body = document.createElement('div');
       body.className = 'effect-item-body';
       def.controls.forEach(ctrl => body.appendChild(buildEffectControlRow(effect, def, ctrl)));
-      // EFFECT-MODULE: Echo "exclude image layers" toggle — not a slider, so
-      // it's a one-off row here rather than part of def.controls. Safe to
-      // delete this block (and the excludeImages default/apply()-branch) to
-      // fully remove the feature; every effect's default (false) reproduces
-      // the pre-existing behaviour exactly.
-      if (effect.type === 'echo' && ECHO_EXCLUDE_IMAGES_FEATURE) {
+      // EFFECT-MODULE: "exclude image layers" toggle — not a slider, so
+      // it's a one-off row here rather than part of def.controls, shared by
+      // every module with supportsExcludeImages (Echo, Spiral Echo, Bloom).
+      // Safe to delete this block (and each module's excludeImages default/
+      // apply()-branch) to fully remove the feature; every effect's default
+      // (false) reproduces the pre-existing behaviour exactly.
+      if (def.supportsExcludeImages && ECHO_EXCLUDE_IMAGES_FEATURE) {
         const exRow = document.createElement('div');
         exRow.className = 'prop-row';
         const exLabel = document.createElement('label');
@@ -2019,7 +2048,7 @@ function updateEffectsList() {
         const exInput = document.createElement('input');
         exInput.type = 'checkbox';
         exInput.checked = !!effect.excludeImages;
-        exInput.title = 'Keep stamped images/GIFs sharp and un-trailed by Echo';
+        exInput.title = `Keep stamped images/GIFs sharp and untouched by ${def.label}`;
         exInput.addEventListener('change', () => {
           effect.excludeImages = exInput.checked;
           historySnapshot(); markRenderDirty();
