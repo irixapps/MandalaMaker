@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.72';
+const VERSION = '3.73';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -2397,6 +2397,70 @@ function wireEffectsPanel() {
 
 const STL = { dragging: null, selectedKf: null };  // shape timeline interaction state
 
+// ── Radial-animation keyframe ghost preview ──────────────
+// While dragging a keyframe on a shape's or sprite's Radial (offsetX)
+// timeline, the vertical axis alone doesn't say much about what a given
+// value actually *means* spatially — this draws a semi-transparent white
+// silhouette of the entity at the exact position that value would put it,
+// live-updating every mousemove, so dragging up/down visibly pulls the
+// ghost in/out along its spoke instead of leaving the number to the
+// imagination. `x`/`y` here are the entity's own local (pre-symmetry)
+// coordinates — renderShapeSymmetric/renderSprite apply the mandala's
+// axis/rotation/mirror transform on top, same as for the real entity.
+let _radialGhost = null; // { kind: 'shape'|'sprite', mandala, entity, x, y }
+
+// Mirrors shapeRadialTangentialOffset/spriteRadialTangentialOffset's polar
+// decomposition, but with the radial component forced to a hypothetical
+// value (the keyframe currently being dragged) instead of read from
+// animation — tangential still comes from whatever the entity's Tangential
+// track currently animates to, so only the axis actually being edited is
+// "what if".
+function computeRadialGhostLocalPos(entity, clk, radialValue) {
+  const tangential = getAnimValue(entity, 'offsetY', clk) ?? 0;
+  const baseRadius = Math.hypot(entity.x, entity.y);
+  const baseAngle = baseRadius > 0.001 ? Math.atan2(entity.y, entity.x) : 0;
+  const radius = radialValue;
+  const angle = baseAngle + tangential / Math.max(radius, 1);
+  return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+}
+
+// White silhouette of a sprite's current drawable frame — 'source-in'
+// composites a solid white fill against the image's own alpha shape, so
+// the ghost reads as a plain white cutout instead of the actual artwork
+// colours. Rebuilt on demand each call (only invoked during an active
+// drag, and decoded images are already in memory, so this is cheap enough
+// not to need caching).
+function ghostSilhouetteFrom(drawableImg) {
+  const w = drawableImg.width || drawableImg.naturalWidth, h = drawableImg.height || drawableImg.naturalHeight;
+  if (!w || !h) return null;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const gctx = c.getContext('2d');
+  gctx.drawImage(drawableImg, 0, 0);
+  gctx.globalCompositeOperation = 'source-in';
+  gctx.fillStyle = '#ffffff';
+  gctx.fillRect(0, 0, w, h);
+  return c;
+}
+
+function drawRadialGhost() {
+  if (!_radialGhost) return;
+  const { kind, mandala, entity, x, y } = _radialGhost;
+  if (kind === 'shape') {
+    const ghost = { ...entity, anim: {}, x, y, color: '#ffffff', fill: entity.fill ? '#ffffff' : null, gradient: null, opacity: 0.35 };
+    renderShapeSymmetric(ctx, mandala, ghost);
+  } else if (kind === 'sprite') {
+    const item = getPaletteItem(entity.paletteId);
+    if (!item || !item.img.complete) return;
+    const drawable = getDrawableImage(item);
+    if (!drawable) return;
+    const silhouette = ghostSilhouetteFrom(drawable);
+    if (!silhouette) return;
+    const ghost = { ...entity, anim: {}, x, y, opacity: 0.35 };
+    renderSprite(ctx, mandala, ghost, silhouette);
+  }
+}
+
 // ── Timeline canvas ──────────────────────────────────────
 function tlCanvasEl(prop) { return document.getElementById('anim-tl-' + prop); }
 
@@ -2592,6 +2656,14 @@ function initShapeTimelineCanvas(prop) {
     kf.value = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
     kfs.sort((a, b) => a.t - b.t);
     STL.dragging.kfIdx = kfs.indexOf(kf);
+    if (prop === 'offsetX') {
+      const found = findSelectedShape();
+      if (found) {
+        const { x: gx, y: gy } = computeRadialGhostLocalPos(shape, S.animClock, kf.value);
+        _radialGhost = { kind: 'shape', mandala: found.mandala, entity: shape, x: gx, y: gy };
+      }
+    }
+    markRenderDirty();
   });
   window.addEventListener('mouseup', () => {
     if (STL.dragging?.prop === prop) {
@@ -2600,6 +2672,7 @@ function initShapeTimelineCanvas(prop) {
         STL.selectedKf.kfIdx = Math.min(STL.selectedKf.kfIdx, shape.anim[prop].keyframes.length - 1);
       syncShapeEasingDropdown(prop, shape);
       STL.dragging = null; historySnapshot();
+      _radialGhost = null; markRenderDirty();
     }
   });
   el.addEventListener('contextmenu', e => e.preventDefault());
@@ -2902,6 +2975,14 @@ function initTimelineCanvas(prop) {
     draggedKf.value = Math.max(cfg.min, Math.min(cfg.max, yv(py)));
     kfs.sort((a, b) => a.t - b.t);
     TL.dragging.kfIdx = kfs.indexOf(draggedKf);
+    if (prop === 'offsetX') {
+      const found = findSprite(S.selectedSpriteId);
+      if (found) {
+        const { x: gx, y: gy } = computeRadialGhostLocalPos(spr, S.animClock, draggedKf.value);
+        _radialGhost = { kind: 'sprite', mandala: found.mandala, entity: spr, x: gx, y: gy };
+      }
+    }
+    markRenderDirty();
   });
 
   window.addEventListener('mouseup', () => {
@@ -2915,6 +2996,7 @@ function initTimelineCanvas(prop) {
       }
       TL.dragging = null;
       historySnapshot();
+      _radialGhost = null; markRenderDirty();
     }
   });
 
@@ -3666,6 +3748,9 @@ function render(timestamp) {
       ctx.restore();
     }
   }
+
+  // Radial-animation keyframe ghost — see drawRadialGhost.
+  drawRadialGhost();
 
   // Petal preview — live shape (both drag stages) plus construction guides
   // (tip->base axis line, endpoint markers, and the curvature handle once
