@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.85';
+const VERSION = '3.86';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5307,6 +5307,89 @@ function textFillStyle(gctx, shape, w) {
   return grad;
 }
 
+// How visible a point at arc-length fraction `frac` (0..1 along whatever's
+// being revealed) should be, given trailWindows()'s output — same hard-cut
+// head / 25%-of-window fade tail convention as renderTrailWindowInContext,
+// but evaluated at a single fraction instead of walked along a Path2D. Takes
+// the max across all returned windows (continuous mode can return two), so
+// unlike the straight-line offscreen-mask version this doesn't need to drop
+// any of them.
+function trailAlphaAtFrac(frac, windows) {
+  if (!windows || !windows.length) return 1;
+  let alpha = 0;
+  for (const win of windows) {
+    const tailFrac = Math.max(0, win.tailFrac), headFrac = Math.min(1, win.headFrac);
+    if (headFrac <= tailFrac || frac < tailFrac || frac > headFrac) continue;
+    const fadeFrac = Math.max(0.001, (headFrac - tailFrac) * 0.25);
+    const a = frac < tailFrac + fadeFrac ? (frac - tailFrac) / fadeFrac : 1;
+    alpha = Math.max(alpha, a);
+  }
+  return alpha;
+}
+
+// Arc text: walks the string glyph-by-glyph around a circle of the given
+// radius, placing each character at real arc-length spacing (angle = glyph
+// width / radius) so letters don't stretch or compress — unlike the
+// straight-baseline path, gradient/trail don't need an offscreen mask here:
+// each glyph already gets its own transform+draw call, so gradient colour
+// and trail alpha are just sampled once per glyph at that glyph's walked-
+// distance fraction, same underlying math (sampleGradientRGB / trailWindows)
+// as the straight path, just evaluated per-character instead of per-pixel.
+function renderArcText(tCtx, shape) {
+  const text = shape.text || '';
+  if (!text) return;
+  const chars = [...text];
+  if (!chars.length) return;
+  const fontSize = shape.fontSize || 48;
+  const radius = shape.arc.radius || 150;
+  const dir = shape.arc.direction === -1 ? -1 : 1;
+  const flip = !!shape.arc.flip;
+  const startAngle = (shape.arc.startAngle || 0) * Math.PI / 180;
+
+  tCtx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
+  const widths = chars.map(ch => tCtx.measureText(ch).width);
+  const angles = widths.map(w => w / radius);
+  const totalAngle = angles.reduce((a, b) => a + b, 0);
+  if (!totalAngle) return;
+
+  const windows = shape.trailAnim?.enabled ? trailWindows(shape.trailAnim, S.animClock, false) : null;
+  const gradient = shape.gradient;
+  const timeOffset = gradient?.speed ? (S.animClock * gradient.speed * (gradient.reverse ? -1 : 1)) % 1 : 0;
+
+  tCtx.save();
+  let walked = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const glyphAngle = walked + angles[i] / 2;
+    let frac = glyphAngle / totalAngle;
+    if (flip) frac = 1 - frac;
+    const alpha = trailAlphaAtFrac(frac, windows);
+    walked += angles[i];
+    if (alpha <= 0) continue;
+
+    const theta = startAngle + dir * glyphAngle * (flip ? -1 : 1);
+    const x = radius * Math.cos(theta);
+    const y = radius * Math.sin(theta);
+
+    let fillStyle = shape.color || '#ffffff';
+    if (gradient) {
+      const t = frac + timeOffset;
+      const { r, g, b } = sampleGradientRGB(gradient.stops, t);
+      fillStyle = `rgb(${r},${g},${b})`;
+    }
+
+    tCtx.save();
+    tCtx.translate(x, y);
+    tCtx.rotate(theta + Math.PI / 2 * dir + (flip ? Math.PI : 0));
+    tCtx.textAlign = 'center';
+    tCtx.textBaseline = 'middle';
+    tCtx.globalAlpha = (shape.opacity ?? 1) * alpha;
+    tCtx.fillStyle = fillStyle;
+    tCtx.fillText(chars[i], 0, 0);
+    tCtx.restore();
+  }
+  tCtx.restore();
+}
+
 // Text renders straight through fillText — no Path2D fill/stroke geometry
 // (that machinery, and its arc-length-walk gradient stroke renderer, is
 // built for vector outline shapes; textFillStyle above is the equivalent
@@ -5324,6 +5407,7 @@ function textFillStyle(gctx, shape, w) {
 function renderTextShape(tCtx, shape) {
   const text = shape.text || '';
   if (!text) return;
+  if (shape.arc?.enabled) { renderArcText(tCtx, shape); return; }
   const fontSize = shape.fontSize || 48;
   const w = measureTextShapeWidth(shape);
 
@@ -5510,6 +5594,7 @@ function computeShapeRenderParams(shape) {
   _shapeProxy.fontFamily = shape.fontFamily;
   _shapeProxy.fontSize   = shape.fontSize;
   _shapeProxy.trailAnim  = shape.trailAnim;
+  _shapeProxy.arc        = shape.arc;
   const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
@@ -5638,6 +5723,10 @@ function measureTextShapeWidth(shape) {
 
 function shapeHitCircle(shape) {
   if (shape.type === 'text') {
+    if (shape.arc?.enabled) {
+      const r = (shape.arc.radius || 150) + (shape.fontSize || 48);
+      return { cx: shape.x, cy: shape.y, r };
+    }
     const w = measureTextShapeWidth(shape), h = shape.fontSize || 48;
     return { cx: shape.x, cy: shape.y, r: Math.hypot(w, h) / 2 + 8 };
   }
@@ -6138,6 +6227,17 @@ function updateShapeProps() {
     }
     document.getElementById('sp-text-size').value = shape.fontSize || 48;
     document.getElementById('sp-text-size-val').textContent = (shape.fontSize || 48) + 'px';
+    const hasArc = !!shape.arc?.enabled;
+    document.getElementById('sp-arc-on').checked = hasArc;
+    document.getElementById('sp-arc-options').style.display = hasArc ? '' : 'none';
+    if (shape.arc) {
+      document.getElementById('sp-arc-radius').value = shape.arc.radius || 150;
+      document.getElementById('sp-arc-radius-val').textContent = (shape.arc.radius || 150) + 'px';
+      document.getElementById('sp-arc-start').value = shape.arc.startAngle || 0;
+      document.getElementById('sp-arc-start-val').textContent = (shape.arc.startAngle || 0) + '°';
+      document.getElementById('sp-arc-direction').value = shape.arc.direction === -1 ? '-1' : '1';
+      document.getElementById('sp-arc-flip').checked = !!shape.arc.flip;
+    }
   }
   if (isPetal) {
     const pct = Math.round((shape.petalCurve ?? 0.35) * 100);
@@ -6305,6 +6405,30 @@ function wireShapeProps() {
     forShape(s => { s.fontSize = parseInt(e.target.value) || 48; document.getElementById('sp-text-size-val').textContent = s.fontSize + 'px'; });
   });
   document.getElementById('sp-text-size').addEventListener('change', () => historySnapshot());
+  document.getElementById('sp-arc-on').addEventListener('change', e => {
+    forShape(s => {
+      s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false } : null;
+      document.getElementById('sp-arc-options').style.display = e.target.checked ? '' : 'none';
+      markRenderDirty();
+    });
+    historySnapshot();
+  });
+  document.getElementById('sp-arc-radius').addEventListener('input', e => {
+    forShape(s => { if (s.arc) { s.arc.radius = parseInt(e.target.value) || 150; document.getElementById('sp-arc-radius-val').textContent = s.arc.radius + 'px'; } });
+  });
+  document.getElementById('sp-arc-radius').addEventListener('change', () => historySnapshot());
+  document.getElementById('sp-arc-start').addEventListener('input', e => {
+    forShape(s => { if (s.arc) { s.arc.startAngle = parseInt(e.target.value) || 0; document.getElementById('sp-arc-start-val').textContent = s.arc.startAngle + '°'; } });
+  });
+  document.getElementById('sp-arc-start').addEventListener('change', () => historySnapshot());
+  document.getElementById('sp-arc-direction').addEventListener('change', e => {
+    forShape(s => { if (s.arc) s.arc.direction = parseInt(e.target.value); });
+    historySnapshot();
+  });
+  document.getElementById('sp-arc-flip').addEventListener('change', e => {
+    forShape(s => { if (s.arc) s.arc.flip = e.target.checked; });
+    historySnapshot();
+  });
   document.getElementById('sp-color').addEventListener('input', e => forShape(s => s.color = e.target.value));
   document.getElementById('sp-thickness').addEventListener('input', e => {
     forShape(s => { s.thickness = parseInt(e.target.value) || 1; document.getElementById('sp-thickness-val').textContent = s.thickness; });
@@ -7071,6 +7195,7 @@ function onMouseDown(e) {
       text: 'Text',
       fontFamily: 'Inter',
       fontSize: 48,
+      arc: null,
       color: S.color,
       thickness: S.thickness,
       opacity: S.opacity,
