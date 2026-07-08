@@ -69,7 +69,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Great+Vibes&family=Cinzel:wght@400;700&family=Pacifico&family=Orbitron:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.90">
+<link rel="stylesheet" href="style.css?v=3.91">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -656,6 +656,17 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <label class="prop-label">Arc Text</label>
             <input type="checkbox" id="sp-arc-on" style="accent-color:var(--accent)">
           </div>
+          <!-- Independent of Arc Text — checking this curves the text AND
+               centers it on the mandala's true center (x/y = 0) so every
+               axis/mirror copy the mandala already draws lands evenly
+               spaced around one real circle, instead of each copy just
+               being a rotated duplicate of wherever the shape happens to
+               sit (which chops the ring into misplaced fragments). Turning
+               it on auto-enables Arc Text if it wasn't already. -->
+          <div class="prop-row">
+            <label class="prop-label">Radial Text</label>
+            <input type="checkbox" id="sp-arc-radial" style="accent-color:var(--accent)">
+          </div>
           <div id="sp-arc-options" style="display:none">
             <div class="prop-row">
               <label class="prop-label">Radius</label>
@@ -684,15 +695,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <div class="prop-row">
               <label class="prop-label">Warp Glyphs</label>
               <input type="checkbox" id="sp-arc-warp" style="accent-color:var(--accent)">
-            </div>
-            <!-- Locks this text to a single ring centered on the mandala's
-                 true center (x/y = 0, axes/mirror = single copy) instead of
-                 the shape's usual per-axis-copy placement, which otherwise
-                 chops the circle into N duplicated fragments radiating from
-                 wherever the shape happens to sit. -->
-            <div class="prop-row">
-              <label class="prop-label">Radial Text</label>
-              <input type="checkbox" id="sp-arc-radial" style="accent-color:var(--accent)">
             </div>
           </div>
         </div>
@@ -1450,6 +1452,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.90"></script>
+<script src="app.js?v=3.91"></script>
 </body>
 </html>

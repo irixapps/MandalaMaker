@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.90';
+const VERSION = '3.91';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -6388,6 +6388,7 @@ function updateShapeProps() {
     document.getElementById('sp-text-size-val').textContent = (shape.fontSize || 48) + 'px';
     const hasArc = !!shape.arc?.enabled;
     document.getElementById('sp-arc-on').checked = hasArc;
+    document.getElementById('sp-arc-radial').checked = !!shape.arc?.radial;
     document.getElementById('sp-arc-options').style.display = hasArc ? '' : 'none';
     if (shape.arc) {
       document.getElementById('sp-arc-radius').value = shape.arc.radius || 150;
@@ -6397,14 +6398,14 @@ function updateShapeProps() {
       document.getElementById('sp-arc-direction').value = shape.arc.direction === -1 ? '-1' : '1';
       document.getElementById('sp-arc-flip').checked = !!shape.arc.flip;
       document.getElementById('sp-arc-warp').checked = !!shape.arc.warp;
-      document.getElementById('sp-arc-radial').checked = !!shape.arc.radial;
     }
   }
-  // Radial Text locks x/y/axes/mirror to a single ring centered on the
-  // mandala — hide the Offset controls rather than let them silently fight
-  // (and visually break) that lock.
+  // Radial Text locks x/y to the mandala's true center — hide the Offset
+  // controls rather than let them silently fight (and visually break) that
+  // lock. Axes/mirror are left alone so the mandala's normal symmetry still
+  // draws every copy, evenly spaced around the same real circle.
   const offsetBlock = document.getElementById('sp-offset-block');
-  if (offsetBlock) offsetBlock.style.display = (isText && shape.arc?.enabled && shape.arc?.radial) ? 'none' : '';
+  if (offsetBlock) offsetBlock.style.display = (isText && shape.arc?.radial) ? 'none' : '';
   if (isPetal) {
     const pct = Math.round((shape.petalCurve ?? 0.35) * 100);
     document.getElementById('sp-petal-curve').value = pct;
@@ -6575,6 +6576,12 @@ function wireShapeProps() {
     forShape(s => {
       s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false, warp: false, radial: false } : null;
       document.getElementById('sp-arc-options').style.display = e.target.checked ? '' : 'none';
+      // Turning Arc Text off entirely takes Radial Text down with it — a
+      // radial ring has no meaning without curving.
+      if (!e.target.checked) {
+        document.getElementById('sp-arc-radial').checked = false;
+        document.getElementById('sp-offset-block').style.display = '';
+      }
       markRenderDirty();
     });
     historySnapshot();
@@ -6599,20 +6606,30 @@ function wireShapeProps() {
     forShape(s => { if (s.arc) s.arc.warp = e.target.checked; });
     historySnapshot();
   });
+  // Independent of Arc Text's own checkbox — turning Radial Text on auto-
+  // enables arc curving (creating shape.arc if it doesn't exist yet) rather
+  // than requiring Arc Text to already be checked.
   document.getElementById('sp-arc-radial').addEventListener('change', e => {
     forShape(s => {
-      if (!s.arc) return;
-      s.arc.radial = e.target.checked;
       if (e.target.checked) {
-        // Center the ring on the mandala's true centre and collapse to a
-        // single copy — axes/mirror duplication would otherwise chop the
-        // ring into N fragments (the "TextTextText" symmetry artifact),
-        // and any x/y offset would orbit that fragment somewhere else
-        // entirely instead of sitting on the actual centre.
+        if (!s.arc) s.arc = { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false, warp: false, radial: false };
+        s.arc.enabled = true;
+        s.arc.radial = true;
+        // Center on the mandala's true centre — every axis/mirror copy
+        // already shares that same center point (translate happens before
+        // rotate), differing only by rotation, so this alone is enough to
+        // make the mandala's normal symmetry tile evenly-spaced copies of
+        // the text around one real circle. Axes/mirror are deliberately
+        // left untouched: forcing a single copy here was the earlier
+        // mistake — every instance the mandala already draws needs to
+        // stay on the circle, not collapse down to one.
         s.x = 0; s.y = 0;
-        s.axes = 0; s.mirror = false;
+        document.getElementById('sp-arc-on').checked = true;
+        document.getElementById('sp-arc-options').style.display = '';
+      } else if (s.arc) {
+        s.arc.radial = false;
       }
-      document.getElementById('sp-offset-block').style.display = e.target.checked ? 'none' : '';
+      document.getElementById('sp-offset-block').style.display = (s.arc?.radial) ? 'none' : '';
       document.getElementById('sp-offsetX').value = s.x;
       document.getElementById('sp-offsetX-val').textContent = s.x;
       document.getElementById('sp-offsetY').value = s.y;
