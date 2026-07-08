@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.69';
+const VERSION = '3.70';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -3317,6 +3317,8 @@ function addToPalette(name, dataUrl, isGif = false, isWebP = false) {
       gifFrames: null,   // [{canvas, delay}] decoded frames
       gifFrameIdx: 0,    // current frame index
       gifFrameTime: 0,   // timestamp of last frame advance
+      trimStart: null,   // playback trim range — null until decode sets it to [0, frames.length-1]
+      trimEnd: null,
     };
     S.palette.push(item);
     hiddenImgs.appendChild(img);
@@ -3373,6 +3375,10 @@ async function initGifAnimation(item) {
     item.gifFrames = frames;
     item.gifFrameIdx = 0;
     item.gifFrameTime = performance.now();
+    // Only default a fresh/never-set trim range — a project loaded with an
+    // existing trimStart/trimEnd (from a prior save) keeps it.
+    if (item.trimStart == null) item.trimStart = 0;
+    if (item.trimEnd == null) item.trimEnd = frames.length - 1;
     invalidateAnimCache(item);
   } catch (e) {
     console.warn('GIF decode failed:', e);
@@ -3404,6 +3410,8 @@ async function initWebPAnimation(item) {
     item.gifFrames = frames;
     item.gifFrameIdx = 0;
     item.gifFrameTime = performance.now();
+    if (item.trimStart == null) item.trimStart = 0;
+    if (item.trimEnd == null) item.trimEnd = frames.length - 1;
     invalidateAnimCache(item);
   } catch (e) {
     console.warn('WebP decode failed:', e);
@@ -3411,15 +3419,26 @@ async function initWebPAnimation(item) {
 }
 
 // Returns the raw (unprocessed) canvas for the current animation frame,
-// advancing the frame index based on elapsed time.
+// advancing the frame index based on elapsed time. Playback is confined to
+// [trimStart, trimEnd] (both default to the full range — see
+// initGifAnimation/initWebPAnimation) rather than always looping the whole
+// decoded frame list, so the Image Inspector's trim sliders can play back
+// just a portion of a longer GIF/WebP.
 function getAnimFrame(item) {
   if (!item.gifFrames || !item.gifFrames.length) return null;
+  const n = item.gifFrames.length;
+  const lo = Math.min(Math.max(item.trimStart ?? 0, 0), n - 1);
+  const hi = Math.min(Math.max(item.trimEnd ?? (n - 1), lo), n - 1);
+  if (item.gifFrameIdx < lo || item.gifFrameIdx > hi) {
+    item.gifFrameIdx = lo;
+    invalidateAnimCache(item);
+  }
   const now = performance.now();
   // Advance frame(s) if enough time has passed
   while (now - item.gifFrameTime >= item.gifFrames[item.gifFrameIdx].delay) {
     item.gifFrameTime += item.gifFrames[item.gifFrameIdx].delay;
     const prevIdx = item.gifFrameIdx;
-    item.gifFrameIdx = (item.gifFrameIdx + 1) % item.gifFrames.length;
+    item.gifFrameIdx = item.gifFrameIdx + 1 > hi ? lo : item.gifFrameIdx + 1;
     // Frame changed — invalidate any processed-frame cache
     if (item.gifFrameIdx !== prevIdx) invalidateAnimCache(item);
   }
@@ -7398,6 +7417,20 @@ function updatePaletteItemProps() {
   document.getElementById('trans-tolerance').value = item.tolerance || 15;
   document.getElementById('trans-tolerance-val').textContent = item.tolerance || 15;
   if (item.isSpriteSheet) renderSpriteSheetGrid(item);
+
+  const trimOptions = document.getElementById('trim-frames-options');
+  const isAnimated = (item.isGif || item.isWebP) && item.gifFrames && item.gifFrames.length > 1;
+  trimOptions.style.display = isAnimated ? 'block' : 'none';
+  if (isAnimated) {
+    const maxIdx = item.gifFrames.length - 1;
+    const trimStart = document.getElementById('trim-start');
+    const trimEnd = document.getElementById('trim-end');
+    trimStart.max = maxIdx; trimEnd.max = maxIdx;
+    trimStart.value = item.trimStart ?? 0;
+    trimEnd.value = item.trimEnd ?? maxIdx;
+    document.getElementById('trim-start-val').textContent = trimStart.value;
+    document.getElementById('trim-end-val').textContent = trimEnd.value;
+  }
 }
 
 function renderSpriteSheetGrid(item) {
@@ -7904,6 +7937,7 @@ function saveProject() {
       transparentColor: p.transparentColor, tolerance: p.tolerance,
       cropRect: p.cropRect || null,
       isSpriteSheet: p.isSpriteSheet, cols: p.cols, rows: p.rows, selectedCell: p.selectedCell,
+      trimStart: p.trimStart, trimEnd: p.trimEnd,
     })),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -9193,6 +9227,26 @@ function wireEvents() {
     item.rows = Math.max(1, parseInt(e.target.value) || 1);
     item.processedCache = null; item._animCanvas = null;
     renderSpriteSheetGrid(item);
+  });
+  document.getElementById('trim-start').addEventListener('input', e => {
+    const item = getPaletteItem(S.selectedPaletteId); if (!item || !item.gifFrames) return;
+    let v = parseInt(e.target.value);
+    if (v > (item.trimEnd ?? item.gifFrames.length - 1)) item.trimEnd = v;
+    item.trimStart = v;
+    document.getElementById('trim-start-val').textContent = v;
+    document.getElementById('trim-end').value = item.trimEnd;
+    document.getElementById('trim-end-val').textContent = item.trimEnd;
+    markRenderDirty();
+  });
+  document.getElementById('trim-end').addEventListener('input', e => {
+    const item = getPaletteItem(S.selectedPaletteId); if (!item || !item.gifFrames) return;
+    let v = parseInt(e.target.value);
+    if (v < (item.trimStart ?? 0)) item.trimStart = v;
+    item.trimEnd = v;
+    document.getElementById('trim-end-val').textContent = v;
+    document.getElementById('trim-start').value = item.trimStart;
+    document.getElementById('trim-start-val').textContent = item.trimStart;
+    markRenderDirty();
   });
 
   // Keyboard shortcuts
