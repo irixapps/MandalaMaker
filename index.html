@@ -69,7 +69,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Great+Vibes&family=Cinzel:wght@400;700&family=Pacifico&family=Orbitron:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.83">
+<link rel="stylesheet" href="style.css?v=3.84">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -643,7 +643,10 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <div class="font-menu-item" data-value="'Orbitron', sans-serif" style="font-family:'Orbitron', sans-serif">Orbitron (Sci-Fi)</div>
             <div class="font-menu-item" data-value="'Courier New', monospace" style="font-family:'Courier New', monospace">Courier New (Mono)</div>
             <div class="font-menu-item" data-value="Impact, sans-serif" style="font-family:Impact, sans-serif">Impact</div>
+            <div class="font-menu-sep" id="font-menu-custom-sep" style="display:none"></div>
+            <div class="font-menu-item font-menu-upload" id="font-menu-upload-btn">+ Upload Font…</div>
           </div>
+          <input type="file" id="font-upload-input" accept=".ttf,.otf,.woff,.woff2" style="display:none">
           <div class="prop-row">
             <label class="prop-label">Size</label>
             <input type="range" id="sp-text-size" min="8" max="300" value="48">
@@ -1402,6 +1405,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.83"></script>
+<script src="app.js?v=3.84"></script>
 </body>
 </html>

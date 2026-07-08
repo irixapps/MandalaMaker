@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.83';
+const VERSION = '3.84';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -190,6 +190,12 @@ const S = {
 
   // palette
   palette: [],      // {id,name,img,dataUrl,isGif,transparentColor,tolerance,isSpriteSheet,cols,rows,selectedCell,processedCache}
+  // Uploaded custom fonts for the Text tool — {id, name (display), family
+  // (internal unique CSS font-family), dataUrl (base64, so it round-trips
+  // through save/load the same way palette images already do; a browser
+  // FontFace registration doesn't survive a reload on its own, so this is
+  // what actually persists the font itself, not just a reference to it).
+  customFonts: [],
   selectedPaletteId: null,
   selectedStrokeId: null,
 
@@ -6074,6 +6080,81 @@ function updateShapeProps() {
   }
 }
 
+// ── Text font picker (built-in list + uploaded custom fonts) ─────
+// Applies whichever menu row (built-in or custom) was clicked to the
+// currently-selected shape and updates the button/menu to reflect it.
+// Top-level rather than nested in wireShapeProps() since loadProject()
+// also needs to rebuild menu items for restored custom fonts.
+function selectFontMenuItem(item) {
+  const value = item.dataset.value;
+  const found = findSelectedShape();
+  if (found) { found.shape.fontFamily = value; markRenderDirty(); }
+  const fontBtn = document.getElementById('sp-text-font-btn');
+  const fontMenu = document.getElementById('sp-text-font-menu');
+  if (fontBtn) { fontBtn.textContent = item.textContent; fontBtn.style.fontFamily = value; }
+  if (fontMenu) {
+    fontMenu.querySelectorAll('.font-menu-item').forEach(i => i.classList.toggle('selected', i === item));
+    fontMenu.classList.remove('visible');
+  }
+  historySnapshot();
+}
+
+// Inserts a menu row for an already-registered custom font, just above the
+// "+ Upload Font…" row, and reveals the separator above it (hidden until
+// there's at least one custom font to separate from the built-in list).
+function addCustomFontMenuItem(cf) {
+  const menu = document.getElementById('sp-text-font-menu');
+  const uploadBtn = document.getElementById('font-menu-upload-btn');
+  const sep = document.getElementById('font-menu-custom-sep');
+  if (!menu || !uploadBtn) return null;
+  if (sep) sep.style.display = '';
+  const item = document.createElement('div');
+  item.className = 'font-menu-item';
+  item.dataset.value = `'${cf.family}'`;
+  item.style.fontFamily = `'${cf.family}'`;
+  item.textContent = cf.name;
+  item.addEventListener('click', () => selectFontMenuItem(item));
+  menu.insertBefore(item, uploadBtn);
+  return item;
+}
+
+// Registers a previously-uploaded font's base64 data with the browser via
+// the FontFace API — needed both right after upload and again every time a
+// project loads (a FontFace registration is in-memory only; it doesn't
+// survive a page reload on its own, only the base64 in the save file does).
+async function registerCustomFont(cf) {
+  try {
+    const font = new FontFace(cf.family, `url(${cf.dataUrl})`);
+    await font.load();
+    document.fonts.add(font);
+    return true;
+  } catch (e) {
+    console.warn('Custom font failed to load:', cf.name, e);
+    return false;
+  }
+}
+
+// Reads an uploaded font file, registers it, and stores it in
+// S.customFonts (base64 dataUrl, so saveProject/loadProject persist it
+// exactly like a palette image). Returns null (and warns the user) if the
+// browser couldn't parse the file as a font at all.
+async function addCustomFont(file) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const id = uid();
+  const family = `CustomFont_${id}`;
+  const name = file.name.replace(/\.[^.]+$/, '');
+  const cf = { id, name, family, dataUrl };
+  const ok = await registerCustomFont(cf);
+  if (!ok) { alert(`Couldn't load "${file.name}" as a font.`); return null; }
+  S.customFonts.push(cf);
+  return cf;
+}
+
 function wireShapeProps() {
   function forShape(fn) { const f = findSelectedShape(); if (f) fn(f.shape); }
   document.getElementById('sp-radius').addEventListener('input', e => {
@@ -6087,7 +6168,10 @@ function wireShapeProps() {
   // Custom font popover (not a native <select> — see the .font-menu CSS
   // comment for why). Click the button to open a fixed-position list
   // anchored under it; click a row to apply and close; click anywhere
-  // else to close without choosing.
+  // else to close without choosing. selectFontMenuItem/addCustomFontMenuItem
+  // are top-level (not local to this function) since loadProject() also
+  // needs to rebuild menu items for restored custom fonts, well outside
+  // this closure.
   const fontBtn = document.getElementById('sp-text-font-btn');
   const fontMenu = document.getElementById('sp-text-font-menu');
   fontBtn.addEventListener('click', e => {
@@ -6097,18 +6181,31 @@ function wireShapeProps() {
     fontMenu.style.top = (rect.bottom + 4) + 'px';
     fontMenu.classList.toggle('visible');
   });
-  fontMenu.querySelectorAll('.font-menu-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const value = item.dataset.value;
-      forShape(s => { s.fontFamily = value; markRenderDirty(); });
-      fontBtn.textContent = item.textContent;
-      fontBtn.style.fontFamily = value;
-      fontMenu.querySelectorAll('.font-menu-item').forEach(i => i.classList.toggle('selected', i === item));
-      fontMenu.classList.remove('visible');
-      historySnapshot();
-    });
+  // :not(.font-menu-upload) — the upload row shares the same base class for
+  // layout/hover styling but opens the file picker instead of picking a
+  // font, wired separately below.
+  fontMenu.querySelectorAll('.font-menu-item:not(.font-menu-upload)').forEach(item => {
+    item.addEventListener('click', () => selectFontMenuItem(item));
   });
   document.addEventListener('click', () => fontMenu.classList.remove('visible'));
+
+  // Upload a custom font: FontFace API + base64 persistence (see the
+  // customFonts comment in state) so it round-trips through save/load.
+  const fontUploadBtn = document.getElementById('font-menu-upload-btn');
+  const fontUploadInput = document.getElementById('font-upload-input');
+  fontUploadBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    fontUploadInput.click();
+  });
+  fontUploadInput.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    fontUploadInput.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+    const cf = await addCustomFont(file);
+    if (!cf) return;
+    const item = addCustomFontMenuItem(cf);
+    selectFontMenuItem(item);
+  });
 
   document.getElementById('sp-text-size').addEventListener('input', e => {
     forShape(s => { s.fontSize = parseInt(e.target.value) || 48; document.getElementById('sp-text-size-val').textContent = s.fontSize + 'px'; });
@@ -8505,6 +8602,7 @@ function saveProject() {
       isSpriteSheet: p.isSpriteSheet, cols: p.cols, rows: p.rows, selectedCell: p.selectedCell,
       trimStart: p.trimStart, trimEnd: p.trimEnd,
     })),
+    customFonts: S.customFonts.map(cf => ({ id: cf.id, name: cf.name, family: cf.family, dataUrl: cf.dataUrl })),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -8557,7 +8655,25 @@ function loadProject(json) {
       img.onerror = resolve;
     }));
 
-    Promise.all(loads).then(() => {
+    // Custom fonts: a FontFace registration is in-memory only and doesn't
+    // survive a reload, so every load re-registers each one from its saved
+    // base64 and rebuilds its menu row — first clearing out any rows left
+    // over from whatever project was open before (matched by the
+    // 'CustomFont_' family prefix addCustomFont gives every upload, so the
+    // built-in rows are never touched).
+    S.customFonts = [];
+    document.querySelectorAll("#sp-text-font-menu .font-menu-item[data-value^=\"'CustomFont_\"]").forEach(el => el.remove());
+    const customFontSep = document.getElementById('font-menu-custom-sep');
+    if (customFontSep) customFontSep.style.display = 'none';
+    const fontLoads = (data.customFonts || []).map(async cf => {
+      const ok = await registerCustomFont(cf);
+      if (ok) {
+        S.customFonts.push(cf);
+        addCustomFontMenuItem(cf);
+      }
+    });
+
+    Promise.all([...loads, ...fontLoads]).then(() => {
       renderPaletteList();
       updateMandalaList();
       updateAxesDisplay();

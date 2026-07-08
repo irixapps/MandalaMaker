@@ -891,6 +891,8 @@ select { cursor: pointer; }
 }
 .font-menu-item:hover { background: rgba(255, 255, 255, 0.08); }
 .font-menu-item.selected { background: var(--accent); color: #fff; }
+.font-menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+.font-menu-upload { font-style: italic; opacity: 0.8; }
 .cp-sv-wrap { position: relative; width: 100%; height: 120px; }
 .cp-sv {
   display: block;
