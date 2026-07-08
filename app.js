@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.73';
+const VERSION = '3.74';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -713,7 +713,14 @@ const ANIM_PROPS = [
   { key: 'scale',    label: 'Scale',      min: 0.05, max: 8,   format: v => v.toFixed(2)+'×' },
   { key: 'rotation', label: 'Rotation',   min: -180,  max: 180, format: v => Math.round(v)+'°' },
   { key: 'orbit',    label: 'Orbit',      min: -180,  max: 180, format: v => Math.round(v)+'°' },
-  { key: 'offsetX',  label: 'Radial',     min: -500,  max: 500, format: v => Math.round(v) },
+  // Radial is a literal distance-from-centre fed straight into
+  // radius*cos/sin, not a signed Cartesian offset — 0 (bottom of the
+  // timeline curve) means "at the centre", max (top) means "out past the
+  // default canvas's centre-to-corner distance" (750px at 1200x900; 800
+  // lands just beyond it). A negative radius would flip the angle 180°
+  // and throw the shape through the centre to the opposite side, which
+  // reads as confusing rather than useful, hence starting the range at 0.
+  { key: 'offsetX',  label: 'Radial',     min: 0,  max: 800, format: v => Math.round(v) },
   { key: 'offsetY',  label: 'Tangential', min: -500,  max: 500, format: v => Math.round(v) },
   { key: 'opacity',  label: 'Opacity',    min: 0,     max: 1,   format: v => Math.round(v*100)+'%' },
 ];
@@ -772,8 +779,10 @@ const SHAPE_ANIM_PROPS = [
   { key: 'opacity',   label: 'Opacity',   min: 0,    max: 1,   format: v => Math.round(v*100)+'%' },
   { key: 'rotation',  label: 'Rotation',  min: -360, max: 360, format: v => Math.round(v)+'°' },
   { key: 'orbit',     label: 'Orbit',     min: -180, max: 180, format: v => Math.round(v)+'°' },
-  { key: 'offsetX',   label: 'Offset X',  min: -500, max: 500, format: v => Math.round(v) },
-  { key: 'offsetY',   label: 'Offset Y',  min: -500, max: 500, format: v => Math.round(v) },
+  // See ANIM_PROPS' offsetX comment — same radius*cos/sin semantics, so the
+  // same 0-at-bottom/800-at-top range (not the old signed -500..500).
+  { key: 'offsetX',   label: 'Radial',     min: 0,    max: 800, format: v => Math.round(v) },
+  { key: 'offsetY',   label: 'Tangential', min: -500, max: 500, format: v => Math.round(v) },
 ];
 
 const SHAPE_ANIM_PRESETS = {
