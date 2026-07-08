@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.70';
+const VERSION = '3.71';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -7418,19 +7418,8 @@ function updatePaletteItemProps() {
   document.getElementById('trans-tolerance-val').textContent = item.tolerance || 15;
   if (item.isSpriteSheet) renderSpriteSheetGrid(item);
 
-  const trimOptions = document.getElementById('trim-frames-options');
   const isAnimated = (item.isGif || item.isWebP) && item.gifFrames && item.gifFrames.length > 1;
-  trimOptions.style.display = isAnimated ? 'block' : 'none';
-  if (isAnimated) {
-    const maxIdx = item.gifFrames.length - 1;
-    const trimStart = document.getElementById('trim-start');
-    const trimEnd = document.getElementById('trim-end');
-    trimStart.max = maxIdx; trimEnd.max = maxIdx;
-    trimStart.value = item.trimStart ?? 0;
-    trimEnd.value = item.trimEnd ?? maxIdx;
-    document.getElementById('trim-start-val').textContent = trimStart.value;
-    document.getElementById('trim-end-val').textContent = trimEnd.value;
-  }
+  document.getElementById('trim-frames-row').style.display = isAnimated ? 'block' : 'none';
 }
 
 function renderSpriteSheetGrid(item) {
@@ -7799,6 +7788,120 @@ function openCropDialog() {
   document.getElementById('crop-cancel').addEventListener('click', () => overlay.remove());
 
   redraw();
+}
+
+// ── Trim Frames dialog ──────────────────────────────────────
+// Same modal-overlay/modal-dialog pattern as Crop and Transparency, with a
+// live-playing preview so trimming a GIF/WebP's loop range is a "see it,
+// then commit it" interaction instead of blind slider numbers.
+function openTrimFramesDialog() {
+  const item = getPaletteItem(S.selectedPaletteId);
+  if (!item || !item.gifFrames || item.gifFrames.length < 2) return;
+
+  const maxIdx = item.gifFrames.length - 1;
+  let start = Math.min(Math.max(item.trimStart ?? 0, 0), maxIdx);
+  let end = Math.min(Math.max(item.trimEnd ?? maxIdx, start), maxIdx);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-dialog" style="min-width:340px">
+      <h3>Trim Frames</h3>
+      <p style="font-size:11px;color:var(--text-dim);margin:2px 0 8px">Loop just a portion of this animation's ${item.gifFrames.length} decoded frames.</p>
+      <canvas id="trim-canvas-preview" style="display:block;border:1px solid var(--border);margin:0 auto"></canvas>
+      <div id="trim-info" style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:4px">Frame 0 / ${maxIdx}</div>
+      <div class="prop-row" style="margin-top:8px">
+        <label class="prop-label">Start Frame</label>
+        <input type="range" id="trim-start" min="0" max="${maxIdx}" step="1" value="${start}">
+        <span class="prop-val" id="trim-start-val">${start}</span>
+      </div>
+      <div class="prop-row">
+        <label class="prop-label">End Frame</label>
+        <input type="range" id="trim-end" min="0" max="${maxIdx}" step="1" value="${end}">
+        <span class="prop-val" id="trim-end-val">${end}</span>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn" id="trim-reset">Reset (full range)</button>
+        <button class="btn" id="trim-cancel">Cancel</button>
+        <button class="btn" id="trim-apply" style="background:var(--accent)">Apply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const pc = document.getElementById('trim-canvas-preview');
+  const iw = item.gifFrames[0].canvas.width, ih = item.gifFrames[0].canvas.height;
+  const MAX_W = 300, MAX_H = 260;
+  const scale = Math.min(MAX_W / iw, MAX_H / ih, 1);
+  pc.width = Math.round(iw * scale);
+  pc.height = Math.round(ih * scale);
+  const pctx = pc.getContext('2d');
+
+  const startInput = document.getElementById('trim-start');
+  const endInput = document.getElementById('trim-end');
+  const startVal = document.getElementById('trim-start-val');
+  const endVal = document.getElementById('trim-end-val');
+  const info = document.getElementById('trim-info');
+
+  let previewIdx = start;
+  let lastTick = performance.now();
+  let rafId = null;
+
+  function drawFrame() {
+    pctx.clearRect(0, 0, pc.width, pc.height);
+    for (let y = 0; y < pc.height; y += 8) for (let x = 0; x < pc.width; x += 8)
+      { pctx.fillStyle = ((x/8+y/8)%2===0) ? '#333' : '#3d3d3d'; pctx.fillRect(x, y, 8, 8); }
+    pctx.drawImage(item.gifFrames[previewIdx].canvas, 0, 0, pc.width, pc.height);
+    info.textContent = `Frame ${previewIdx} / ${maxIdx}  (playing ${start}-${end})`;
+  }
+
+  function tick(now) {
+    rafId = requestAnimationFrame(tick);
+    if (previewIdx < start || previewIdx > end) previewIdx = start;
+    const delay = item.gifFrames[previewIdx].delay;
+    if (now - lastTick >= delay) {
+      lastTick = now;
+      previewIdx = previewIdx + 1 > end ? start : previewIdx + 1;
+    }
+    drawFrame();
+  }
+  rafId = requestAnimationFrame(tick);
+
+  function cleanup() {
+    if (rafId) cancelAnimationFrame(rafId);
+    overlay.remove();
+  }
+
+  startInput.addEventListener('input', e => {
+    let v = parseInt(e.target.value);
+    if (v > end) { end = v; endInput.value = v; endVal.textContent = v; }
+    start = v;
+    startVal.textContent = v;
+    previewIdx = start;
+  });
+  endInput.addEventListener('input', e => {
+    let v = parseInt(e.target.value);
+    if (v < start) { start = v; startInput.value = v; startVal.textContent = v; }
+    end = v;
+    endVal.textContent = v;
+  });
+
+  document.getElementById('trim-reset').addEventListener('click', () => {
+    start = 0; end = maxIdx;
+    startInput.value = 0; endInput.value = maxIdx;
+    startVal.textContent = 0; endVal.textContent = maxIdx;
+    previewIdx = start;
+  });
+  document.getElementById('trim-cancel').addEventListener('click', cleanup);
+  document.getElementById('trim-apply').addEventListener('click', () => {
+    item.trimStart = start;
+    item.trimEnd = end;
+    item.gifFrameIdx = start;
+    invalidateAnimCache(item);
+    markRenderDirty();
+    renderPaletteList();
+    updatePaletteItemProps();
+    cleanup();
+  });
 }
 
 // ── Frame splitting ───────────────────────────────────────
@@ -9228,26 +9331,7 @@ function wireEvents() {
     item.processedCache = null; item._animCanvas = null;
     renderSpriteSheetGrid(item);
   });
-  document.getElementById('trim-start').addEventListener('input', e => {
-    const item = getPaletteItem(S.selectedPaletteId); if (!item || !item.gifFrames) return;
-    let v = parseInt(e.target.value);
-    if (v > (item.trimEnd ?? item.gifFrames.length - 1)) item.trimEnd = v;
-    item.trimStart = v;
-    document.getElementById('trim-start-val').textContent = v;
-    document.getElementById('trim-end').value = item.trimEnd;
-    document.getElementById('trim-end-val').textContent = item.trimEnd;
-    markRenderDirty();
-  });
-  document.getElementById('trim-end').addEventListener('input', e => {
-    const item = getPaletteItem(S.selectedPaletteId); if (!item || !item.gifFrames) return;
-    let v = parseInt(e.target.value);
-    if (v < (item.trimStart ?? 0)) item.trimStart = v;
-    item.trimEnd = v;
-    document.getElementById('trim-end-val').textContent = v;
-    document.getElementById('trim-start').value = item.trimStart;
-    document.getElementById('trim-start-val').textContent = item.trimStart;
-    markRenderDirty();
-  });
+  document.getElementById('btn-trim-frames').addEventListener('click', openTrimFramesDialog);
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
