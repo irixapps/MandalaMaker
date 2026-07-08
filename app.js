@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.88';
+const VERSION = '3.89';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -5479,29 +5479,33 @@ function renderArcText(tCtx, shape) {
 // punches the same tail-faded/head-cut window into it as an alpha mask via
 // destination-in, so a comet-like reveal sweeps across the string the same
 // way it would sweep along a stroke.
-function renderTextShape(tCtx, shape) {
-  const text = shape.text || '';
-  if (!text) return;
-  if (shape.arc?.enabled) { renderArcText(tCtx, shape); return; }
+// Builds a flat, horizontally-laid-out rendering of the text — colour/
+// gradient via textFillStyle, Fading Trail applied as a continuous
+// destination-in alpha mask (same hard-head/25%-tail-fade convention as
+// everywhere else) — onto the reusable offscreen canvas. Shared by the
+// straight-baseline trail path and Warp arc mode, which bends this same
+// rasterized strip around a circle (see renderWarpArcText) exactly the way
+// renderSprite's warpMode bends an uploaded image. Returns null if a trail
+// window closes the text out entirely (nothing to draw).
+function buildFlatTextCanvas(shape, w) {
   const fontSize = shape.fontSize || 48;
-  const w = measureTextShapeWidth(shape);
+  const text = shape.text || '';
+  const pad = fontSize; // room for ascenders/descenders/glyph overhang
+  const cw = Math.max(1, Math.ceil(w + pad * 2)), ch = Math.max(1, Math.ceil(fontSize * 2 + pad * 2));
+  ensureTextTrailOffscreen(cw, ch);
+  _textTrailCtx.clearRect(0, 0, cw, ch);
+  _textTrailCtx.save();
+  _textTrailCtx.translate(cw / 2, ch / 2);
+  _textTrailCtx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
+  _textTrailCtx.textAlign = 'center';
+  _textTrailCtx.textBaseline = 'middle';
+  _textTrailCtx.fillStyle = textFillStyle(_textTrailCtx, shape, w);
+  _textTrailCtx.fillText(text, 0, 0);
+  _textTrailCtx.restore();
 
-  if (shape.trailAnim?.enabled && tCtx === ctx) {
+  if (shape.trailAnim?.enabled) {
     const win = trailWindows(shape.trailAnim, S.animClock, false)[0];
-    if (!win || win.headFrac <= win.tailFrac) return;
-    const pad = fontSize; // room for ascenders/descenders/glyph overhang
-    const cw = Math.max(1, Math.ceil(w + pad * 2)), ch = Math.max(1, Math.ceil(fontSize * 2 + pad * 2));
-    ensureTextTrailOffscreen(cw, ch);
-    _textTrailCtx.clearRect(0, 0, cw, ch);
-    _textTrailCtx.save();
-    _textTrailCtx.translate(cw / 2, ch / 2);
-    _textTrailCtx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
-    _textTrailCtx.textAlign = 'center';
-    _textTrailCtx.textBaseline = 'middle';
-    _textTrailCtx.fillStyle = textFillStyle(_textTrailCtx, shape, w);
-    _textTrailCtx.fillText(text, 0, 0);
-    _textTrailCtx.restore();
-
+    if (!win || win.headFrac <= win.tailFrac) return null;
     const tailFrac = Math.max(0, win.tailFrac), headFrac = Math.min(1, win.headFrac);
     const fadeFrac = Math.max(0.001, (headFrac - tailFrac) * 0.25);
     // Reverse: strokes flip which end of the point list is arc-length 0
@@ -5528,10 +5532,26 @@ function renderTextShape(tCtx, shape) {
     _textTrailCtx.fillStyle = mask;
     _textTrailCtx.fillRect(-cw / 2, -ch / 2, cw, ch);
     _textTrailCtx.restore();
+  }
+  return { canvas: _textTrailCanvas, w: cw, h: ch };
+}
 
+function renderTextShape(tCtx, shape) {
+  const text = shape.text || '';
+  if (!text) return;
+  if (shape.arc?.enabled) {
+    (shape.arc.warp ? renderWarpArcText : renderArcText)(tCtx, shape);
+    return;
+  }
+  const fontSize = shape.fontSize || 48;
+  const w = measureTextShapeWidth(shape);
+
+  if (shape.trailAnim?.enabled && tCtx === ctx) {
+    const flat = buildFlatTextCanvas(shape, w);
+    if (!flat) return;
     tCtx.save();
     tCtx.globalAlpha = shape.opacity ?? 1;
-    tCtx.drawImage(_textTrailCanvas, -cw / 2, -ch / 2);
+    tCtx.drawImage(flat.canvas, -flat.w / 2, -flat.h / 2);
     tCtx.restore();
     return;
   }
@@ -5543,6 +5563,58 @@ function renderTextShape(tCtx, shape) {
   tCtx.textBaseline = 'middle';
   tCtx.fillStyle = textFillStyle(tCtx, shape, w);
   tCtx.fillText(text, 0, 0);
+  tCtx.restore();
+}
+
+// Warp arc text: instead of placing each glyph as its own rigid rotated
+// copy (renderArcText), this renders the text flat once — reusing the
+// exact same gradient/trail treatment as the straight path via
+// buildFlatTextCanvas, so Fading Trail here is a smooth continuous sweep
+// across the rendered pixels, not a per-letter on/off step — then bends
+// that rasterized strip around the circle exactly the way renderSprite's
+// warpMode bends an uploaded image: sliced into thin angular strips, each
+// rotated into its own position. Letters visually curve/stretch along the
+// arc instead of staying rigid, closer to a real logo/badge text warp.
+// Uses the same radius/startAngle/direction/flip fields as renderArcText
+// (and the same translate+rotate-per-slice convention, just with N evenly
+// spaced slices instead of one draw per glyph) so switching Warp on/off
+// keeps the text sitting in the same place.
+function renderWarpArcText(tCtx, shape) {
+  const text = shape.text || '';
+  if (!text) return;
+  const fontSize = shape.fontSize || 48;
+  const radius = shape.arc.radius || 150;
+  const dir = shape.arc.direction === -1 ? -1 : 1;
+  const flip = !!shape.arc.flip;
+  const startAngle = (shape.arc.startAngle || 0) * Math.PI / 180;
+
+  const w = measureTextShapeWidth(shape);
+  if (!w) return;
+  const totalAngle = w / radius;
+  if (!totalAngle) return;
+
+  const flat = buildFlatTextCanvas(shape, w);
+  if (!flat) return;
+  const { canvas: src, w: cw, h: ch } = flat;
+  const dispH = fontSize * 1.6; // matches the vertical band buildFlatTextCanvas actually paints into
+  const N = Math.max(32, Math.round(w / 1.5));
+
+  tCtx.save();
+  tCtx.globalAlpha = shape.opacity ?? 1;
+  for (let si = 0; si < N; si++) {
+    const t = (si + 0.5) / N;
+    const glyphAngle = t * totalAngle;
+    const theta = startAngle + dir * glyphAngle * (flip ? -1 : 1);
+    const srcX = cw / 2 - w / 2 + t * w;
+    const srcW = Math.max(1, w / N);
+    const sliceW = srcW * 1.5; // slight overlap avoids seams between slices, same trick sprite warp uses
+
+    tCtx.save();
+    tCtx.translate(radius * Math.cos(theta), radius * Math.sin(theta));
+    tCtx.rotate(theta + Math.PI / 2 * dir + (flip ? Math.PI : 0));
+    tCtx.drawImage(src, srcX - srcW / 2, ch / 2 - dispH / 2, srcW, dispH, -sliceW / 2, -dispH / 2, sliceW, dispH);
+    tCtx.restore();
+  }
   tCtx.restore();
 }
 
@@ -6324,6 +6396,7 @@ function updateShapeProps() {
       document.getElementById('sp-arc-start-val').textContent = (shape.arc.startAngle || 0) + '°';
       document.getElementById('sp-arc-direction').value = shape.arc.direction === -1 ? '-1' : '1';
       document.getElementById('sp-arc-flip').checked = !!shape.arc.flip;
+      document.getElementById('sp-arc-warp').checked = !!shape.arc.warp;
     }
   }
   if (isPetal) {
@@ -6494,7 +6567,7 @@ function wireShapeProps() {
   document.getElementById('sp-text-size').addEventListener('change', () => historySnapshot());
   document.getElementById('sp-arc-on').addEventListener('change', e => {
     forShape(s => {
-      s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false } : null;
+      s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false, warp: false } : null;
       document.getElementById('sp-arc-options').style.display = e.target.checked ? '' : 'none';
       markRenderDirty();
     });
@@ -6514,6 +6587,10 @@ function wireShapeProps() {
   });
   document.getElementById('sp-arc-flip').addEventListener('change', e => {
     forShape(s => { if (s.arc) s.arc.flip = e.target.checked; });
+    historySnapshot();
+  });
+  document.getElementById('sp-arc-warp').addEventListener('change', e => {
+    forShape(s => { if (s.arc) s.arc.warp = e.target.checked; });
     historySnapshot();
   });
   document.getElementById('sp-color').addEventListener('input', e => forShape(s => s.color = e.target.value));
