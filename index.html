@@ -69,7 +69,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.75">
+<link rel="stylesheet" href="style.css?v=3.76">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -571,8 +571,8 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <input type="number" id="prop-tile-y" min="1" max="32" value="1" style="width:48px">
           </div>
         </div>
-        <button class="btn btn-danger" id="btn-delete-sprite"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Sprite</button>
-        <button class="btn" id="btn-dup-sprite" style="width:100%;margin-top:4px">Duplicate</button>
+        <button class="btn" id="btn-dup-sprite" style="width:100%;margin-top:10px">Duplicate</button>
+        <button class="btn btn-danger" id="btn-delete-sprite" style="margin-top:4px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Sprite</button>
       </div>
 
       <!-- Shape properties (shown when shape selected) -->
@@ -863,7 +863,8 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           </div>
         </div>
 
-        <button class="btn btn-danger" id="sp-delete" style="margin-top:10px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Shape</button>
+        <button class="btn" id="sp-dup" style="width:100%;margin-top:10px">Duplicate</button>
+        <button class="btn btn-danger" id="sp-delete" style="margin-top:4px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Shape</button>
       </div>
 
       <!-- Drawing (stroke) inspector — shown when a drawn line/stroke layer is selected -->
@@ -955,7 +956,8 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
           </div>
         </div>
 
-        <button class="btn btn-danger" id="dp-delete" style="margin-top:10px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Drawing</button>
+        <button class="btn" id="dp-dup" style="width:100%;margin-top:10px">Duplicate</button>
+        <button class="btn btn-danger" id="dp-delete" style="margin-top:4px"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" style="vertical-align:-1px"><path d="M1 3h10M4 3V2h4v1M2 3l.8 8.5a.6.6 0 00.6.5h5.2a.6.6 0 00.6-.5L10 3M4.5 5.5v4M7.5 5.5v4"/></svg> Delete Drawing</button>
       </div>
       </div><!-- /#inspector-panel -->
       </div><!-- /.right-panel-body -->
@@ -1358,6 +1360,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.75"></script>
+<script src="app.js?v=3.76"></script>
 </body>
 </html>

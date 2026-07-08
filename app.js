@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.75';
+const VERSION = '3.76';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -6070,6 +6070,18 @@ function wireShapeProps() {
     });
   });
 
+  document.getElementById('sp-dup').addEventListener('click', () => {
+    const found = findSelectedShape();
+    if (!found) return;
+    historySnapshot();
+    const copy = { ...found.shape, id: uid(), x: found.shape.x + 20, y: found.shape.y + 20 };
+    (found.mandala.shapes = found.mandala.shapes || []).push(copy);
+    S.selectedShapeId = copy.id;
+    flushHasAnimCache();
+    markRenderDirty();
+    updateShapeProps();
+  });
+
   document.getElementById('sp-delete').addEventListener('click', () => {
     const found = findSelectedShape();
     if (!found || !confirm('Delete this shape?')) return;
@@ -6274,6 +6286,18 @@ function wireStrokeProps() {
       s.trailAnim.reverse = e.target.checked;
       markRenderDirty();
     });
+  });
+
+  document.getElementById('dp-dup').addEventListener('click', () => {
+    const found = findSelectedStroke();
+    if (!found) return;
+    historySnapshot();
+    const copy = { ...found.stroke, id: uid(), pts: found.stroke.pts.map(p => ({ x: p.x + 20, y: p.y + 20 })) };
+    (found.mandala.strokes = found.mandala.strokes || []).push(copy);
+    S.selectedStrokeId = copy.id;
+    invalidateStrokeCache();
+    flushHasAnimCache();
+    updateStrokeProps();
   });
 
   document.getElementById('dp-delete').addEventListener('click', () => {
@@ -7203,6 +7227,35 @@ function layerHasAnimation(type, item) {
     return !!item.anim?.orbit?.enabled;
   }
   return !!(item.anim && Object.values(item.anim).some(ap => ap.enabled));
+}
+
+// Moves the current selection to the layer immediately above/below it in
+// the Layers panel's displayed (topmost-first) order — same flat
+// strokes-then-shapes-then-sprites list updateLayersList builds, just
+// walked in display order instead of storage order. dir: -1 = up
+// (towards the top of the panel), +1 = down.
+function selectAdjacentLayer(dir) {
+  const m = getActiveMandala();
+  if (!m) return;
+  const entries = [];
+  for (const stroke of (m.strokes || [])) entries.push({ type: 'stroke', id: stroke.id });
+  for (const shape  of (m.shapes  || [])) entries.push({ type: 'shape',  id: shape.id  });
+  for (const spr    of m.sprites)         entries.push({ type: 'sprite', id: spr.id    });
+  if (!entries.length) return;
+  const displayOrder = entries.slice().reverse(); // topmost-first, matches updateLayersList's render order
+  const currentId = S.selectedSpriteId || S.selectedShapeId || S.selectedStrokeId;
+  if (!currentId) return;
+  const idx = displayOrder.findIndex(e => e.id === currentId);
+  if (idx === -1) return;
+  const next = displayOrder[idx + dir];
+  if (!next) return;
+  S.selectedSpriteId = next.type === 'sprite' ? next.id : null;
+  S.selectedShapeId  = next.type === 'shape'  ? next.id : null;
+  S.selectedStrokeId = next.type === 'stroke' ? next.id : null;
+  updateSpriteProps();
+  updateShapeProps();
+  updateStrokeProps();
+  markRenderDirty();
 }
 
 function updateLayersList() {
@@ -9488,6 +9541,12 @@ function wireEvents() {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (S.selectedSpriteId) document.getElementById('btn-delete-sprite').click();
       if (S.selectedShapeId) document.getElementById('sp-delete')?.click();
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (S.selectedSpriteId || S.selectedShapeId || S.selectedStrokeId) {
+        e.preventDefault();
+        selectAdjacentLayer(e.key === 'ArrowUp' ? -1 : 1);
+      }
     }
     if (e.key === '[') {
       if (S.tool === 'place') {
