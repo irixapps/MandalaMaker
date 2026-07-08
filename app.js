@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.71';
+const VERSION = '3.72';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -290,6 +290,25 @@ function sampleGradientRGB(stops, t) {
 function sampleGradient(stops, t) {
   const { r, g, b } = sampleGradientRGB(stops, t);
   return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+// Preset <select> dropdowns (toolbar/shape/stroke gradient pickers) only
+// ever fire on user interaction — they don't live-reflect an object's
+// current stops, so switching to a different stroke/shape (or drawing a
+// fresh one) left whichever preset name the user last clicked showing,
+// regardless of what that object's actual gradient was. Called from each
+// panel's render step to sync the dropdown back to reality: the preset
+// name if the stops still exactly match one, or the blank placeholder
+// option otherwise (edited/custom stops, or a plain default that happens
+// not to match any preset).
+function findMatchingPresetName(stops) {
+  if (!stops) return '';
+  for (const name of Object.keys(GRADIENT_PRESETS)) {
+    const preset = GRADIENT_PRESETS[name];
+    if (stops.length !== preset.length) continue;
+    if (stops.every((s, i) => s.pos === preset[i].pos && s.color === preset[i].color)) return name;
+  }
+  return '';
 }
 
 // Render a stroke using a cycling gradient along its length.
@@ -5750,6 +5769,7 @@ function updateShapeProps() {
   document.getElementById('sp-gradient-options').style.display = hasGradient ? '' : 'none';
   if (hasGradient) {
     document.getElementById('sp-grad-reverse').checked = !!shape.gradient.reverse;
+    document.getElementById('sp-grad-preset').value = findMatchingPresetName(shape.gradient.stops);
     spGradientEditor?.render();
   }
 
@@ -5849,12 +5869,14 @@ function wireShapeProps() {
   });
 
   const spPresetSel = document.getElementById('sp-grad-preset');
+  spPresetSel.appendChild(new Option('Preset…', ''));
   for (const name of Object.keys(GRADIENT_PRESETS)) {
     const opt = document.createElement('option');
     opt.value = name; opt.textContent = name;
     spPresetSel.appendChild(opt);
   }
   spPresetSel.addEventListener('change', () => {
+    if (!spPresetSel.value) return;
     forShape(s => {
       if (!s.gradient) return;
       s.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[spPresetSel.value]));
@@ -5990,6 +6012,7 @@ function updateStrokeProps() {
   document.getElementById('dp-gradient-options').style.display = hasGradient ? '' : 'none';
   if (hasGradient) {
     document.getElementById('dp-grad-reverse').checked = !!stroke.gradient.reverse;
+    document.getElementById('dp-grad-preset').value = findMatchingPresetName(stroke.gradient.stops);
     dpGradientEditor?.render();
   }
 
@@ -6051,12 +6074,14 @@ function wireStrokeProps() {
   });
 
   const dpPresetSel = document.getElementById('dp-grad-preset');
+  dpPresetSel.appendChild(new Option('Preset…', ''));
   for (const name of Object.keys(GRADIENT_PRESETS)) {
     const opt = document.createElement('option');
     opt.value = name; opt.textContent = name;
     dpPresetSel.appendChild(opt);
   }
   dpPresetSel.addEventListener('change', () => {
+    if (!dpPresetSel.value) return;
     forStroke(s => {
       if (!s.gradient) return;
       s.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[dpPresetSel.value]));
@@ -7513,7 +7538,11 @@ function updateGradientPanelVisibility() {
   if (!panel) return;
   const show = S.gradientMode && GRADIENT_PANEL_TOOLS.has(S.tool);
   panel.classList.toggle('visible', show);
-  if (show) toolbarGradientEditor?.render();
+  if (show) {
+    const sel = document.getElementById('grad-preset');
+    if (sel) sel.value = findMatchingPresetName(S.gradient.stops);
+    toolbarGradientEditor?.render();
+  }
 }
 
 // Same idea for the status-bar's own Color/Gradient/Size/Opacity/Smooth
@@ -9567,6 +9596,7 @@ function initGradientUI() {
   updateGradientPanelVisibility();
 
   const sel = document.getElementById('grad-preset');
+  sel.appendChild(new Option('Preset…', ''));
   for (const name of Object.keys(GRADIENT_PRESETS)) {
     const opt = document.createElement('option');
     opt.value = name; opt.textContent = name;
@@ -9583,6 +9613,7 @@ function initGradientUI() {
   });
 
   sel.addEventListener('change', () => {
+    if (!sel.value) return;
     S.gradient.stops = JSON.parse(JSON.stringify(GRADIENT_PRESETS[sel.value]));
     toolbarGradientEditor.resetSelection();
     toolbarGradientEditor.render();
