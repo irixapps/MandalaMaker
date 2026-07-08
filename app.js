@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.77';
+const VERSION = '3.78';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -6074,7 +6074,13 @@ function wireShapeProps() {
     const found = findSelectedShape();
     if (!found) return;
     historySnapshot();
-    const copy = { ...found.shape, id: uid(), x: found.shape.x + 20, y: found.shape.y + 20 };
+    // Deep clone, not a shallow spread — a shallow copy shares the exact
+    // same anim/gradient/trailAnim/params objects (and their keyframe
+    // arrays) with the original, so dragging a keyframe or editing a
+    // gradient stop on either one silently edits both. JSON round-trip
+    // matches how saveProject/loadProject already serialize this same
+    // shape data, so anything that survives a save/load survives this too.
+    const copy = { ...JSON.parse(JSON.stringify(found.shape)), id: uid(), x: found.shape.x + 20, y: found.shape.y + 20 };
     (found.mandala.shapes = found.mandala.shapes || []).push(copy);
     S.selectedShapeId = copy.id;
     flushHasAnimCache();
@@ -6292,7 +6298,11 @@ function wireStrokeProps() {
     const found = findSelectedStroke();
     if (!found) return;
     historySnapshot();
-    const copy = { ...found.stroke, id: uid(), pts: found.stroke.pts.map(p => ({ x: p.x + 20, y: p.y + 20 })) };
+    // Deep clone — see the shape Duplicate handler's comment for why a
+    // shallow spread isn't enough (shared gradient/trailAnim/anim.orbit
+    // keyframe object references). pts still gets its own explicit +20/+20
+    // remap since the JSON clone alone wouldn't offset the copy's position.
+    const copy = { ...JSON.parse(JSON.stringify(found.stroke)), id: uid(), pts: found.stroke.pts.map(p => ({ x: p.x + 20, y: p.y + 20 })) };
     (found.mandala.strokes = found.mandala.strokes || []).push(copy);
     S.selectedStrokeId = copy.id;
     invalidateStrokeCache();
@@ -9478,7 +9488,9 @@ function wireEvents() {
     if (!S.selectedSpriteId) return;
     const found = findSprite(S.selectedSpriteId); if (!found) return;
     historySnapshot();
-    const copy = { ...found.sprite, id: uid(), x: found.sprite.x + 20, y: found.sprite.y + 20 };
+    // Deep clone — see the shape Duplicate handler's comment for why a
+    // shallow spread isn't enough (shared anim/keyframe object references).
+    const copy = { ...JSON.parse(JSON.stringify(found.sprite)), id: uid(), x: found.sprite.x + 20, y: found.sprite.y + 20 };
     found.mandala.sprites.push(copy);
     S.selectedSpriteId = copy.id;
     updateSpriteProps();
