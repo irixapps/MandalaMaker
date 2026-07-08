@@ -11591,18 +11591,6 @@ window.MANDALIZE_DEMOS["OrchidInBloom"] = {
   ],
   "effects": [
     {
-      "id": "id5_1783332056330",
-      "type": "echo",
-      "enabled": true,
-      "anim": {
-        "amount": null
-      },
-      "_expanded": true,
-      "amount": 92,
-      "separation": 0,
-      "excludeImages": false
-    },
-    {
       "id": "id3_1783331957340",
       "type": "spiralEcho",
       "enabled": true,
@@ -11666,22 +11654,23 @@ window.MANDALIZE_DEMOS["OrchidInBloom"] = {
           ]
         }
       },
-      "_expanded": true,
+      "_expanded": false,
       "amount": 78,
       "rotation": -4,
-      "zoom": 98
+      "zoom": 98,
+      "excludeImages": false
     },
     {
-      "id": "id4_1783332036284",
-      "type": "bloom",
+      "id": "id5_1783332056330",
+      "type": "echo",
       "enabled": true,
       "anim": {
         "amount": null
       },
-      "_expanded": true,
-      "amount": 45,
-      "threshold": 11,
-      "radius": 6
+      "_expanded": false,
+      "amount": 92,
+      "separation": 0,
+      "excludeImages": false
     },
     {
       "id": "id2_1783332431090",
@@ -11691,10 +11680,23 @@ window.MANDALIZE_DEMOS["OrchidInBloom"] = {
         "amount": null,
         "length": null
       },
-      "_expanded": true,
+      "_expanded": false,
       "amount": 100,
       "threshold": 43,
       "length": 58
+    },
+    {
+      "id": "id4_1783332036284",
+      "type": "bloom",
+      "enabled": true,
+      "anim": {
+        "amount": null
+      },
+      "_expanded": false,
+      "amount": 45,
+      "threshold": 11,
+      "radius": 6,
+      "excludeImages": false
     }
   ],
   "palette": []

@@ -4149,6 +4149,34 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
   ],
   "effects": [
     {
+      "id": "id4_1783331694123",
+      "type": "spiralEcho",
+      "enabled": true,
+      "anim": {
+        "amount": null,
+        "rotation": null,
+        "zoom": null
+      },
+      "_expanded": true,
+      "amount": 59,
+      "rotation": 6,
+      "zoom": 99.5,
+      "excludeImages": false
+    },
+    {
+      "id": "id167_1783246372016",
+      "type": "bloom",
+      "enabled": true,
+      "anim": {
+        "amount": null
+      },
+      "_expanded": true,
+      "amount": 151,
+      "threshold": 21,
+      "radius": 19,
+      "excludeImages": false
+    },
+    {
       "id": "id192_1783246858783",
       "type": "echo",
       "enabled": true,
@@ -4189,32 +4217,6 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
       "amount": 81,
       "separation": 0,
       "excludeImages": true
-    },
-    {
-      "id": "id167_1783246372016",
-      "type": "bloom",
-      "enabled": true,
-      "anim": {
-        "amount": null
-      },
-      "_expanded": true,
-      "amount": 151,
-      "threshold": 21,
-      "radius": 19
-    },
-    {
-      "id": "id4_1783331694123",
-      "type": "spiralEcho",
-      "enabled": true,
-      "anim": {
-        "amount": null,
-        "rotation": null,
-        "zoom": null
-      },
-      "_expanded": true,
-      "amount": 59,
-      "rotation": 6,
-      "zoom": 99.5
     }
   ],
   "palette": [
@@ -4230,7 +4232,9 @@ window.MANDALIZE_DEMOS["WeComeInPeace"] = {
       "isSpriteSheet": false,
       "cols": 4,
       "rows": 4,
-      "selectedCell": 0
+      "selectedCell": 0,
+      "trimStart": 0,
+      "trimEnd": 5
     }
   ]
 };

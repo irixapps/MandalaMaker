@@ -1694,8 +1694,8 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
   ],
   "effects": [
     {
-      "id": "id3_1783079294602",
-      "type": "bloom",
+      "id": "id6_1783079395712",
+      "type": "echo",
       "enabled": true,
       "anim": {
         "amount": {
@@ -1704,12 +1704,79 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
           "keyframes": [
             {
               "t": 0,
+              "value": 47.32142857142857,
+              "easing": "ease"
+            },
+            {
+              "t": 0.5,
+              "value": 83.92857142857143,
+              "easing": "ease"
+            },
+            {
+              "t": 0.9945652173913043,
+              "value": 47.32142857142857,
+              "easing": "ease"
+            }
+          ]
+        }
+      },
+      "_expanded": false,
+      "amount": 87,
+      "separation": 0,
+      "excludeImages": false
+    },
+    {
+      "id": "id2_1783499688008",
+      "type": "spiralEcho",
+      "enabled": true,
+      "anim": {
+        "amount": null,
+        "rotation": null,
+        "zoom": {
+          "enabled": true,
+          "duration": 2,
+          "keyframes": [
+            {
+              "t": 0,
+              "value": 110,
+              "easing": "ease"
+            },
+            {
+              "t": 0.5108695652173914,
+              "value": 99.28571428571429,
+              "easing": "ease"
+            },
+            {
+              "t": 1,
+              "value": 110,
+              "easing": "ease"
+            }
+          ]
+        }
+      },
+      "_expanded": true,
+      "amount": 30,
+      "rotation": 6,
+      "zoom": 104,
+      "excludeImages": false
+    },
+    {
+      "id": "id3_1783079294602",
+      "type": "bloom",
+      "enabled": true,
+      "anim": {
+        "amount": {
+          "enabled": false,
+          "duration": 2,
+          "keyframes": [
+            {
+              "t": 0,
               "value": 0,
               "easing": "ease"
             },
             {
-              "t": 0.5271739130434783,
-              "value": 200,
+              "t": 0.5054347826086957,
+              "value": 164.28571428571428,
               "easing": "ease"
             },
             {
@@ -1721,41 +1788,10 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
         }
       },
       "_expanded": true,
-      "amount": 206,
+      "amount": 107,
       "threshold": 60,
-      "radius": 12
-    },
-    {
-      "id": "id6_1783079395712",
-      "type": "echo",
-      "enabled": true,
-      "anim": {
-        "amount": {
-          "enabled": true,
-          "duration": 1,
-          "keyframes": [
-            {
-              "t": 0,
-              "value": 47.32142857142857,
-              "easing": "ease"
-            },
-            {
-              "t": 0.5108695652173914,
-              "value": 90.17857142857143,
-              "easing": "ease"
-            },
-            {
-              "t": 0.9945652173913043,
-              "value": 47.32142857142857,
-              "easing": "ease"
-            }
-          ]
-        }
-      },
-      "_expanded": true,
-      "amount": 85,
-      "separation": 0,
-      "excludeImages": false
+      "radius": 11,
+      "excludeImages": true
     }
   ],
   "palette": [
@@ -1771,7 +1807,9 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
       "isSpriteSheet": false,
       "cols": 4,
       "rows": 4,
-      "selectedCell": 0
+      "selectedCell": 0,
+      "trimStart": 0,
+      "trimEnd": 25
     },
     {
       "id": "id4_1783289657892",
@@ -1785,7 +1823,9 @@ window.MANDALIZE_DEMOS["NeonDreams"] = {
       "isSpriteSheet": false,
       "cols": 4,
       "rows": 4,
-      "selectedCell": 0
+      "selectedCell": 0,
+      "trimStart": 0,
+      "trimEnd": 11
     }
   ]
 };

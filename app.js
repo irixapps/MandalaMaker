@@ -46,6 +46,8 @@ const DEMO_EXAMPLES = [
   { file: 'WeComeInPeace',   label: 'We Come In Peace' },
   { file: 'Spirograph',      label: 'Spirograph' },
   { file: 'OrchidInBloom',   label: 'Orchid In Bloom' },
+  { file: 'Hadouken',        label: 'Hadouken' },
+  { file: 'ThereIsNoSpoon',  label: 'There Is No Spoon' },
 ];
 
 const HANDLE_RADIUS = 7;
