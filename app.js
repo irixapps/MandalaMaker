@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.78';
+const VERSION = '3.79';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -173,6 +173,12 @@ const S = {
   linePhase: null,     // null | 'axis'
   lineTip: null,
   lineEnd: null,
+  // The one stroke object a Line Chain sequence is building — each
+  // finalized segment appends a point to this same stroke's `pts` instead
+  // of pushing a whole separate stroke, so the chain renders/animates/
+  // selects as a single continuous polyline. Reset to null whenever a
+  // chain ends (Escape or switching tools) so the next chain starts fresh.
+  lineChainStroke: null,
 
   // sprite selection
   selectedSpriteId: null,
@@ -6829,10 +6835,12 @@ function onMouseDown(e) {
   // Line tool — click to place the start, move for a live preview, click to
   // finish and commit the straight-line stroke (same click flow as Petal/
   // Bezier's first stage, no curvature phase). Line Chain is the identical
-  // two-click cycle, except finalizing immediately re-arms 'axis' phase
-  // from the just-placed end point instead of returning to Select, so
-  // repeated clicks keep chaining new independent line strokes end-to-end
-  // until Escape or a tool switch.
+  // two-click cycle, except finalizing appends the new endpoint to the same
+  // in-progress stroke (S.lineChainStroke) instead of committing a whole
+  // separate stroke, so repeated clicks extend one continuous polyline —
+  // one selectable/animatable/gradientable object — until Escape or a tool
+  // switch ends the chain (see setTool's cleanup and the Escape handler,
+  // both of which null out S.lineChainStroke to start the next chain fresh).
   if (S.tool === 'line' || S.tool === 'lineChain') {
     if (!m) return;
     const local = toMandalaLocal(m, pos.x, pos.y);
@@ -6843,23 +6851,29 @@ function onMouseDown(e) {
     } else if (S.linePhase === 'axis') {
       const axisLen = Math.hypot(S.lineEnd.x - S.lineTip.x, S.lineEnd.y - S.lineTip.y);
       if (axisLen < 3) {
-        S.linePhase = null; S.lineTip = null; S.lineEnd = null;
+        S.linePhase = null; S.lineTip = null; S.lineEnd = null; S.lineChainStroke = null;
       } else {
         historySnapshot();
-        const newStroke = {
-          id: uid(),
-          pts: [S.lineTip, S.lineEnd],
-          color: S.color,
-          thickness: S.thickness,
-          opacity: S.opacity,
-          erase: false,
-          axes: m.axes,
-          axisRotation: m.axisRotation,
-          mirror: m.mirror,
-          gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
-        };
-        m.strokes.push(newStroke);
-        if (!newStroke.gradient) invalidateStrokeCache();
+        if (S.tool === 'lineChain' && S.lineChainStroke) {
+          S.lineChainStroke.pts.push(S.lineEnd);
+          if (!S.lineChainStroke.gradient) invalidateStrokeCache();
+        } else {
+          const newStroke = {
+            id: uid(),
+            pts: [S.lineTip, S.lineEnd],
+            color: S.color,
+            thickness: S.thickness,
+            opacity: S.opacity,
+            erase: false,
+            axes: m.axes,
+            axisRotation: m.axisRotation,
+            mirror: m.mirror,
+            gradient: (S.gradientMode) ? JSON.parse(JSON.stringify(S.gradient)) : null,
+          };
+          m.strokes.push(newStroke);
+          if (!newStroke.gradient) invalidateStrokeCache();
+          if (S.tool === 'lineChain') S.lineChainStroke = newStroke;
+        }
         updateLayersList();
         if (S.tool === 'lineChain') {
           S.lineTip = S.lineEnd;
@@ -7688,6 +7702,7 @@ function setTool(tool) {
     S.linePhase = null;
     S.lineTip = null;
     S.lineEnd = null;
+    S.lineChainStroke = null;
   }
   updateShapePanel();
   updateGradientPanelVisibility();
