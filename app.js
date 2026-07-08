@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.89';
+const VERSION = '3.90';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -6397,8 +6397,14 @@ function updateShapeProps() {
       document.getElementById('sp-arc-direction').value = shape.arc.direction === -1 ? '-1' : '1';
       document.getElementById('sp-arc-flip').checked = !!shape.arc.flip;
       document.getElementById('sp-arc-warp').checked = !!shape.arc.warp;
+      document.getElementById('sp-arc-radial').checked = !!shape.arc.radial;
     }
   }
+  // Radial Text locks x/y/axes/mirror to a single ring centered on the
+  // mandala — hide the Offset controls rather than let them silently fight
+  // (and visually break) that lock.
+  const offsetBlock = document.getElementById('sp-offset-block');
+  if (offsetBlock) offsetBlock.style.display = (isText && shape.arc?.enabled && shape.arc?.radial) ? 'none' : '';
   if (isPetal) {
     const pct = Math.round((shape.petalCurve ?? 0.35) * 100);
     document.getElementById('sp-petal-curve').value = pct;
@@ -6567,7 +6573,7 @@ function wireShapeProps() {
   document.getElementById('sp-text-size').addEventListener('change', () => historySnapshot());
   document.getElementById('sp-arc-on').addEventListener('change', e => {
     forShape(s => {
-      s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false, warp: false } : null;
+      s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false, warp: false, radial: false } : null;
       document.getElementById('sp-arc-options').style.display = e.target.checked ? '' : 'none';
       markRenderDirty();
     });
@@ -6591,6 +6597,28 @@ function wireShapeProps() {
   });
   document.getElementById('sp-arc-warp').addEventListener('change', e => {
     forShape(s => { if (s.arc) s.arc.warp = e.target.checked; });
+    historySnapshot();
+  });
+  document.getElementById('sp-arc-radial').addEventListener('change', e => {
+    forShape(s => {
+      if (!s.arc) return;
+      s.arc.radial = e.target.checked;
+      if (e.target.checked) {
+        // Center the ring on the mandala's true centre and collapse to a
+        // single copy — axes/mirror duplication would otherwise chop the
+        // ring into N fragments (the "TextTextText" symmetry artifact),
+        // and any x/y offset would orbit that fragment somewhere else
+        // entirely instead of sitting on the actual centre.
+        s.x = 0; s.y = 0;
+        s.axes = 0; s.mirror = false;
+      }
+      document.getElementById('sp-offset-block').style.display = e.target.checked ? 'none' : '';
+      document.getElementById('sp-offsetX').value = s.x;
+      document.getElementById('sp-offsetX-val').textContent = s.x;
+      document.getElementById('sp-offsetY').value = s.y;
+      document.getElementById('sp-offsetY-val').textContent = s.y;
+      markRenderDirty();
+    });
     historySnapshot();
   });
   document.getElementById('sp-color').addEventListener('input', e => forShape(s => s.color = e.target.value));

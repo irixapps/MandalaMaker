@@ -69,7 +69,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Great+Vibes&family=Cinzel:wght@400;700&family=Pacifico&family=Orbitron:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3.89">
+<link rel="stylesheet" href="style.css?v=3.90">
 <style>
 /* Theater Mode — full-screen, chrome-free preview */
 body.theater-mode #toolbar,
@@ -685,6 +685,15 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
               <label class="prop-label">Warp Glyphs</label>
               <input type="checkbox" id="sp-arc-warp" style="accent-color:var(--accent)">
             </div>
+            <!-- Locks this text to a single ring centered on the mandala's
+                 true center (x/y = 0, axes/mirror = single copy) instead of
+                 the shape's usual per-axis-copy placement, which otherwise
+                 chops the circle into N duplicated fragments radiating from
+                 wherever the shape happens to sit. -->
+            <div class="prop-row">
+              <label class="prop-label">Radial Text</label>
+              <input type="checkbox" id="sp-arc-radial" style="accent-color:var(--accent)">
+            </div>
           </div>
         </div>
 
@@ -792,6 +801,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
         </div>
 
         <!-- Offset X drives motion ALONG the shape's axis spoke (in/out from center) = radial -->
+        <div id="sp-offset-block">
         <div class="prop-row">
           <label class="prop-label prop-label-icon" title="Radial offset — moves the shape in/out along its axis spoke, toward or away from the mandala center (positive = further out)">
             <svg class="prop-dir-icon" width="18" height="18" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1" fill="none" opacity="0.45"/><circle cx="7" cy="7" r="0.9" fill="currentColor"/><line x1="7" y1="7" x2="10.6" y2="3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9 3.6 L10.6 3.4 L10.4 5" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6.6 L7 7 L7.4 6" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -839,6 +849,7 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
             <select id="sa-ease-sel-offsetY" class="anim-ease-sel"><option>linear</option><option>ease</option><option>ease-in</option><option>ease-out</option><option>bounce</option><option>elastic</option></select>
             <button class="anim-kf-del" id="sa-kf-del-offsetY" style="display:none">🗑</button>
           </div>
+        </div>
         </div>
 
         <!-- Stroke style -->
@@ -1439,6 +1450,6 @@ kbd{background:var(--btn);border:1px solid var(--border);border-radius:4px;paddi
 <!-- Scripts last so all DOM elements above are parsed before app.js runs -->
 <script src="gifuct.bundle.js"></script>
 <script src="gifenc.bundle.js"></script>
-<script src="app.js?v=3.89"></script>
+<script src="app.js?v=3.90"></script>
 </body>
 </html>
