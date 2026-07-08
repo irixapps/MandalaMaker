@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.84';
+const VERSION = '3.85';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -4286,7 +4286,11 @@ function renderMandala(m, forExport, skipSprites) {
   }
   for (const shape of (m.shapes || [])) {
     if (shape.visible === false) continue;
-    if (shape.trailAnim?.enabled) {
+    // Text has no outline path for the generic arc-length trail renderer to
+    // walk (getShapePoints returns [] for it) -- its own Fading Trail
+    // handling lives inside renderTextShape/textFillStyle instead, reached
+    // via the normal renderShapeSymmetric path.
+    if (shape.trailAnim?.enabled && shape.type !== 'text') {
       renderShapeTrailSymmetric(ctx, m, shape);
     } else {
       renderShapeSymmetric(ctx, m, shape);
@@ -4321,7 +4325,11 @@ function renderMandalaLive(m, skipSprites) {
   }
   for (const shape of (m.shapes || [])) {
     if (shape.visible === false) continue;
-    if (shape.trailAnim?.enabled) {
+    // Text has no outline path for the generic arc-length trail renderer to
+    // walk (getShapePoints returns [] for it) -- its own Fading Trail
+    // handling lives inside renderTextShape/textFillStyle instead, reached
+    // via the normal renderShapeSymmetric path.
+    if (shape.trailAnim?.enabled && shape.type !== 'text') {
       renderShapeTrailSymmetric(ctx, m, shape);
     } else {
       renderShapeSymmetric(ctx, m, shape);
@@ -5266,30 +5274,115 @@ function getShapePath2D(shape) {
   return p;
 }
 
+let _textTrailCanvas = null, _textTrailCtx = null;
+function ensureTextTrailOffscreen(w, h) {
+  if (!_textTrailCanvas || _textTrailCanvas.width !== w || _textTrailCanvas.height !== h) {
+    _textTrailCanvas = document.createElement('canvas');
+    _textTrailCanvas.width = w; _textTrailCanvas.height = h;
+    _textTrailCtx = _textTrailCanvas.getContext('2d');
+  }
+}
+
+// Text's Animated Gradient: strokes/shapes scroll their gradient by
+// sampling sampleGradientRGB at (arc-length-distance / scale + timeOffset)
+// for every point along their outline (see the stroke gradient renderer's
+// `timeOffset`/`midD` math) — text has no arc-length path, but it does have
+// a horizontal extent, so this samples the identical gradient function
+// across x instead of distance-along-path, at enough stops (24) to read as
+// a smooth scroll/shimmer rather than a banded one. Speed/Scale/Reverse are
+// the exact same shape.gradient fields the stroke/shape UI already edits.
+function textFillStyle(gctx, shape, w) {
+  if (!shape.gradient) return shape.color || '#ffffff';
+  const { scale, speed, reverse, stops } = shape.gradient;
+  const grad = gctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  const timeOffset = speed ? (S.animClock * speed * (reverse ? -1 : 1)) % 1 : 0;
+  const SAMPLES = 24;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const frac = i / SAMPLES;
+    const x = -w / 2 + frac * w;
+    const t = x / (scale || 100) + timeOffset;
+    const { r, g, b } = sampleGradientRGB(stops, t);
+    grad.addColorStop(frac, `rgb(${r},${g},${b})`);
+  }
+  return grad;
+}
+
 // Text renders straight through fillText — no Path2D fill/stroke geometry
 // (that machinery, and its arc-length-walk gradient stroke renderer, is
-// built for vector outline shapes; text's gradient instead uses a plain
-// canvas gradient across its own measured bounding box, which is simpler
-// and reads well on a filled word/phrase without needing per-glyph
-// gradient sampling).
+// built for vector outline shapes; textFillStyle above is the equivalent
+// for a filled word/phrase without per-glyph gradient sampling).
+//
+// Fading Trail: strokes/shapes reveal a [tailFrac, headFrac] arc-length
+// window of their outline (trailWindows), with a hard cutoff at the
+// leading edge and a 25%-of-window linear fade at the trailing edge (see
+// renderTrailWindowInContext). Text has no outline path to walk either,
+// so this maps that same window onto the text's horizontal extent instead
+// — draws the (possibly gradient-filled) text to an offscreen canvas, then
+// punches the same tail-faded/head-cut window into it as an alpha mask via
+// destination-in, so a comet-like reveal sweeps across the string the same
+// way it would sweep along a stroke.
 function renderTextShape(tCtx, shape) {
   const text = shape.text || '';
   if (!text) return;
+  const fontSize = shape.fontSize || 48;
+  const w = measureTextShapeWidth(shape);
+
+  if (shape.trailAnim?.enabled && tCtx === ctx) {
+    const win = trailWindows(shape.trailAnim, S.animClock, false)[0];
+    if (!win || win.headFrac <= win.tailFrac) return;
+    const pad = fontSize; // room for ascenders/descenders/glyph overhang
+    const cw = Math.max(1, Math.ceil(w + pad * 2)), ch = Math.max(1, Math.ceil(fontSize * 2 + pad * 2));
+    ensureTextTrailOffscreen(cw, ch);
+    _textTrailCtx.clearRect(0, 0, cw, ch);
+    _textTrailCtx.save();
+    _textTrailCtx.translate(cw / 2, ch / 2);
+    _textTrailCtx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
+    _textTrailCtx.textAlign = 'center';
+    _textTrailCtx.textBaseline = 'middle';
+    _textTrailCtx.fillStyle = textFillStyle(_textTrailCtx, shape, w);
+    _textTrailCtx.fillText(text, 0, 0);
+    _textTrailCtx.restore();
+
+    const tailFrac = Math.max(0, win.tailFrac), headFrac = Math.min(1, win.headFrac);
+    const fadeFrac = Math.max(0.001, (headFrac - tailFrac) * 0.25);
+    // Reverse: strokes flip which end of the point list is arc-length 0
+    // (see pts.reverse() elsewhere); text has no point list, so the same
+    // effect — sweep the other way across the string — comes from just
+    // swapping which physical edge t=0/t=1 map to.
+    const rev = !!shape.trailAnim.reverse;
+    const mask = _textTrailCtx.createLinearGradient(rev ? w / 2 : -w / 2, 0, rev ? -w / 2 : w / 2, 0);
+    let lastPos = -1;
+    const stop = (t, a) => {
+      const pos = Math.max(lastPos, Math.max(0, Math.min(1, t)));
+      mask.addColorStop(pos, `rgba(255,255,255,${a})`);
+      lastPos = pos;
+    };
+    stop(0, 0);
+    stop(tailFrac, 0);
+    stop(tailFrac + fadeFrac, 1);
+    stop(headFrac, 1);
+    stop(headFrac + 0.001, 0);
+    stop(1, 0);
+    _textTrailCtx.save();
+    _textTrailCtx.translate(cw / 2, ch / 2);
+    _textTrailCtx.globalCompositeOperation = 'destination-in';
+    _textTrailCtx.fillStyle = mask;
+    _textTrailCtx.fillRect(-cw / 2, -ch / 2, cw, ch);
+    _textTrailCtx.restore();
+
+    tCtx.save();
+    tCtx.globalAlpha = shape.opacity ?? 1;
+    tCtx.drawImage(_textTrailCanvas, -cw / 2, -ch / 2);
+    tCtx.restore();
+    return;
+  }
+
   tCtx.save();
   tCtx.globalAlpha = shape.opacity ?? 1;
-  tCtx.font = `${shape.fontSize || 48}px ${shape.fontFamily || 'Inter'}`;
+  tCtx.font = `${fontSize}px ${shape.fontFamily || 'Inter'}`;
   tCtx.textAlign = 'center';
   tCtx.textBaseline = 'middle';
-  if (shape.gradient && tCtx === ctx) {
-    const w = measureTextShapeWidth(shape), h = shape.fontSize || 48;
-    const grad = tCtx.createLinearGradient(-w / 2, 0, w / 2, 0);
-    for (const s of shape.gradient.stops) {
-      grad.addColorStop(Math.min(1, Math.max(0, s.pos)), s.color);
-    }
-    tCtx.fillStyle = grad;
-  } else {
-    tCtx.fillStyle = shape.color || '#ffffff';
-  }
+  tCtx.fillStyle = textFillStyle(tCtx, shape, w);
   tCtx.fillText(text, 0, 0);
   tCtx.restore();
 }
@@ -5416,6 +5509,7 @@ function computeShapeRenderParams(shape) {
   _shapeProxy.text       = shape.text;
   _shapeProxy.fontFamily = shape.fontFamily;
   _shapeProxy.fontSize   = shape.fontSize;
+  _shapeProxy.trailAnim  = shape.trailAnim;
   const effShape = _shapeProxy;
 
   const effRotRad   = (animRot   ?? (shape.rotation  || 0)) * Math.PI / 180;
