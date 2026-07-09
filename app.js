@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.91';
+const VERSION = '3.92';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -6577,10 +6577,18 @@ function wireShapeProps() {
       s.arc = e.target.checked ? { enabled: true, radius: 150, startAngle: -90, direction: 1, flip: false, warp: false, radial: false } : null;
       document.getElementById('sp-arc-options').style.display = e.target.checked ? '' : 'none';
       // Turning Arc Text off entirely takes Radial Text down with it — a
-      // radial ring has no meaning without curving.
+      // radial ring has no meaning without curving. Restore wherever the
+      // shape was before Radial centred it, same as unchecking Radial
+      // Text alone does.
       if (!e.target.checked) {
         document.getElementById('sp-arc-radial').checked = false;
         document.getElementById('sp-offset-block').style.display = '';
+        if (s._preRadialX != null) { s.x = s._preRadialX; delete s._preRadialX; }
+        if (s._preRadialY != null) { s.y = s._preRadialY; delete s._preRadialY; }
+        document.getElementById('sp-offsetX').value = s.x;
+        document.getElementById('sp-offsetX-val').textContent = s.x;
+        document.getElementById('sp-offsetY').value = s.y;
+        document.getElementById('sp-offsetY-val').textContent = s.y;
       }
       markRenderDirty();
     });
@@ -6623,11 +6631,18 @@ function wireShapeProps() {
         // left untouched: forcing a single copy here was the earlier
         // mistake — every instance the mandala already draws needs to
         // stay on the circle, not collapse down to one.
+        // Remember wherever it was so turning Radial back off can put it
+        // there again instead of leaving it stuck at the centre (which
+        // would otherwise look identical to Radial being still on, since
+        // x=0,y=0 IS what makes the ring tile evenly in the first place).
+        s._preRadialX = s.x; s._preRadialY = s.y;
         s.x = 0; s.y = 0;
         document.getElementById('sp-arc-on').checked = true;
         document.getElementById('sp-arc-options').style.display = '';
       } else if (s.arc) {
         s.arc.radial = false;
+        if (s._preRadialX != null) { s.x = s._preRadialX; delete s._preRadialX; }
+        if (s._preRadialY != null) { s.y = s._preRadialY; delete s._preRadialY; }
       }
       document.getElementById('sp-offset-block').style.display = (s.arc?.radial) ? 'none' : '';
       document.getElementById('sp-offsetX').value = s.x;
