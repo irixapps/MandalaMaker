@@ -1340,12 +1340,16 @@ function _ensureEchoSnapCanvases(W, H) {
 // has always used, so existing single-instance callers need no changes;
 // a player passes its own Map so multiple instances never share cache
 // canvases sized for a different instance's dimensions.
-function drawMandalasWithOptionalSpriteSplit(ctx, canvas, forExport, runCaches = _runCaches) {
+// scale: see rebuildStrokeCache — lets a caller (the player, in
+// fullscreen) draw a project's unchanged coordinate space onto a
+// physically larger canvas for a crisp native-resolution render instead
+// of a stretched/blurry one.
+function drawMandalasWithOptionalSpriteSplit(ctx, canvas, forExport, runCaches = _runCaches, scale = 1) {
   const needSplit = _echoNeedsSpriteSplit();
   for (const m of S.mandalas) {
     if (!m.visible) continue;
-    if (forExport) renderMandala(ctx, canvas, m, true, needSplit);
-    else renderMandalaLive(ctx, canvas, m, needSplit, runCaches);
+    if (forExport) renderMandala(ctx, canvas, m, true, needSplit, scale);
+    else renderMandalaLive(ctx, canvas, m, needSplit, runCaches, scale);
   }
   if (!needSplit) return;
   _ensureEchoSnapCanvases(canvas.width, canvas.height);
@@ -1356,8 +1360,13 @@ function drawMandalasWithOptionalSpriteSplit(ctx, canvas, forExport, runCaches =
     if (!m.visible) continue;
     for (const spr of m.sprites) {
       if (spr.visible === false) continue;
-      renderSprite(ctx, m, spr);
-      renderSprite(_echoSpritesOnlySnap.ctx, m, spr);
+      if (scale !== 1) {
+        ctx.save(); ctx.scale(scale, scale); renderSprite(ctx, m, spr); ctx.restore();
+        _echoSpritesOnlySnap.ctx.save(); _echoSpritesOnlySnap.ctx.scale(scale, scale); renderSprite(_echoSpritesOnlySnap.ctx, m, spr); _echoSpritesOnlySnap.ctx.restore();
+      } else {
+        renderSprite(ctx, m, spr);
+        renderSprite(_echoSpritesOnlySnap.ctx, m, spr);
+      }
     }
   }
 }
@@ -1913,7 +1922,11 @@ function isCacheableStrokeEntry(entry) {
 // single shared instance, so a player rendering its own project into its
 // own canvas builds cache runs sized to (and stored against) its own
 // instance instead of colliding with the editor's or another player's.
-function rebuildStrokeCache(canvas, runCaches = _runCaches) {
+// scale lets a caller draw the project's own (unchanged) coordinate space
+// onto a physically larger canvas — e.g. the player re-rendering crisp at
+// the real fullscreen resolution instead of stretching a smaller bitmap —
+// without touching a single m.cx/shape.x/etc value.
+function rebuildStrokeCache(canvas, runCaches = _runCaches, scale = 1) {
   runCaches.clear();
   for (const m of S.mandalas) {
     if (!m.visible) continue;
@@ -1926,6 +1939,7 @@ function rebuildStrokeCache(canvas, runCaches = _runCaches) {
       const cv = document.createElement('canvas');
       cv.width = canvas.width; cv.height = canvas.height;
       const cc = cv.getContext('2d');
+      if (scale !== 1) cc.scale(scale, scale); // persists across each call below (each only save/restores its own translate/rotate)
       while (i < entries.length && isCacheableStrokeEntry(entries[i])) {
         const stroke = entries[i].item;
         const axes = stroke.axes != null ? stroke.axes : m.axes;
@@ -2022,9 +2036,14 @@ function renderLiveEntry(ctx, canvas, m, entry, skipSprites) {
 }
 
 // Full render — used by GIF/WebP export (no cache, everything drawn live
-// in one pass through the real z order).
-function renderMandala(ctx, canvas, m, forExport, skipSprites) {
-  for (const entry of getOrderedEntries(m)) renderLiveEntry(ctx, canvas, m, entry, skipSprites);
+// in one pass through the real z order). scale: see rebuildStrokeCache —
+// applied around each entry individually (not once for the whole loop) so
+// a cache-run blit elsewhere never gets accidentally double-scaled.
+function renderMandala(ctx, canvas, m, forExport, skipSprites, scale = 1) {
+  for (const entry of getOrderedEntries(m)) {
+    if (scale !== 1) { ctx.save(); ctx.scale(scale, scale); renderLiveEntry(ctx, canvas, m, entry, skipSprites); ctx.restore(); }
+    else renderLiveEntry(ctx, canvas, m, entry, skipSprites);
+  }
 }
 
 // Live render — walks the same z order, but blits a pre-baked run canvas
@@ -2036,8 +2055,10 @@ function renderMandala(ctx, canvas, m, forExport, skipSprites) {
 // extended; runCaches defaults to the editor's shared cache Map so
 // existing single-instance callers are unaffected — a player passes its
 // own Map (see rebuildStrokeCache) to keep multiple instances' cached
-// runs from colliding.
-function renderMandalaLive(ctx, canvas, m, skipSprites, runCaches = _runCaches) {
+// runs from colliding. scale only wraps the live (non-cached) entries —
+// a blitted run canvas was already rendered pre-scaled during
+// rebuildStrokeCache, so scaling it again here would double it up.
+function renderMandalaLive(ctx, canvas, m, skipSprites, runCaches = _runCaches, scale = 1) {
   const entries = getOrderedEntries(m);
   const runs = runCaches.get(m.id) || [];
   let runIdx = 0;
@@ -2048,7 +2069,8 @@ function renderMandalaLive(ctx, canvas, m, skipSprites, runCaches = _runCaches) 
       runIdx++;
       continue;
     }
-    renderLiveEntry(ctx, canvas, m, entries[i], skipSprites);
+    if (scale !== 1) { ctx.save(); ctx.scale(scale, scale); renderLiveEntry(ctx, canvas, m, entries[i], skipSprites); ctx.restore(); }
+    else renderLiveEntry(ctx, canvas, m, entries[i], skipSprites);
   }
 }
 

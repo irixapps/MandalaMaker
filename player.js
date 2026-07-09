@@ -44,6 +44,8 @@ let renderDirty = true;
 let isVisible = true;   // gated by IntersectionObserver — pause RAF work when scrolled offscreen
 let hasLoaded = false;
 const runCaches = new Map(); // this instance's own stroke run-cache — see rebuildStrokeCache in engine.js
+let renderScale = 1; // >1 while fullscreen — see enterFullscreenRender
+let preFullscreenSize = null; // { width, height } to restore on exit
 
 function markRenderDirty() { renderDirty = true; }
 
@@ -93,7 +95,7 @@ function loadProjectData(json) {
 
   return Promise.all([...paletteLoads, ...fontLoads]).then(() => {
     runCaches.clear();
-    rebuildStrokeCache(canvas, runCaches);
+    rebuildStrokeCache(canvas, runCaches, renderScale);
     renderDirty = true;
   });
 }
@@ -125,7 +127,7 @@ function renderFrame(timestamp) {
   if (animating && !animPaused) S.animClock += dt;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawMandalasWithOptionalSpriteSplit(ctx, canvas, false, runCaches);
+  drawMandalasWithOptionalSpriteSplit(ctx, canvas, false, runCaches, renderScale);
   applyEffectsChain(ctx, canvas);
 
   ctx.save();
@@ -161,6 +163,66 @@ function toggleFullscreen() {
   }
 }
 fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+// Largest rectangle with the project's own aspect ratio that fits inside
+// the given container — same "letterbox" math object-fit:contain does,
+// just computed ourselves since we need the actual numbers to resize the
+// canvas's pixel buffer, not just its CSS display size.
+function computeFitSize(containerW, containerH, aspectW, aspectH) {
+  const aspect = aspectW / aspectH;
+  let w = containerW, h = containerW / aspect;
+  if (h > containerH) { h = containerH; w = containerH * aspect; }
+  return { w, h };
+}
+
+// A mandala is drawn procedurally (lines/curves/gradients), not a fixed
+// photo — so instead of letting CSS stretch the saved-resolution bitmap
+// across a big display (soft/blurry), this actually redraws it at the
+// real fullscreen resolution: the canvas's pixel buffer grows to the
+// fit-rect size × devicePixelRatio, and every draw call runs through an
+// extra scale (see rebuildStrokeCache/renderMandalaLive's scale param) so
+// the project's own coordinates never need to change — only how big one
+// project-space unit ends up on screen.
+function enterFullscreenRender() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); // capped — a 3x/4x canvas buys little visible sharpness but costs real memory/fill-rate
+  const { w: fitW, h: fitH } = computeFitSize(window.innerWidth, window.innerHeight, S.canvasW, S.canvasH);
+
+  preFullscreenSize = { width: canvas.width, height: canvas.height };
+  renderScale = (fitW * dpr) / S.canvasW;
+
+  canvas.width = Math.round(fitW * dpr);
+  canvas.height = Math.round(fitH * dpr);
+  canvas.style.width = fitW + 'px';
+  canvas.style.height = fitH + 'px';
+
+  runCaches.clear();
+  rebuildStrokeCache(canvas, runCaches, renderScale);
+  renderDirty = true;
+}
+
+function exitFullscreenRender() {
+  if (!preFullscreenSize) return;
+  renderScale = 1;
+  canvas.width = preFullscreenSize.width;
+  canvas.height = preFullscreenSize.height;
+  canvas.style.width = '';
+  canvas.style.height = '';
+  preFullscreenSize = null;
+
+  runCaches.clear();
+  rebuildStrokeCache(canvas, runCaches, renderScale);
+  renderDirty = true;
+}
+
+document.addEventListener('fullscreenchange', () => {
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (isFs) enterFullscreenRender(); else exitFullscreenRender();
+});
+// Safari uses a separate prefixed event rather than firing the standard one.
+document.addEventListener('webkitfullscreenchange', () => {
+  const isFs = !!document.webkitFullscreenElement;
+  if (isFs) enterFullscreenRender(); else exitFullscreenRender();
+});
 
 // ── Visibility-based pausing ──────────────────────────────
 // Offscreen gallery tiles shouldn't burn CPU/battery redrawing a canvas
