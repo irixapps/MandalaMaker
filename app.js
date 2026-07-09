@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.92';
+const VERSION = '3.93';
 
 // ── Constants ──────────────────────────────────────────
 const MANDALA_COLORS = ['#ff6b9d','#7c6af0','#4ecdc4','#ffe66d','#ff8b3d','#a8ff78'];
@@ -6240,6 +6240,15 @@ function handleShapeDragFn(pos) {
     const worldAngle = Math.atan2(pos.y - ccy, pos.x - ccx);
     const localAngle = worldAngle - (axisRotRad + orbit);
     shape.rotation = (localAngle + Math.PI / 2) * 180 / Math.PI;
+    // Arc/Radial text: the same handle sits at (arc.radius + fontSize + 20)
+    // from center regardless of rotation (rotating a point only changes its
+    // angle, not its distance), so the drag distance from center doubles as
+    // a live radius control — no separate resize handle needed.
+    if (shape.type === 'text' && shape.arc?.enabled) {
+      const dist = Math.hypot(pos.x - ccx, pos.y - ccy);
+      const fontSize = shape.fontSize || 48;
+      shape.arc.radius = Math.max(20, Math.round(dist - fontSize - 20));
+    }
   } else if (S.shapeHandleDrag === 'petal-base') {
     // Re-aim/resize the tip->base axis, same angle-snap as the Line tool
     // and the petal's own creation drag.
