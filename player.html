@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mandalize Player</title>
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+<!-- Off-screen container palette images decode/paint into before being
+     drawn to the canvas — same pattern the editor relies on, see
+     loadProjectData in player.js. -->
+<div id="hidden-imgs" style="display:none"></div>
+
+<div id="player-root">
+  <canvas id="main-canvas" width="1200" height="900"></canvas>
+
+  <div id="player-loading">Loading…</div>
+  <div id="player-error" style="display:none">Couldn't load this mandala.</div>
+
+  <div id="player-chrome" style="display:none">
+    <button id="player-play-pause" title="Play/Pause (Space)" aria-label="Play or pause">❚❚</button>
+    <button id="player-fullscreen" title="Fullscreen (F)" aria-label="Toggle fullscreen">⛶</button>
+  </div>
+</div>
+
+<!-- gifuct decodes animated GIF sprites saved inside a project's palette —
+     same dependency the editor has. No gifenc/video-export libraries here:
+     the player only ever plays a project, never exports one. -->
+<script src="gifuct.bundle.js"></script>
+<script src="engine.js"></script>
+<script src="player.js"></script>
+</body>
+</html>

@@ -3467,22 +3467,6 @@ function addCustomFontMenuItem(cf) {
   return item;
 }
 
-// Registers a previously-uploaded font's base64 data with the browser via
-// the FontFace API — needed both right after upload and again every time a
-// project loads (a FontFace registration is in-memory only; it doesn't
-// survive a page reload on its own, only the base64 in the save file does).
-async function registerCustomFont(cf) {
-  try {
-    const font = new FontFace(cf.family, `url(${cf.dataUrl})`);
-    await font.load();
-    document.fonts.add(font);
-    return true;
-  } catch (e) {
-    console.warn('Custom font failed to load:', cf.name, e);
-    return false;
-  }
-}
-
 // Reads an uploaded font file, registers it, and stores it in
 // S.customFonts (base64 dataUrl, so saveProject/loadProject persist it
 // exactly like a palette image). Returns null (and warns the user) if the

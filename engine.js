@@ -1663,6 +1663,23 @@ function getOrderedEntries(m) {
 }
 
 function getPaletteItem(id) { return S.palette.find(p => p.id === id) || null; }
+
+// Registers a previously-uploaded font's base64 data with the browser via
+// the FontFace API — needed both right after upload and again every time a
+// project loads (a FontFace registration is in-memory only; it doesn't
+// survive a page reload on its own, only the base64 in the save file does).
+async function registerCustomFont(cf) {
+  try {
+    const font = new FontFace(cf.family, `url(${cf.dataUrl})`);
+    await font.load();
+    document.fonts.add(font);
+    return true;
+  } catch (e) {
+    console.warn('Custom font failed to load:', cf.name, e);
+    return false;
+  }
+}
+
 // ── GIF / WebP frame decoder (drives our own animation, not the img element) ──
 async function initGifAnimation(item) {
   if (typeof gifuct === "undefined") return; // library not loaded
