@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ── Version ────────────────────────────────────────────
-const VERSION = '3.94';
+const VERSION = '3.95';
 
 // A fixed colour, deliberately not in MANDALA_COLORS, for the axis-snap
 // dots/rays — they used to reuse the active mandala's own accent colour
@@ -885,7 +885,7 @@ function drawRadialGhost() {
   const { kind, mandala, entity, x, y } = _radialGhost;
   if (kind === 'shape') {
     const ghost = { ...entity, anim: {}, x, y, color: '#ffffff', fill: entity.fill ? '#ffffff' : null, gradient: null, opacity: 0.35 };
-    renderShapeSymmetric(ctx, mandala, ghost);
+    renderShapeSymmetric(ctx, canvas, mandala, ghost);
   } else if (kind === 'sprite') {
     const item = getPaletteItem(entity.paletteId);
     if (!item || !item.img.complete) return;
@@ -1917,14 +1917,14 @@ function render(timestamp) {
 
   // Rebuild per-mandala solid-stroke run caches if dirty — each run gets
   // blitted at its correct z position inside renderMandalaLive, not here.
-  if (_strokeCacheDirty) rebuildStrokeCache();
+  if (_strokeCacheDirty) rebuildStrokeCache(canvas);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Grid overlay
   if (S.snapGrid.enabled) renderGridOverlay();
 
   // Live layer: gradient strokes + sprites for all mandalas
-  drawMandalasWithOptionalSpriteSplit(false);
+  drawMandalasWithOptionalSpriteSplit(ctx, canvas, false);
 
   // EFFECT-MODULE: render-hook — post-process the finished artwork before
   // any tool previews/guides/selection handles draw on top, so effects
@@ -1954,7 +1954,7 @@ function render(timestamp) {
     const m = getActiveMandala();
     if (m) {
       ctx.save(); ctx.globalAlpha = 0.55;
-      renderShapeSymmetric(ctx, m, S.shapePreview);
+      renderShapeSymmetric(ctx, canvas, m, S.shapePreview);
       ctx.restore();
     }
   }
@@ -1980,7 +1980,7 @@ function render(timestamp) {
         axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror,
       };
       ctx.save(); ctx.globalAlpha = 0.7;
-      renderShapeSymmetric(ctx, m, previewShape);
+      renderShapeSymmetric(ctx, canvas, m, previewShape);
       ctx.restore();
       renderPetalGuides(m, S.petalTip, S.petalBase, S.petalPhase === 'curve' ? S.petalCurve : null);
     }
@@ -2004,7 +2004,7 @@ function render(timestamp) {
         axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror,
       };
       ctx.save(); ctx.globalAlpha = 0.7;
-      renderShapeSymmetric(ctx, m, previewShape);
+      renderShapeSymmetric(ctx, canvas, m, previewShape);
       ctx.restore();
       renderPetalGuides(m, S.bezierTip, S.bezierEnd, S.bezierPhase === 'curve' ? S.bezierCurve : null);
     }
@@ -2031,7 +2031,7 @@ function render(timestamp) {
         axes: m.axes, axisRotation: m.axisRotation, mirror: m.mirror,
       };
       ctx.save(); ctx.globalAlpha = 0.7;
-      renderShapeSymmetric(ctx, m, previewShape);
+      renderShapeSymmetric(ctx, canvas, m, previewShape);
       ctx.restore();
       renderWingGuides(m, S.wingTip, S.wingEnd, S.wingPhase === 'curve' ? S.wingCurve : null, S.wingMirrorAngle);
     }
@@ -6147,7 +6147,7 @@ function exportPNG() {
   S.selectedSpriteId = null;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawMandalasWithOptionalSpriteSplit(true);
+  drawMandalasWithOptionalSpriteSplit(ctx, canvas, true);
   // Fill background colour in behind everything, same destination-over
   // trick as the live render() loop — see rebuildStrokeCache's comment.
   ctx.save();
@@ -6383,7 +6383,7 @@ async function doExportWebP() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawMandalasWithOptionalSpriteSplit(true);
+      drawMandalasWithOptionalSpriteSplit(ctx, canvas, true);
       // Fill background colour in behind everything, same destination-over
       // trick as the live render() loop — see rebuildStrokeCache's comment.
       ctx.save();
@@ -6491,7 +6491,7 @@ async function doExportGIF() {
 
       // Render frame to main canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawMandalasWithOptionalSpriteSplit(true);
+      drawMandalasWithOptionalSpriteSplit(ctx, canvas, true);
       // Fill background colour in behind everything, same destination-over
       // trick as the live render() loop — see rebuildStrokeCache's comment.
       ctx.save();
@@ -6684,7 +6684,7 @@ async function doExportVideo() {
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawMandalasWithOptionalSpriteSplit(true);
+      drawMandalasWithOptionalSpriteSplit(ctx, canvas, true);
       // Fill background colour in behind everything, same destination-over
       // trick as the live render() loop — see rebuildStrokeCache's comment.
       ctx.save();

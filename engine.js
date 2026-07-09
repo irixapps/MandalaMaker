@@ -1331,12 +1331,21 @@ function _ensureEchoSnapCanvases(W, H) {
 // that effect's apply() can work on everything except sprites, then redraw
 // sprites fresh on top afterwards. Zero extra canvas work when no effect
 // needs it.
-function drawMandalasWithOptionalSpriteSplit(forExport) {
+// ctx/canvas are explicit parameters (not read off a bare global) so this
+// — and everything it calls — works correctly for any canvas instance,
+// not just "the" editor canvas; a standalone player rendering multiple
+// mandalas on one page each passes its own ctx/canvas through here.
+// runCaches (mandala.id -> baked solid-stroke run canvases, see
+// rebuildStrokeCache) defaults to the shared module-level cache the editor
+// has always used, so existing single-instance callers need no changes;
+// a player passes its own Map so multiple instances never share cache
+// canvases sized for a different instance's dimensions.
+function drawMandalasWithOptionalSpriteSplit(ctx, canvas, forExport, runCaches = _runCaches) {
   const needSplit = _echoNeedsSpriteSplit();
   for (const m of S.mandalas) {
     if (!m.visible) continue;
-    if (forExport) renderMandala(m, true, needSplit);
-    else renderMandalaLive(m, needSplit);
+    if (forExport) renderMandala(ctx, canvas, m, true, needSplit);
+    else renderMandalaLive(ctx, canvas, m, needSplit, runCaches);
   }
   if (!needSplit) return;
   _ensureEchoSnapCanvases(canvas.width, canvas.height);
@@ -1883,8 +1892,12 @@ function isCacheableStrokeEntry(entry) {
   return s.pts.length >= 2 && s.visible !== false && !s.erase && !s.gradient && !s.trailAnim?.enabled && !s.anim?.orbit?.enabled;
 }
 
-function rebuildStrokeCache() {
-  _runCaches.clear();
+// canvas/runCaches are explicit parameters, defaulting to the editor's
+// single shared instance, so a player rendering its own project into its
+// own canvas builds cache runs sized to (and stored against) its own
+// instance instead of colliding with the editor's or another player's.
+function rebuildStrokeCache(canvas, runCaches = _runCaches) {
+  runCaches.clear();
   for (const m of S.mandalas) {
     if (!m.visible) continue;
     const entries = getOrderedEntries(m);
@@ -1905,7 +1918,7 @@ function rebuildStrokeCache() {
       }
       runs.push({ startIdx, endIdx: i - 1, canvas: cv });
     }
-    _runCaches.set(m.id, runs);
+    runCaches.set(m.id, runs);
   }
   _strokeCacheDirty = false;
 }
@@ -1961,7 +1974,9 @@ function strokeEffectiveRot(stroke, m, clk) {
 // shared by renderMandala's full pass and renderMandalaLive's non-cached
 // entries. skipSprites lets the Echo/Bloom "Exclude Images" sprite-split
 // path omit sprites from this pass and re-composite them separately.
-function renderLiveEntry(m, entry, skipSprites) {
+// ctx/canvas are explicit parameters (not bare globals) so this works
+// correctly for any canvas instance — see drawMandalasWithOptionalSpriteSplit.
+function renderLiveEntry(ctx, canvas, m, entry, skipSprites) {
   if (entry.type === 'stroke') {
     const stroke = entry.item;
     if (stroke.pts.length < 2 || stroke.visible === false) return;
@@ -1982,7 +1997,7 @@ function renderLiveEntry(m, entry, skipSprites) {
     if (shape.trailAnim?.enabled && shape.type !== 'text') {
       renderShapeTrailSymmetric(ctx, m, shape);
     } else {
-      renderShapeSymmetric(ctx, m, shape);
+      renderShapeSymmetric(ctx, canvas, m, shape);
     }
   } else if (entry.type === 'sprite') {
     if (!skipSprites && entry.item.visible !== false) renderSprite(ctx, m, entry.item);
@@ -1991,8 +2006,8 @@ function renderLiveEntry(m, entry, skipSprites) {
 
 // Full render — used by GIF/WebP export (no cache, everything drawn live
 // in one pass through the real z order).
-function renderMandala(m, forExport, skipSprites) {
-  for (const entry of getOrderedEntries(m)) renderLiveEntry(m, entry, skipSprites);
+function renderMandala(ctx, canvas, m, forExport, skipSprites) {
+  for (const entry of getOrderedEntries(m)) renderLiveEntry(ctx, canvas, m, entry, skipSprites);
 }
 
 // Live render — walks the same z order, but blits a pre-baked run canvas
@@ -2000,9 +2015,14 @@ function renderMandala(m, forExport, skipSprites) {
 // instead of redrawing them; everything else (gradient/trail/orbit/erase
 // strokes, shapes, sprites) still renders live at its exact position in
 // the walk, so the visible stacking always matches actual draw order.
-function renderMandalaLive(m, skipSprites) {
+// canvas is only needed to size a freshly-blitted run correctly if ever
+// extended; runCaches defaults to the editor's shared cache Map so
+// existing single-instance callers are unaffected — a player passes its
+// own Map (see rebuildStrokeCache) to keep multiple instances' cached
+// runs from colliding.
+function renderMandalaLive(ctx, canvas, m, skipSprites, runCaches = _runCaches) {
   const entries = getOrderedEntries(m);
-  const runs = _runCaches.get(m.id) || [];
+  const runs = runCaches.get(m.id) || [];
   let runIdx = 0;
   for (let i = 0; i < entries.length; i++) {
     if (runIdx < runs.length && i === runs[runIdx].startIdx) {
@@ -2011,7 +2031,7 @@ function renderMandalaLive(m, skipSprites) {
       runIdx++;
       continue;
     }
-    renderLiveEntry(m, entries[i], skipSprites);
+    renderLiveEntry(ctx, canvas, m, entries[i], skipSprites);
   }
 }
 
@@ -2675,7 +2695,7 @@ function renderTextShape(tCtx, shape) {
   const fontSize = shape.fontSize || 48;
   const w = measureTextShapeWidth(shape);
 
-  if (shape.trailAnim?.enabled && tCtx === ctx) {
+  if (shape.trailAnim?.enabled) {
     const flat = buildFlatTextCanvas(shape, w);
     if (!flat) return;
     tCtx.save();
@@ -2747,7 +2767,11 @@ function renderWarpArcText(tCtx, shape) {
   tCtx.restore();
 }
 
-function renderShapeInContext(tCtx, shape) {
+// canvas is only needed by the composite gradient-stroke branch below (to
+// size its offscreen buffers correctly) — an explicit parameter rather
+// than a bare global so this renders correctly against any canvas
+// instance, not just "the" editor canvas.
+function renderShapeInContext(tCtx, canvas, shape) {
   if (shape.type === 'text') { renderTextShape(tCtx, shape); return; }
   const path = getShapePath2D(shape);
   tCtx.save();
@@ -2763,7 +2787,7 @@ function renderShapeInContext(tCtx, shape) {
   if (shape.fill && !isOpenCurve) { tCtx.fillStyle = shape.fill; tCtx.fill(path); }
 
   // Stroke
-  if (shape.gradient && tCtx === ctx) {
+  if (shape.gradient) {
     const scaledDash = (shape.dash && shape.dash.length) ? shape.dash.map(v => v * t) : null;
     const lineCap    = shape.lineCap  || 'round';
     const lineJoin   = shape.lineJoin || 'round';
@@ -2785,7 +2809,7 @@ function renderShapeInContext(tCtx, shape) {
         // mask with a native stroke (correct lineCap/lineJoin/dash) via destination-in.
         const W = canvas.width, H = canvas.height;
         _ensureGradOffscreen(W, H);
-        const xf = ctx.getTransform();
+        const xf = tCtx.getTransform();
 
         // 1. Draw gradient arc-walk(s) into colour canvas — one call per arm
         // for Wing so each starts fresh at the tip.
@@ -2813,12 +2837,12 @@ function renderShapeInContext(tCtx, shape) {
         _gradColorCtx.drawImage(_gradMaskCanvas, 0, 0);
         _gradColorCtx.globalCompositeOperation = 'source-over';
 
-        // 4. Blit to main canvas (bypass current transform — already baked in)
-        ctx.save();
-        ctx.resetTransform();
-        ctx.globalAlpha = shape.opacity || 1;
-        ctx.drawImage(_gradColorCanvas, 0, 0);
-        ctx.restore();
+        // 4. Blit to the target canvas (bypass current transform — already baked in)
+        tCtx.save();
+        tCtx.resetTransform();
+        tCtx.globalAlpha = shape.opacity || 1;
+        tCtx.drawImage(_gradColorCanvas, 0, 0);
+        tCtx.restore();
       } else {
         renderGradientSegments(armPtsList[0], shape.gradient, shape.thickness, scaledDash, lineCap);
       }
@@ -2902,7 +2926,7 @@ function applyShapeLocalRotation(tCtx, shape, effRotRad) {
   }
 }
 
-function renderShapeSymmetric(tCtx, m, shape) {
+function renderShapeSymmetric(tCtx, canvas, m, shape) {
   const { effShape, effRotRad, effOrbitRad, effX, effY } = computeShapeRenderParams(shape);
 
   const n = shape.axes != null ? shape.axes : m.axes;
@@ -2922,7 +2946,7 @@ function renderShapeSymmetric(tCtx, m, shape) {
       if (flip === 1) tCtx.scale(1, -1);
       tCtx.translate(effX, effY);
       applyShapeLocalRotation(tCtx, shape, effRotRad);
-      renderShapeInContext(tCtx, effShape);
+      renderShapeInContext(tCtx, canvas, effShape);
       tCtx.restore();
     }
   }
